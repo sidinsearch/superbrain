@@ -9,6 +9,8 @@ import contextlib
 
 def sanitize_folder_name(text, max_length=50):
     """Sanitize text for use as folder name"""
+    # Remove emojis and special Unicode characters
+    text = text.encode('ascii', 'ignore').decode('ascii')
     # Remove or replace invalid characters
     text = re.sub(r'[<>:"/\\|?*\n\r]', '', text)
     # Replace multiple spaces with single space
@@ -154,6 +156,8 @@ def download_instagram_content(url):
         
         print(f"\nDownload completed successfully!")
         print(f"Files saved to: {final_folder}")
+        
+        return final_folder  # Return folder path for main.py
         
     except instaloader.exceptions.LoginRequiredException:
         print("\nError: Login Required. Instagram is blocking anonymous access for this content.")
