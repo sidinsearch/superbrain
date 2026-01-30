@@ -31,7 +31,15 @@ class Database:
         
         try:
             with open(config_file, 'r') as f:
-                connection_string = f.read().strip()
+                # Read all lines and get the first non-comment, non-empty line
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        connection_string = line
+                        break
+                else:
+                    print("⚠️  No valid connection string found in .mongodb_config")
+                    return
             
             # Connect to MongoDB
             self.client = MongoClient(connection_string, serverSelectionTimeoutMS=5000)

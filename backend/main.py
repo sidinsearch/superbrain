@@ -2,6 +2,7 @@
 """
 SuperBrain - Instagram Content Analyzer
 Main orchestrator that coordinates all analysis scripts
+With parallel processing for better performance
 """
 
 import sys
@@ -10,6 +11,9 @@ from pathlib import Path
 import subprocess
 import json
 import re
+import shutil
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
 
 # Import local modules
 from link_checker import validate_link
@@ -245,6 +249,54 @@ def run_script(script_name, args):
     except Exception as e:
         return False, "", str(e)
 
+def run_analysis_task(task_name, script_name, file_path, task_type="light"):
+    """
+    Run a single analysis task (for parallel execution)
+    
+    Args:
+        task_name: Display name (e.g., "Visual Analysis")
+        script_name: Python script to run
+        file_path: Path to file to analyze
+        task_type: "heavy" or "light" (for scheduling)
+    
+    Returns:
+        dict with task results
+    """
+    start_time = time.time()
+    print(f"  ⚡ Starting {task_name}: {Path(file_path).name}")
+    
+    success, stdout, stderr = run_script(script_name, [str(file_path)])
+    
+    elapsed = time.time() - start_time
+    
+    result = {
+        'task_name': task_name,
+        'file': Path(file_path).name,
+        'success': success,
+        'output': stdout if success else '',
+        'error': stderr if not success else '',
+        'elapsed': elapsed,
+        'type': task_type
+    }
+    
+    if success:
+        print(f"  ✓ Completed {task_name}: {Path(file_path).name} ({elapsed:.1f}s)")
+    else:
+        print(f"  ✗ Failed {task_name}: {Path(file_path).name}")
+    
+    return result
+
+def cleanup_temp_folder(folder_path):
+    """Delete temp folder after successful database save"""
+    try:
+        if os.path.exists(folder_path):
+            shutil.rmtree(folder_path)
+            print(f"🗑️  Cleaned up temp folder: {Path(folder_path).name}")
+            return True
+    except Exception as e:
+        print(f"⚠ Warning: Could not delete temp folder: {e}")
+    return False
+
 def main():
     """Main orchestrator"""
     
@@ -351,7 +403,12 @@ def main():
     print(f"🖼️  Images: {len(jpg_files)}")
     print(f"📄 Info files: {len(info_files)}")
     
-    # Step 5: Run analyses
+    # Step 5: Run analyses with SMART PARALLEL PROCESSING
+    print_section("🚀 Step 4: Running Parallel Analysis")
+    print("Strategy: Heavy tasks sequential, light tasks parallel")
+    print("Heavy: Visual (video processing), Audio (Whisper)")
+    print("Light: Music (Shazam), Text (metadata)")
+    
     results = {
         'visual': [],
         'audio_transcription': [],
@@ -359,102 +416,90 @@ def main():
         'text': []
     }
     
-    # Analyze videos and images (Visual Analysis)
+    all_tasks = []
+    analysis_start = time.time()
+    
+    # === PHASE 1: Visual Analysis (HEAVY) - Run alone ===
     if mp4_files or jpg_files:
-        print_section("🎬 Step 4: Visual Analysis")
-        
-        visual_analyzer = 'visual_analyze.py'
+        print(f"\n🎬 Phase 1: Visual Analysis (Heavy Task)")
         
         for video in mp4_files:
-            print(f"\n🎥 Analyzing video: {video.name}")
-            success, stdout, stderr = run_script(visual_analyzer, [str(video)])
-            if success and stdout:
+            result = run_analysis_task("Visual", 'visual_analyze.py', str(video), "heavy")
+            if result['success']:
                 results['visual'].append({
-                    'file': video.name,
+                    'file': result['file'],
                     'type': 'video',
-                    'output': stdout
+                    'output': result['output']
                 })
-                print(stdout)
-            else:
-                print(f"⚠ Visual analysis failed for {video.name}")
-                if stderr:
-                    print(f"   Error: {stderr[:500]}")
+                print(result['output'][:500] + "...\n")
         
-        for image in jpg_files:
-            if '_thumbnail' not in image.name:  # Skip thumbnails
-                print(f"\n🖼️  Analyzing image: {image.name}")
-                success, stdout, stderr = run_script(visual_analyzer, [str(image)])
-                if success and stdout:
-                    results['visual'].append({
-                        'file': image.name,
-                        'type': 'image',
-                        'output': stdout
-                    })
-                    print(stdout)
-                else:
-                    print(f"⚠ Visual analysis failed for {image.name}")
-                    if stderr:
-                        print(f"   Error: {stderr[:200]}")
+        for img in jpg_files:
+            result = run_analysis_task("Visual", 'visual_analyze.py', str(img), "heavy")
+            if result['success']:
+                results['visual'].append({
+                    'file': result['file'],
+                    'type': 'image',
+                    'output': result['output']
+                })
+                print(result['output'][:500] + "...\n")
     
-    # Analyze audio (Transcription)
+    # === PHASE 2: Audio Transcription (HEAVY) - Run alone ===
     if mp3_files:
-        print_section("🎙️  Step 5: Audio Transcription")
-        
-        audio_transcriber = 'audio_transcribe.py'
+        print(f"\n🎙️ Phase 2: Audio Transcription (Heavy Task)")
         
         for audio in mp3_files:
-            print(f"\n🎵 Transcribing: {audio.name}")
-            success, stdout, stderr = run_script(audio_transcriber, [str(audio)])
-            if success and stdout:
+            result = run_analysis_task("Audio", 'audio_transcribe.py', str(audio), "heavy")
+            if result['success']:
                 results['audio_transcription'].append({
-                    'file': audio.name,
-                    'output': stdout
+                    'file': result['file'],
+                    'output': result['output']
                 })
-                print(stdout)
-            else:
-                print(f"⚠ Transcription failed for {audio.name}")
-                if stderr:
-                    print(f"   Error: {stderr[:200]}")
+                print(result['output'][:500] + "...\n")
     
-    # Identify music
-    if mp3_files:
-        print_section("🎵 Step 6: Music Identification")
-        
-        music_identifier = 'music_identifier.py'
-        
-        for audio in mp3_files:
-            print(f"\n🎶 Identifying music: {audio.name}")
-            success, stdout, stderr = run_script(music_identifier, [str(audio)])
-            if success and stdout:
-                results['music_identification'].append({
-                    'file': audio.name,
-                    'output': stdout
-                })
-                print(stdout)
-            else:
-                print(f"⚠ Music identification failed for {audio.name}")
-                if stderr:
-                    print(f"   Error: {stderr[:200]}")
+    # === PHASE 3: Light tasks in PARALLEL ===
+    print(f"\n⚡ Phase 3: Light Tasks (Parallel Execution)")
     
-    # Analyze info.txt
-    if info_files:
-        print_section("📄 Step 7: Text Analysis")
-        
-        text_analyzer = 'text_analyzer.py'
-        
-        for info_file in info_files:
-            print(f"\n📝 Analyzing: {info_file.name}")
-            success, stdout, stderr = run_script(text_analyzer, [str(info_file)])
-            if success and stdout:
-                results['text'].append({
-                    'file': info_file.name,
-                    'output': stdout
-                })
-                print(stdout)
-            else:
-                print(f"⚠ Text analysis failed for {info_file.name}")
-                if stderr:
-                    print(f"   Error: {stderr[:200]}")
+    light_tasks = []
+    
+    # Add music identification tasks
+    for audio in mp3_files:
+        light_tasks.append(('music', 'music_identifier.py', str(audio)))
+    
+    # Add text analysis tasks
+    for info_file in info_files:
+        light_tasks.append(('text', 'text_analyzer.py', str(info_file)))
+    
+    if light_tasks:
+        # Run light tasks in parallel (max 3 concurrent)
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = {}
+            
+            for task_type, script, file_path in light_tasks:
+                task_name = "Music ID" if task_type == 'music' else "Text"
+                future = executor.submit(run_analysis_task, task_name, script, file_path, "light")
+                futures[future] = task_type
+            
+            # Collect results as they complete
+            for future in as_completed(futures):
+                task_type = futures[future]
+                result = future.result()
+                
+                if result['success']:
+                    if task_type == 'music':
+                        results['music_identification'].append({
+                            'file': result['file'],
+                            'output': result['output']
+                        })
+                    else:  # text
+                        results['text'].append({
+                            'file': result['file'],
+                            'output': result['output']
+                        })
+                    
+                    print(result['output'][:300] + "...\n")
+    
+    analysis_elapsed = time.time() - analysis_start
+    print(f"\n⏱️  Total Analysis Time: {analysis_elapsed:.1f}s")
     
     # Final comprehensive summary
     print_header("✅ GENERATING COMPREHENSIVE SUMMARY")
@@ -513,9 +558,19 @@ def main():
         post_date=post_date
     )
     
+    print(f"✓ Analysis saved to database")
+    
+    # Step 8: Cleanup temp folder
+    print_section("🧹 Step 5: Cleanup")
+    
+    if cleanup_temp_folder(download_folder):
+        print(f"✓ Temp folder deleted successfully")
+    else:
+        print(f"⚠ Temp folder not deleted (may need manual cleanup)")
+    
     print("\n" + "=" * 80)
-    print(f"📂 Content Folder: {download_folder}")
     print(f"📊 Analyses Complete: Visual({len(results['visual'])}), Audio({len(results['audio_transcription'])}), Music({len(results['music_identification'])}), Text({len(results['text'])})")
+    print(f"⏱️  Total Time: {analysis_elapsed:.1f}s")
     print("=" * 80 + "\n")
 
 if __name__ == "__main__":
