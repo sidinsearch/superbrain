@@ -50,9 +50,12 @@ class Database:
             # Select database and collection
             self.db = self.client['superbrain']
             self.collection = self.db['analyses']
+            self.queue_collection = self.db['processing_queue']
             
             # Create index on shortcode for fast lookups
             self.collection.create_index([("shortcode", ASCENDING)], unique=True)
+            self.queue_collection.create_index([("shortcode", ASCENDING)], unique=True)
+            self.queue_collection.create_index([("status", ASCENDING)])
             
             print("✓ Connected to MongoDB Atlas")
             
@@ -205,6 +208,187 @@ class Database:
         """Close database connection"""
         if self.client:
             self.client.close()
+    
+    # ==================== QUEUE MANAGEMENT ====================
+    
+    def add_to_queue(self, shortcode, url):
+        """
+        Add item to processing queue
+        
+        Args:
+            shortcode: Instagram post shortcode
+            url: Full Instagram URL
+        
+        Returns:
+            int: Queue position (1-based)
+        """
+        if not self.is_connected():
+            return -1
+        
+        try:
+            # Check if already in queue or processing
+            existing = self.queue_collection.find_one({"shortcode": shortcode})
+            if existing:
+                if existing['status'] == 'queued':
+                    return existing.get('position', -1)
+                elif existing['status'] == 'processing':
+                    return 0  # Currently processing
+            
+            # Get current max position
+            max_pos = self.queue_collection.find_one(
+                {"status": "queued"},
+                sort=[("position", -1)]
+            )
+            position = (max_pos['position'] + 1) if max_pos else 1
+            
+            # Insert queue item
+            self.queue_collection.update_one(
+                {"shortcode": shortcode},
+                {
+                    "$set": {
+                        "shortcode": shortcode,
+                        "url": url,
+                        "status": "queued",
+                        "position": position,
+                        "added_at": datetime.utcnow(),
+                        "updated_at": datetime.utcnow()
+                    }
+                },
+                upsert=True
+            )
+            
+            return position
+            
+        except Exception as e:
+            print(f"⚠️  Error adding to queue: {e}")
+            return -1
+    
+    def get_queue(self):
+        """
+        Get all queued items
+        
+        Returns:
+            list: List of queued items with shortcode and URL
+        """
+        if not self.is_connected():
+            return []
+        
+        try:
+            items = list(self.queue_collection.find(
+                {"status": "queued"}
+            ).sort("position", 1))
+            
+            return [{"shortcode": item['shortcode'], "url": item['url'], "position": item['position']} 
+                    for item in items]
+        except Exception as e:
+            print(f"⚠️  Error getting queue: {e}")
+            return []
+    
+    def get_processing(self):
+        """
+        Get all currently processing items
+        
+        Returns:
+            list: List of processing shortcodes
+        """
+        if not self.is_connected():
+            return []
+        
+        try:
+            items = list(self.queue_collection.find({"status": "processing"}))
+            return [item['shortcode'] for item in items]
+        except Exception as e:
+            print(f"⚠️  Error getting processing items: {e}")
+            return []
+    
+    def mark_processing(self, shortcode):
+        """Mark item as currently processing"""
+        if not self.is_connected():
+            return False
+        
+        try:
+            self.queue_collection.update_one(
+                {"shortcode": shortcode},
+                {
+                    "$set": {
+                        "status": "processing",
+                        "started_at": datetime.utcnow(),
+                        "updated_at": datetime.utcnow()
+                    }
+                }
+            )
+            return True
+        except Exception as e:
+            print(f"⚠️  Error marking as processing: {e}")
+            return False
+    
+    def remove_from_queue(self, shortcode):
+        """Remove item from queue (completed or failed)"""
+        if not self.is_connected():
+            return False
+        
+        try:
+            self.queue_collection.delete_one({"shortcode": shortcode})
+            
+            # Reorder remaining queue positions
+            queued_items = list(self.queue_collection.find(
+                {"status": "queued"}
+            ).sort("position", 1))
+            
+            for idx, item in enumerate(queued_items, 1):
+                if item['position'] != idx:
+                    self.queue_collection.update_one(
+                        {"_id": item['_id']},
+                        {"$set": {"position": idx, "updated_at": datetime.utcnow()}}
+                    )
+            
+            return True
+        except Exception as e:
+            print(f"⚠️  Error removing from queue: {e}")
+            return False
+    
+    def recover_interrupted_items(self):
+        """
+        Recover items that were processing when server crashed
+        Moves them back to queued status
+        
+        Returns:
+            int: Number of items recovered
+        """
+        if not self.is_connected():
+            return 0
+        
+        try:
+            # Find items stuck in processing status
+            result = self.queue_collection.update_many(
+                {"status": "processing"},
+                {
+                    "$set": {
+                        "status": "queued",
+                        "updated_at": datetime.utcnow()
+                    }
+                }
+            )
+            
+            # Reorder all queued items
+            queued_items = list(self.queue_collection.find(
+                {"status": "queued"}
+            ).sort("added_at", 1))
+            
+            for idx, item in enumerate(queued_items, 1):
+                self.queue_collection.update_one(
+                    {"_id": item['_id']},
+                    {"$set": {"position": idx, "updated_at": datetime.utcnow()}}
+                )
+            
+            if result.modified_count > 0:
+                print(f"🔄 Recovered {result.modified_count} interrupted items")
+            
+            return result.modified_count
+            
+        except Exception as e:
+            print(f"⚠️  Error recovering items: {e}")
+            return 0
 
 
 # Singleton instance

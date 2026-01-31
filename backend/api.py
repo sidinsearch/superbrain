@@ -15,9 +15,10 @@ import os
 from datetime import datetime
 import asyncio
 import logging
-from collections import deque
 import secrets
 import string
+import threading
+import time
 from pathlib import Path
 
 # Import database module
@@ -90,10 +91,75 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Request queue management
-processing_queue = deque()  # Queue of shortcodes being processed
-currently_processing = set()  # Set of shortcodes currently being analyzed
+# Request queue management (persistent)
 max_concurrent = 2  # Maximum concurrent analyses
+
+# Initialize database and recover interrupted items on startup
+db = get_db()
+if db.is_connected():
+    recovered = db.recover_interrupted_items()
+    if recovered > 0:
+        logger.info(f"🔄 Recovered {recovered} interrupted items from previous session")
+
+# Background worker to process queue
+def queue_worker():
+    """Background thread that processes queued items automatically"""
+    logger.info("🔧 Queue worker thread started")
+    
+    while True:
+        try:
+            # Check if we have capacity
+            processing = db.get_processing()
+            if len(processing) < max_concurrent:
+                # Get next item from queue
+                queue = db.get_queue()
+                if queue:
+                    item = queue[0]  # Get first item
+                    shortcode = item['shortcode']
+                    url = item['url']
+                    
+                    logger.info(f"📤 Processing from queue: {shortcode}")
+                    
+                    # Mark as processing
+                    db.mark_processing(shortcode)
+                    
+                    # Run analysis
+                    try:
+                        process = subprocess.Popen(
+                            [sys.executable, "main.py", url],
+                            cwd=Path(__file__).parent,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            text=True,
+                            bufsize=1
+                        )
+                        
+                        # Wait for completion
+                        process.wait()
+                        
+                        if process.returncode == 0:
+                            logger.info(f"✅ Queue item completed: {shortcode}")
+                        else:
+                            logger.error(f"❌ Queue item failed: {shortcode}")
+                        
+                        # Remove from queue
+                        db.remove_from_queue(shortcode)
+                        
+                    except Exception as e:
+                        logger.error(f"❌ Error processing queue item {shortcode}: {e}")
+                        db.remove_from_queue(shortcode)
+            
+            # Sleep before next check
+            time.sleep(5)
+            
+        except Exception as e:
+            logger.error(f"Queue worker error: {e}")
+            time.sleep(10)
+
+# Start worker thread
+worker_thread = threading.Thread(target=queue_worker, daemon=True)
+worker_thread.start()
+logger.info("✅ Background queue worker initialized")
 
 # Request/Response models
 class AnalyzeRequest(BaseModel):
@@ -155,10 +221,12 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
     
     logger.info(f"📥 New request: {shortcode}")
     
+    # Initialize database connection
+    db = get_db()
+    
     try:
         # Step 1: Check database cache first
         logger.info(f"🔍 [{shortcode}] Checking database cache...")
-        db = get_db()
         cached_result = db.check_cache(shortcode)
         
         if cached_result:
@@ -192,7 +260,9 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
         # Step 2: Not in cache - check if already being processed
         logger.info(f"💾 [{shortcode}] Not in cache")
         
-        if shortcode in currently_processing:
+        # Check if already in queue or processing
+        processing_items = db.get_processing()
+        if shortcode in processing_items:
             logger.warning(f"⏳ [{shortcode}] Already being processed. Please wait...")
             raise HTTPException(
                 status_code=409, 
@@ -200,115 +270,120 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
             )
         
         # Step 3: Check queue size
-        if len(currently_processing) >= max_concurrent:
-            logger.warning(f"🚦 [{shortcode}] Queue full ({len(currently_processing)}/{max_concurrent}). Adding to queue...")
-            processing_queue.append(shortcode)
-            queue_position = len(processing_queue)
-            raise HTTPException(
-                status_code=503,
-                detail=f"Server busy. Your request is queued (position: {queue_position}). Please try again in 30 seconds."
-            )
+        if len(processing_items) >= max_concurrent:
+            logger.warning(f"🚦 [{shortcode}] Server at capacity ({len(processing_items)}/{max_concurrent}). Adding to queue...")
+            queue_position = db.add_to_queue(shortcode, request.url)
+            if queue_position > 0:
+                logger.info(f"📝 [{shortcode}] Added to persistent queue (position: {queue_position})")
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Server busy. Your request is queued (position: {queue_position}). It will be processed automatically. Check back in a few minutes."
+                )
+            else:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to add to queue. Please try again."
+                )
         
         # Step 4: Start processing
         logger.info(f"🚀 [{shortcode}] Starting analysis...")
-        currently_processing.add(shortcode)
+        db.mark_processing(shortcode)
         
-        try:
-            # Run main.py as subprocess with real-time logging
-            logger.info(f"📊 [{shortcode}] Phase 1: Downloading content...")
+        # Run main.py as subprocess with real-time logging
+        logger.info(f"📊 [{shortcode}] Phase 1: Downloading content...")
+        
+        process = subprocess.Popen(
+            [sys.executable, "main.py", request.url],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding='utf-8',
+            env={**os.environ, 'PYTHONIOENCODING': 'utf-8'},
+            bufsize=1
+        )
+        
+        # Stream output in real-time
+        stdout_lines = []
+        for line in process.stdout:
+            stdout_lines.append(line)
+            line_clean = line.strip()
             
-            process = subprocess.Popen(
-                [sys.executable, "main.py", request.url],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding='utf-8',
-                env={**os.environ, 'PYTHONIOENCODING': 'utf-8'},
-                bufsize=1
+            # Log important progress markers
+            if "Step 4: Visual Analysis" in line_clean:
+                logger.info(f"🎬 [{shortcode}] Phase 2: Visual analysis (AI processing)...")
+            elif "Step 5: Audio Transcription" in line_clean or "Phase 2: Audio" in line_clean:
+                logger.info(f"🎙️ [{shortcode}] Phase 3: Audio transcription (Whisper)...")
+            elif "Phase 3: Light Tasks" in line_clean:
+                logger.info(f"⚡ [{shortcode}] Phase 4: Music ID + Text (parallel)...")
+            elif "GENERATING COMPREHENSIVE SUMMARY" in line_clean:
+                logger.info(f"🧠 [{shortcode}] Phase 5: Generating AI summary...")
+            elif "Saving to Database" in line_clean:
+                logger.info(f"💾 [{shortcode}] Phase 6: Saving to database...")
+            elif "Cleaned up temp folder" in line_clean:
+                logger.info(f"🗑️ [{shortcode}] Phase 7: Cleanup complete")
+        
+        process.wait()
+        stdout = ''.join(stdout_lines)
+        stderr = process.stderr.read()
+        
+        if process.returncode != 0:
+            logger.error(f"❌ [{shortcode}] Analysis failed!")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Analysis failed: {stderr[:200]}"
             )
-            
-            # Stream output in real-time
-            stdout_lines = []
-            for line in process.stdout:
-                stdout_lines.append(line)
-                line_clean = line.strip()
-                
-                # Log important progress markers
-                if "Step 4: Visual Analysis" in line_clean:
-                    logger.info(f"🎬 [{shortcode}] Phase 2: Visual analysis (AI processing)...")
-                elif "Step 5: Audio Transcription" in line_clean or "Phase 2: Audio" in line_clean:
-                    logger.info(f"🎙️ [{shortcode}] Phase 3: Audio transcription (Whisper)...")
-                elif "Phase 3: Light Tasks" in line_clean:
-                    logger.info(f"⚡ [{shortcode}] Phase 4: Music ID + Text (parallel)...")
-                elif "GENERATING COMPREHENSIVE SUMMARY" in line_clean:
-                    logger.info(f"🧠 [{shortcode}] Phase 5: Generating AI summary...")
-                elif "Saving to Database" in line_clean:
-                    logger.info(f"💾 [{shortcode}] Phase 6: Saving to database...")
-                elif "Cleaned up temp folder" in line_clean:
-                    logger.info(f"🗑️ [{shortcode}] Phase 7: Cleanup complete")
-            
-            process.wait()
-            stdout = ''.join(stdout_lines)
-            stderr = process.stderr.read()
-            
-            if process.returncode != 0:
-                logger.error(f"❌ [{shortcode}] Analysis failed!")
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Analysis failed: {stderr[:200]}"
-                )
-            
-            logger.info(f"✅ [{shortcode}] Analysis complete! Fetching from database...")
-            
-            # Get result from database
-            analysis = db.check_cache(shortcode)
-            
-            if not analysis:
-                logger.error(f"❌ [{shortcode}] Not found in database after processing!")
-                raise HTTPException(
-                    status_code=500,
-                    detail="Analysis completed but result not found in database"
-                )
-            
-            # Remove MongoDB _id
-            if '_id' in analysis:
-                del analysis['_id']
-            
-            # Filter response
-            filtered_data = {
-                'url': analysis.get('url', ''),
-                'username': analysis.get('username', ''),
-                'title': analysis.get('title', ''),
-                'summary': analysis.get('summary', ''),
-                'tags': analysis.get('tags', []),
-                'music': analysis.get('music', ''),
-                'category': analysis.get('category', '')
-            }
-            
-            processing_time = (datetime.now() - start_time).total_seconds()
-            logger.info(f"✅ [{shortcode}] Response sent ({processing_time:.2f}s total)")
-            
-            return AnalysisResponse(
-                success=True,
-                cached=False,
-                data=filtered_data,
-                processing_time=processing_time
+        
+        logger.info(f"✅ [{shortcode}] Analysis complete! Fetching from database...")
+        
+        # Get result from database
+        analysis = db.check_cache(shortcode)
+        
+        if not analysis:
+            logger.error(f"❌ [{shortcode}] Not found in database after processing!")
+            raise HTTPException(
+                status_code=500,
+                detail="Analysis completed but result not found in database"
             )
-            
-        finally:
-            # Remove from processing set
-            currently_processing.discard(shortcode)
-            logger.info(f"🔓 [{shortcode}] Released from processing queue")
+        
+        # Remove MongoDB _id
+        if '_id' in analysis:
+            del analysis['_id']
+        
+        # Filter response
+        filtered_data = {
+            'url': analysis.get('url', ''),
+            'username': analysis.get('username', ''),
+            'title': analysis.get('title', ''),
+            'summary': analysis.get('summary', ''),
+            'tags': analysis.get('tags', []),
+            'music': analysis.get('music', ''),
+            'category': analysis.get('category', '')
+        }
+        
+        processing_time = (datetime.now() - start_time).total_seconds()
+        logger.info(f"✅ [{shortcode}] Response sent ({processing_time:.2f}s total)")
+        
+        # Remove from processing queue
+        db.remove_from_queue(shortcode)
+        logger.info(f"🔓 [{shortcode}] Released from processing queue")
+        
+        return AnalysisResponse(
+            success=True,
+            cached=False,
+            data=filtered_data,
+            processing_time=processing_time
+        )
         
     except HTTPException:
+        db.remove_from_queue(shortcode)
         raise
     except subprocess.SubprocessError as e:
         logger.error(f"❌ [{shortcode}] Subprocess error: {str(e)}")
-        currently_processing.discard(shortcode)
+        db.remove_from_queue(shortcode)
         raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
     except Exception as e:
         logger.error(f"❌ [{shortcode}] Unexpected error: {str(e)}")
-        currently_processing.discard(shortcode)
+        db.remove_from_queue(shortcode)
         raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
 
@@ -498,9 +573,32 @@ async def health_check(token: str = Depends(verify_token)):
         }
 
 
+@app.get("/queue-status")
+async def queue_status(token: str = Depends(verify_token)):
+    """Get current queue and processing status"""
+    try:
+        processing = db.get_processing()
+        queue = db.get_queue()
+        
+        return {
+            "currently_processing": processing,
+            "processing_count": len(processing),
+            "queue": queue,
+            "queue_count": len(queue),
+            "max_concurrent": max_concurrent,
+            "available_slots": max(0, max_concurrent - len(processing))
+        }
+    except Exception as e:
+        logger.error(f"Error getting queue status: {e}")
+        return {
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
 if __name__ == "__main__":
     import uvicorn
     print("🚀 Starting SuperBrain API...")
     print("📖 API Docs: http://localhost:8000/docs")
     print("🔍 Interactive: http://localhost:8000/redoc")
-    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=False)
