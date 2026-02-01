@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,10 @@ import {
   ActivityIndicator,
   StatusBar,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
+  InteractionManager,
+  Keyboard,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
@@ -25,6 +29,8 @@ const EMOJI_ICONS = ['📁', '✈️', '🍔', '👕', '💪', '📚', '🎬', '
 
 const LibraryScreen = () => {
   const navigation = useNavigation<NavigationProp>();
+  const createInputRef = useRef<TextInput>(null);
+  const editInputRef = useRef<TextInput>(null);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -42,6 +48,35 @@ const LibraryScreen = () => {
   useEffect(() => {
     loadCollections();
   }, []);
+
+  useEffect(() => {
+    if (showCreateModal) {
+      const focusInput = () => {
+        setTimeout(() => {
+          createInputRef.current?.focus();
+          // Try again after a bit more delay
+          setTimeout(() => {
+            createInputRef.current?.focus();
+          }, 200);
+        }, 500);
+      };
+      focusInput();
+    }
+  }, [showCreateModal]);
+
+  useEffect(() => {
+    if (showEditModal) {
+      const focusInput = () => {
+        setTimeout(() => {
+          editInputRef.current?.focus();
+          setTimeout(() => {
+            editInputRef.current?.focus();
+          }, 200);
+        }, 500);
+      };
+      focusInput();
+    }
+  }, [showEditModal]);
 
   const loadCollections = async () => {
     try {
@@ -164,7 +199,7 @@ const LibraryScreen = () => {
         >
           {filteredCollections.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>📂</Text>
+              <Text style={styles.emptyIcon}>📁</Text>
               <Text style={styles.emptyTitle}>No Collections Yet</Text>
               <Text style={styles.emptyText}>
                 Create collections to organize your saved posts
@@ -194,7 +229,7 @@ const LibraryScreen = () => {
                     style={styles.editButton}
                     onPress={() => handleEditCollection(collection)}
                   >
-                    <Text style={styles.editIcon}>✏️</Text>
+                    <Text style={styles.editIcon}>Γ£Å∩╕Å</Text>
                   </TouchableOpacity>
                 </View>
               ))}
@@ -238,10 +273,17 @@ const LibraryScreen = () => {
         visible={showCreateModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowCreateModal(false)}
+        onRequestClose={() => {}}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+        >
+          <TouchableOpacity 
+            activeOpacity={1}
+            style={{ justifyContent: 'center', paddingHorizontal: 20, flex: 1 }}
+          >
+            <View style={[styles.modalContent, { marginBottom: 140 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>New Collection</Text>
               <TouchableOpacity onPress={() => setShowCreateModal(false)}>
@@ -251,12 +293,12 @@ const LibraryScreen = () => {
 
             <Text style={styles.inputLabel}>Collection Name</Text>
             <TextInput
+              ref={createInputRef}
               style={styles.modalInput}
               placeholder="e.g., Travel, Recipes, Inspiration"
               placeholderTextColor={colors.textMuted}
               value={newCollectionName}
               onChangeText={setNewCollectionName}
-              autoFocus
             />
 
             <Text style={styles.inputLabel}>Choose Icon</Text>
@@ -265,6 +307,7 @@ const LibraryScreen = () => {
               showsHorizontalScrollIndicator={false}
               style={styles.iconsScroll}
               contentContainerStyle={styles.iconsContent}
+              keyboardShouldPersistTaps="always"
             >
               {EMOJI_ICONS.map((icon) => (
                 <TouchableOpacity
@@ -299,7 +342,8 @@ const LibraryScreen = () => {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* Edit Collection Modal */}
@@ -309,8 +353,15 @@ const LibraryScreen = () => {
         transparent={true}
         onRequestClose={() => setShowEditModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+        >
+          <TouchableOpacity 
+            activeOpacity={1}
+            style={{ justifyContent: 'center', paddingHorizontal: 20, flex: 1 }}
+          >
+            <View style={[styles.modalContent, { marginBottom: 140 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edit Collection</Text>
               <TouchableOpacity onPress={() => setShowEditModal(false)}>
@@ -320,12 +371,12 @@ const LibraryScreen = () => {
 
             <Text style={styles.inputLabel}>Collection Name</Text>
             <TextInput
+              ref={editInputRef}
               style={styles.modalInput}
               placeholder="Enter collection name"
               placeholderTextColor={colors.textMuted}
               value={editCollectionName}
               onChangeText={setEditCollectionName}
-              autoFocus
             />
 
             <Text style={styles.inputLabel}>Choose Icon</Text>
@@ -334,6 +385,7 @@ const LibraryScreen = () => {
               showsHorizontalScrollIndicator={false}
               style={styles.iconsScroll}
               contentContainerStyle={styles.iconsContent}
+              keyboardShouldPersistTaps="always"
             >
               {EMOJI_ICONS.map((icon) => (
                 <TouchableOpacity
@@ -364,7 +416,8 @@ const LibraryScreen = () => {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* Delete Confirmation Modal */}
@@ -629,14 +682,12 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: colors.backgroundCard,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderRadius: 24,
     padding: 24,
-    paddingBottom: 40,
+    maxHeight: '80%',
   },
   modalHeader: {
     flexDirection: 'row',
