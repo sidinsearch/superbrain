@@ -1,0 +1,1144 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  Image,
+  RefreshControl,
+  ActivityIndicator,
+  StatusBar,
+  Dimensions,
+  Modal,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import apiService from '../services/api';
+import postsCache from '../services/postsCache';
+import collectionsService from '../services/collections';
+import { Post, Collection } from '../types';
+import { colors } from '../theme/colors';
+import { RootStackParamList } from '../../App';
+import CustomToast from '../components/CustomToast';
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+const { width } = Dimensions.get('window');
+const CARD_WIDTH = (width - 48) / 2;
+
+const CATEGORIES = [
+  { id: 'all', name: 'All', icon: '🌟' },
+  { id: 'product', name: 'Product', icon: '📦' },
+  { id: 'places', name: 'Places', icon: '📍' },
+  { id: 'food', name: 'Food', icon: '🍔' },
+  { id: 'fashion', name: 'Fashion', icon: '👗' },
+  { id: 'fitness', name: 'Fitness', icon: '💪' },
+  { id: 'education', name: 'Education', icon: '📚' },
+  { id: 'entertainment', name: 'Entertainment', icon: '🎬' },
+  { id: 'pets', name: 'Pets', icon: '🐾' },
+];
+
+const HomeScreen = () => {
+  const navigation = useNavigation<NavigationProp>();
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [showCollectionsModal, setShowCollectionsModal] = useState(false);
+  const [loadingCollections, setLoadingCollections] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'info' as 'success' | 'error' | 'warning' | 'info' });
+
+  useEffect(() => {
+    initializeAndLoad();
+  }, []);
+
+  const initializeAndLoad = async () => {
+    try {
+      await apiService.initialize();
+      await loadPosts();
+    } catch (error) {
+      console.error('Error initializing:', error);
+    }
+  };
+
+  const loadPosts = async (forceRefresh: boolean = false) => {
+    try {
+      setLoading(true);
+      
+      // Try to load from cache first
+      if (!forceRefresh) {
+        const cachedPosts = await postsCache.getValidCachedPosts();
+        if (cachedPosts && cachedPosts.length > 0) {
+          setPosts(cachedPosts);
+          setLoading(false);
+          return;
+        }
+      }
+      
+      // Fetch from server if cache is invalid or force refresh
+      const fetchedPosts = await apiService.getRecentPosts(50);
+      if (fetchedPosts.length > 0) {
+        setPosts(fetchedPosts);
+        await postsCache.savePosts(fetchedPosts);
+      }
+    } catch (error) {
+      console.error('Error loading posts:', error);
+      // Try to load from cache even if expired when server fails
+      const cachedPosts = await postsCache.getCachedPosts();
+      if (cachedPosts && cachedPosts.length > 0) {
+        setPosts(cachedPosts);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadPosts(true); // Force refresh from server
+    setRefreshing(false);
+  };
+
+  const filteredPosts = posts.filter(post => {
+    const matchesSearch = searchQuery === '' ||
+      (post.title && post.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (post.summary && post.summary.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (post.tags && post.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())));
+    
+    const matchesCategory = selectedCategory === 'all' || post.category === selectedCategory;
+    
+    return matchesSearch && matchesCategory;
+  });
+
+  const getCategoryColor = (category: string) => {
+    return colors.categories[category as keyof typeof colors.categories] || colors.categories.other;
+  };
+
+  const getCategoryIcon = (category: string) => {
+    const categoryMap: { [key: string]: string } = {
+      'product': '📦',
+      'places': '📍',
+      'food': '🍔',
+      'fashion': '👗',
+      'fitness': '💪',
+      'education': '📚',
+      'entertainment': '🎬',
+      'pets': '🐾',
+      'other': '📌'
+    };
+    return categoryMap[category] || '📌';
+  };
+
+  const getInstagramImageUrl = (post: Post) => {
+    return `https://www.instagram.com/p/${post.shortcode}/media/?size=l`;
+  };
+
+  const togglePostSelection = (shortcode: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const newSelection = new Set(selectedPosts);
+    if (newSelection.has(shortcode)) {
+      newSelection.delete(shortcode);
+    } else {
+      newSelection.add(shortcode);
+    }
+    setSelectedPosts(newSelection);
+  };
+
+  const handleSelectAll = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (selectedPosts.size === filteredPosts.length) {
+      setSelectedPosts(new Set());
+      setSelectionMode(false);
+    } else {
+      setSelectedPosts(new Set(filteredPosts.map(p => p.shortcode)));
+    }
+  };
+
+  const loadCollections = async () => {
+    try {
+      setLoadingCollections(true);
+      const data = await collectionsService.getCollections();
+      setCollections(data);
+    } catch (error) {
+      console.error('Error loading collections:', error);
+      setToast({ visible: true, message: 'Failed to load collections', type: 'error' });
+    } finally {
+      setLoadingCollections(false);
+    }
+  };
+
+  const handleAddToCollection = async (collectionId: string) => {
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      for (const shortcode of Array.from(selectedPosts)) {
+        await collectionsService.addPostToCollection(collectionId, shortcode);
+      }
+      setShowCollectionsModal(false);
+      setSelectionMode(false);
+      setSelectedPosts(new Set());
+      setToast({ visible: true, message: `Added ${selectedPosts.size} post(s) to collection`, type: 'success' });
+    } catch (error) {
+      console.error('Error adding to collection:', error);
+      setToast({ visible: true, message: 'Failed to add to collection', type: 'error' });
+    }
+  };
+
+  const handleDeletePosts = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const deleteCount = selectedPosts.size;
+      for (const shortcode of Array.from(selectedPosts)) {
+        await apiService.deletePost(shortcode);
+        await postsCache.removePostFromCache(shortcode);
+      }
+      setPosts(posts.filter(p => !selectedPosts.has(p.shortcode)));
+      setSelectionMode(false);
+      setSelectedPosts(new Set());
+      setShowDeleteModal(false);
+      setToast({ visible: true, message: `Deleted ${deleteCount} post(s)`, type: 'success' });
+    } catch (error) {
+      console.error('Error deleting posts:', error);
+      setShowDeleteModal(false);
+      setToast({ visible: true, message: 'Failed to delete posts', type: 'error' });
+    }
+  };
+
+  const handleShowCollections = () => {
+    loadCollections();
+    setShowCollectionsModal(true);
+  };
+
+  const renderPost = (post: Post, index: number) => {
+    const isLargeCard = index % 6 === 0 || index % 6 === 3;
+    const categoryColor = getCategoryColor(post.category);
+    const isSelected = selectedPosts.has(post.shortcode);
+
+    if (isLargeCard) {
+      return (
+        <TouchableOpacity
+          key={post.shortcode}
+          style={[styles.largeCard, isSelected && styles.cardSelected]}
+          onPress={() => {
+            if (selectionMode) {
+              togglePostSelection(post.shortcode);
+            } else {
+              navigation.navigate('PostDetail', { post });
+            }
+          }}
+          onLongPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            setSelectionMode(true);
+            togglePostSelection(post.shortcode);
+          }}
+          activeOpacity={0.9}
+        >
+          <Image
+            source={{ uri: getInstagramImageUrl(post) }}
+            style={styles.largeCardImage}
+            resizeMode="cover"
+          />
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.9)']}
+            style={styles.largeCardGradient}
+          >
+            {post.category ? (
+              <View style={[styles.categoryBadge, { backgroundColor: categoryColor }]}>
+                <Text style={styles.categoryBadgeText}>{post.category.toUpperCase()}</Text>
+              </View>
+            ) : null}
+            <Text style={styles.largeCardTitle} numberOfLines={2}>
+              {post.title || 'Untitled'}
+            </Text>
+            <View style={styles.cardFooter}>
+              <Text style={styles.username}>@{post.username || 'unknown'}</Text>
+              {post.likes && post.likes > 0 ? (
+                <Text style={styles.likes}>{post.likes} likes</Text>
+              ) : null}
+            </View>
+          </LinearGradient>
+          {selectionMode ? (
+            <View style={styles.selectionOverlay}>
+              <View style={[styles.selectionCheckbox, isSelected && styles.selectionCheckboxActive]}>
+                {isSelected ? <Text style={styles.selectionCheck}>✓</Text> : null}
+              </View>
+            </View>
+          ) : null}
+        </TouchableOpacity>
+      );
+    }
+
+    return (
+      <TouchableOpacity
+        key={post.shortcode}
+        style={[styles.compactCard, isSelected && styles.cardSelected]}
+        onPress={() => {
+          if (selectionMode) {
+            togglePostSelection(post.shortcode);
+          } else {
+            navigation.navigate('PostDetail', { post });
+          }
+        }}
+        onLongPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          setSelectionMode(true);
+          togglePostSelection(post.shortcode);
+        }}
+        activeOpacity={0.9}
+      >
+        <Image
+          source={{ uri: getInstagramImageUrl(post) }}
+          style={styles.compactCardImage}
+          resizeMode="cover"
+        />
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.85)']}
+          style={styles.compactCardGradient}
+        >
+          {post.category ? (
+            <View style={[styles.categoryBadgeSmall, { backgroundColor: categoryColor }]}>
+              <Text style={styles.categoryBadgeTextSmall}>{getCategoryIcon(post.category)}</Text>
+            </View>
+          ) : null}
+          <Text style={styles.compactCardTitle} numberOfLines={2}>
+            {post.title || 'Untitled'}
+          </Text>
+          <Text style={styles.compactUsername} numberOfLines={1}>@{post.username || 'unknown'}</Text>
+        </LinearGradient>
+        {selectionMode ? (
+          <View style={styles.selectionOverlay}>
+            <View style={[styles.selectionCheckbox, isSelected && styles.selectionCheckboxActive]}>
+              {isSelected ? <Text style={styles.selectionCheck}>✓</Text> : null}
+            </View>
+          </View>
+        ) : null}
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+      
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerTitle}>SuperBrain</Text>
+          <Text style={styles.headerSubtitle}>{filteredPosts.length} saved posts</Text>
+        </View>
+        {selectionMode ? (
+          <TouchableOpacity 
+            style={styles.cancelButton} 
+            onPress={() => {
+              setSelectionMode(false);
+              setSelectedPosts(new Set());
+            }}
+          >
+            <Text style={styles.cancelText}>Cancel</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      <View style={styles.searchContainer}>
+        <View style={styles.searchIconContainer}>
+          <Text style={styles.searchIconText}>🔍</Text>
+        </View>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search posts, tags, topics..."
+          placeholderTextColor={colors.textMuted}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery !== '' && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+            <Text style={styles.clearIcon}>✕</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.categoriesContainer}
+        contentContainerStyle={styles.categoriesContent}
+      >
+        {CATEGORIES.map(category => (
+          <TouchableOpacity
+            key={category.id}
+            style={[
+              styles.categoryChip,
+              selectedCategory === category.id && styles.categoryChipActive,
+            ]}
+            onPress={() => {
+              setSelectedCategory(category.id);
+            }}
+          >
+            <Text style={styles.categoryIcon}>{category.icon}</Text>
+            <Text
+              style={[
+                styles.categoryText,
+                selectedCategory === category.id && styles.categoryTextActive,
+              ]}
+            >
+              {category.name}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      {/* Selection Actions */}
+      {selectionMode ? (
+        <View style={styles.actionsBar}>
+          <View style={styles.actionsRow}>
+            <TouchableOpacity 
+              style={styles.actionButton} 
+              onPress={handleSelectAll}
+            >
+              <Text style={styles.actionButtonText}>
+                {selectedPosts.size === filteredPosts.length ? 'Deselect' : 'Select All'}
+              </Text>
+            </TouchableOpacity>
+            {selectedPosts.size > 0 ? (
+              <>
+                <TouchableOpacity 
+                  style={styles.actionButtonPrimary} 
+                  onPress={handleShowCollections}
+                >
+                  <Text style={styles.actionButtonPrimaryText}>Add to Library</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.actionButtonDelete} 
+                  onPress={handleDeletePosts}
+                >
+                  <Text style={styles.actionButtonDeleteText}>Delete</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
+          </View>
+          {selectedPosts.size > 0 ? (
+            <Text style={styles.selectedCountText}>{selectedPosts.size} selected</Text>
+          ) : null}
+        </View>
+      ) : null}
+
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading posts...</Text>
+        </View>
+      ) : filteredPosts.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyIcon}>📭</Text>
+          <Text style={styles.emptyTitle}>No Posts Found</Text>
+          <Text style={styles.emptyText}>
+            {searchQuery ? 'Try a different search term' : 'Start analyzing Instagram posts to build your library'}
+          </Text>
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.postsContainer}
+          contentContainerStyle={styles.postsContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
+        >
+          <View style={styles.postsGrid}>
+            {filteredPosts.map((post, index) => renderPost(post, index))}
+          </View>
+        </ScrollView>
+      )}
+
+      <View style={styles.bottomNav}>
+        <TouchableOpacity 
+          style={styles.navItemActive} 
+          onPress={() => navigation.navigate('Home')}
+        >
+          <View style={styles.navIconContainer}>
+            <Text style={styles.navIconTextActive}>🏠</Text>
+          </View>
+          <Text style={styles.navLabelActive}>Home</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.navItem} 
+          onPress={() => navigation.navigate('Library')}
+        >
+          <View style={styles.navIconContainer}>
+            <Text style={styles.navIconText}>📚</Text>
+          </View>
+          <Text style={styles.navLabel}>Library</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.navItem} 
+          onPress={() => navigation.navigate('Settings')}
+        >
+          <View style={styles.navIconContainer}>
+            <Text style={styles.navIconText}>⚙️</Text>
+          </View>
+          <Text style={styles.navLabel}>Settings</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Collections Modal */}
+      <Modal
+        visible={showCollectionsModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowCollectionsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add to Collection</Text>
+              <TouchableOpacity onPress={() => setShowCollectionsModal(false)}>
+                <Text style={styles.modalCloseIcon}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {loadingCollections ? (
+              <View style={styles.modalLoadingContainer}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={styles.modalLoadingText}>Loading collections...</Text>
+              </View>
+            ) : collections.length === 0 ? (
+              <View style={styles.emptyCollections}>
+                <Text style={styles.emptyIcon}>📂</Text>
+                <Text style={styles.emptyCollectionsTitle}>No Collections</Text>
+                <Text style={styles.emptyText}>Create collections in the Library tab first</Text>
+                <TouchableOpacity
+                  style={styles.goToLibraryButton}
+                  onPress={() => {
+                    setShowCollectionsModal(false);
+                    navigation.navigate('Library');
+                  }}
+                >
+                  <Text style={styles.goToLibraryText}>Go to Library</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <ScrollView style={styles.collectionsList} showsVerticalScrollIndicator={false}>
+                {collections.map((collection) => (
+                  <TouchableOpacity
+                    key={collection.id}
+                    style={styles.collectionItem}
+                    onPress={() => handleAddToCollection(collection.id)}
+                  >
+                    <View style={styles.collectionItemLeft}>
+                      <Text style={styles.collectionItemIcon}>{collection.icon}</Text>
+                      <View>
+                        <Text style={styles.collectionItemName}>{collection.name}</Text>
+                        <Text style={styles.collectionItemCount}>
+                          {collection.postIds.length} {collection.postIds.length === 1 ? 'post' : 'posts'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.collectionItemArrow}>→</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={showDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.deleteModalContent}>
+            <View style={styles.deleteIconContainer}>
+              <Text style={styles.deleteIcon}>🗑️</Text>
+            </View>
+            <Text style={styles.deleteTitle}>Delete Posts?</Text>
+            <Text style={styles.deleteMessage}>
+              Are you sure you want to delete {selectedPosts.size} {selectedPosts.size === 1 ? 'post' : 'posts'}? This action cannot be undone.
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalButtonCancel}
+                onPress={() => setShowDeleteModal(false)}
+              >
+                <Text style={styles.modalButtonCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalButtonDelete}
+                onPress={confirmDelete}
+              >
+                <Text style={styles.modalButtonDeleteText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <CustomToast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={() => setToast({ ...toast, visible: false })}
+      />
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
+  },
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: colors.textMuted,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundCard,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  searchIconContainer: {
+    marginRight: 8,
+  },
+  searchIconText: {
+    fontSize: 18,
+  },
+  searchInput: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 16,
+  },
+  clearButton: {
+    padding: 4,
+  },
+  clearIcon: {
+    fontSize: 18,
+    color: colors.textMuted,
+  },
+  categoriesContainer: {
+    maxHeight: 50,
+    marginBottom: 8,
+  },
+  categoriesContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginRight: 10,
+    backgroundColor: colors.backgroundCard,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+    minHeight: 44,
+  },
+  categoryChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  categoryIcon: {
+    fontSize: 22,
+    marginRight: 8,
+    lineHeight: 28,
+    includeFontPadding: false,
+  },
+  categoryText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  categoryTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: colors.textMuted,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  emptyIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  postsContainer: {
+    flex: 1,
+  },
+  postsContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 100,
+  },
+  postsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  largeCard: {
+    width: '100%',
+    height: 280,
+    marginBottom: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: colors.backgroundCard,
+  },
+  largeCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  largeCardGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+    justifyContent: 'flex-end',
+  },
+  categoryBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  categoryBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 0.5,
+  },
+  largeCardTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  username: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  likes: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  compactCard: {
+    width: CARD_WIDTH,
+    height: 220,
+    marginBottom: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: colors.backgroundCard,
+  },
+  compactCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  compactCardGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 12,
+    justifyContent: 'flex-end',
+  },
+  categoryBadgeSmall: {
+    alignSelf: 'flex-start',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  categoryBadgeTextSmall: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  compactCardTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  compactUsername: {
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  bottomNav: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    backgroundColor: colors.backgroundCard,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingBottom: 24,
+    paddingTop: 16,
+    height: 80,
+  },
+  navItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navItemActive: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navIconContainer: {
+    marginBottom: 6,
+  },
+  navIconText: {
+    fontSize: 26,
+    color: colors.textMuted,
+  },
+  navIconTextActive: {
+    fontSize: 26,
+    color: colors.primary,
+  },
+  navLabel: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  navLabelActive: {
+    fontSize: 11,
+    color: colors.primary,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  cancelButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: colors.backgroundCard,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  cancelText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  actionsBar: {
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  actionButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: colors.backgroundCard,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  actionButtonText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  actionButtonPrimary: {
+    flex: 1,
+    paddingVertical: 12,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  actionButtonPrimaryText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  actionButtonDelete: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#dc3545',
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  actionButtonDeleteText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  selectedCountText: {
+    fontSize: 12,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  cardSelected: {
+    opacity: 0.8,
+  },
+  selectionOverlay: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectionCheckbox: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#fff',
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectionCheckboxActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  selectionCheck: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    maxHeight: '70%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  modalCloseIcon: {
+    fontSize: 24,
+    color: colors.textMuted,
+    padding: 4,
+  },
+  modalLoadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalLoadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: colors.textMuted,
+  },
+  emptyCollections: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyCollectionsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  goToLibraryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+  },
+  goToLibraryText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  collectionsList: {
+    maxHeight: 350,
+  },
+  collectionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    backgroundColor: colors.backgroundCard,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  collectionItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  collectionItemIcon: {
+    fontSize: 28,
+  },
+  collectionItemName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 2,
+  },
+  collectionItemCount: {
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  collectionItemArrow: {
+    fontSize: 20,
+    color: colors.textMuted,
+  },
+  deleteModalContent: {
+    backgroundColor: colors.background,
+    borderRadius: 24,
+    padding: 24,
+    marginHorizontal: 20,
+    alignItems: 'center',
+  },
+  deleteIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.backgroundCard,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  deleteIcon: {
+    fontSize: 40,
+  },
+  deleteTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  deleteMessage: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  modalButtonCancel: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  modalButtonCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  modalButtonDelete: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#dc3545',
+    alignItems: 'center',
+  },
+  modalButtonDeleteText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+});
+
+export default HomeScreen;
