@@ -596,9 +596,66 @@ async def queue_status(token: str = Depends(verify_token)):
         }
 
 
+@app.delete("/post/{shortcode}")
+async def delete_post(shortcode: str, token: str = Depends(verify_token)):
+    """Delete a post by shortcode"""
+    try:
+        db = get_db()
+        result = db.delete_post(shortcode)
+        
+        if result:
+            logger.info(f"✅ Deleted post: {shortcode}")
+            return {
+                "success": True,
+                "message": "Post deleted successfully",
+                "shortcode": shortcode
+            }
+        else:
+            raise HTTPException(status_code=404, detail="Post not found")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting post: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/post/{shortcode}")
+async def update_post(shortcode: str, updates: dict, token: str = Depends(verify_token)):
+    """Update a post's category, title, or summary"""
+    try:
+        db = get_db()
+        
+        # Only allow specific fields to be updated
+        allowed_fields = {'category', 'title', 'summary'}
+        filtered_updates = {k: v for k, v in updates.items() if k in allowed_fields}
+        
+        if not filtered_updates:
+            raise HTTPException(status_code=400, detail="No valid fields to update")
+        
+        result = db.update_post(shortcode, filtered_updates)
+        
+        if result:
+            logger.info(f"✅ Updated post: {shortcode} - {list(filtered_updates.keys())}")
+            return {
+                "success": True,
+                "message": "Post updated successfully",
+                "shortcode": shortcode,
+                "updated_fields": list(filtered_updates.keys())
+            }
+        else:
+            raise HTTPException(status_code=404, detail="Post not found")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating post: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     print("🚀 Starting SuperBrain API...")
-    print("📖 API Docs: http://localhost:8000/docs")
-    print("🔍 Interactive: http://localhost:8000/redoc")
-    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=False)
+    print("📖 API Docs: http://localhost:5000/docs")
+    print("🔍 Interactive: http://localhost:5000/redoc")
+    uvicorn.run("api:app", host="0.0.0.0", port=5000, reload=False)

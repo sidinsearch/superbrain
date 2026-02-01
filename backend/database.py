@@ -184,7 +184,12 @@ class Database:
     def get_stats(self):
         """Get database statistics"""
         if not self.is_connected():
-            return {}
+            return {
+                "document_count": 0,
+                "storage_mb": 0,
+                "categories": {},
+                "capacity_used": "0%"
+            }
         
         try:
             total = self.collection.count_documents({})
@@ -196,13 +201,25 @@ class Database:
             
             category_counts = {cat['_id']: cat['count'] for cat in categories}
             
+            # Get database stats for storage info
+            db_stats = self.db.command("dbStats")
+            storage_bytes = db_stats.get('dataSize', 0)
+            storage_mb = storage_bytes / (1024 * 1024)
+            
             return {
-                "total_analyses": total,
-                "categories": category_counts
+                "document_count": total,
+                "storage_mb": round(storage_mb, 2),
+                "categories": category_counts,
+                "capacity_used": f"{min(100, int((storage_mb / 512) * 100))}%"
             }
         except Exception as e:
             print(f"⚠️  Error getting stats: {e}")
-            return {}
+            return {
+                "document_count": 0,
+                "storage_mb": 0,
+                "categories": {},
+                "capacity_used": "0%"
+            }
     
     def close(self):
         """Close database connection"""
@@ -389,6 +406,60 @@ class Database:
         except Exception as e:
             print(f"⚠️  Error recovering items: {e}")
             return 0
+    
+    def delete_post(self, shortcode):
+        """
+        Delete a post from the database
+        
+        Args:
+            shortcode: Instagram post shortcode
+            
+        Returns:
+            bool: True if deleted, False if not found
+        """
+        if not self.is_connected():
+            return False
+        
+        try:
+            result = self.collection.delete_one({"shortcode": shortcode})
+            return result.deleted_count > 0
+        except Exception as e:
+            print(f"⚠️  Error deleting post: {e}")
+            return False
+    
+    def update_post(self, shortcode, updates):
+        """
+        Update a post's fields
+        
+        Args:
+            shortcode: Instagram post shortcode
+            updates: Dictionary of fields to update (category, title, summary)
+            
+        Returns:
+            bool: True if updated, False if not found
+        """
+        if not self.is_connected():
+            return False
+        
+        try:
+            # Add updated timestamp
+            updates['updated_at'] = datetime.utcnow()
+            
+            result = self.collection.update_one(
+                {"shortcode": shortcode},
+                {"$set": updates}
+            )
+            
+            # Check if document was found and modified
+            if result.matched_count == 0:
+                print(f"⚠️  Post not found: {shortcode}")
+                return False
+            
+            print(f"✓ Updated post: {shortcode}")
+            return result.matched_count > 0
+        except Exception as e:
+            print(f"⚠️  Error updating post: {e}")
+            return False
 
 
 # Singleton instance

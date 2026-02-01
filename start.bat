@@ -51,13 +51,24 @@ echo ========================================================
 echo            Starting API Server...
 echo ========================================================
 echo.
-echo API Documentation: http://localhost:8000/docs
-echo Interactive Docs:  http://localhost:8000/redoc
-echo API Base URL:      http://localhost:8000
+echo API Documentation: http://localhost:5000/docs
+echo Interactive Docs:  http://localhost:5000/redoc
+echo API Base URL:      http://localhost:5000
 echo.
 echo Press CTRL+C to stop the server
 echo.
 
 REM Change to backend directory and start API
 cd backend
-python api.py
+python -u api.py
+
+REM If server stops, pause to see error message
+if errorlevel 1 (
+    echo.
+    echo [ERROR] Server stopped with error!
+    pause
+) else (
+    echo.
+    echo [INFO] Server stopped normally
+    pause
+)
