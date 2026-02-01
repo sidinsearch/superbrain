@@ -11,6 +11,7 @@ export interface Post {
   likes?: number;
   post_date?: string;
   analyzed_at?: string;
+  processing?: boolean;
 }
 
 export interface ApiResponse {

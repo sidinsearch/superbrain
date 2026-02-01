@@ -4,6 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Linking from 'expo-linking';
+import { Platform } from 'react-native';
 
 // Screens
 import SplashScreen from './src/screens/SplashScreen';
@@ -25,14 +26,14 @@ export type RootStackParamList = {
   Settings: undefined;
   PostDetail: { post: Post };
   CollectionDetail: { collection: Collection };
-  ShareHandler: { url: string };
+  ShareHandler: { url?: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
-  const [initialRoute, setInitialRoute] = useState<'Splash' | 'Settings'>('Splash');
   const [isReady, setIsReady] = useState(false);
+  const [initialUrl, setInitialUrl] = useState<string | null>(null);
 
   useEffect(() => {
     initializeApp();
@@ -43,19 +44,16 @@ export default function App() {
       // Initialize API service
       await apiService.initialize();
       
-      // Check if API token is configured
-      const token = await apiService.getApiToken();
-      
-      if (!token) {
-        // No token configured, go directly to Settings
-        setInitialRoute('Settings');
-      } else {
-        // Token exists, show splash then home
-        setInitialRoute('Splash');
+      // Check for share intent (Android)
+      if (Platform.OS === 'android') {
+        const url = await Linking.getInitialURL();
+        console.log('App - Initial URL on launch:', url);
+        if (url) {
+          setInitialUrl(url);
+        }
       }
     } catch (error) {
       console.error('App initialization error:', error);
-      setInitialRoute('Settings');
     } finally {
       setIsReady(true);
     }
@@ -72,25 +70,65 @@ export default function App() {
           prefixes: ['superbrain://', 'https://instagram.com', 'https://www.instagram.com'],
           config: {
             screens: {
-              ShareHandler: {
-                path: 'p/:shortcode',
-                parse: {
-                  shortcode: (shortcode) => `https://instagram.com/p/${shortcode}`,
-                },
-              },
+              Splash: 'splash',
+              Home: 'home',
+              Library: 'library',
+              Settings: 'settings',
+              ShareHandler: 'share',
             },
           },
           async getInitialURL() {
-            // Check if app was opened via deep link
+            // Check if app was opened via deep link or share intent
             const url = await Linking.getInitialURL();
+            console.log('NavigationContainer - getInitialURL:', url);
+            
             if (url) {
-              return url;
+              // Parse the URL to check for text content (Android share intent)
+              const parsed = Linking.parse(url);
+              console.log('NavigationContainer - Parsed:', JSON.stringify(parsed, null, 2));
+              
+              // Handle Android SEND intent with text
+              if (parsed.queryParams?.text) {
+                const textContent = parsed.queryParams.text as string;
+                console.log('NavigationContainer - Got text from share:', textContent);
+                return `superbrain://share?text=${encodeURIComponent(textContent)}`;
+              }
+              
+              // Handle Instagram URLs or HTTP URLs
+              if (url.includes('instagram.com') || url.startsWith('http')) {
+                console.log('NavigationContainer - Routing to ShareHandler with URL:', url);
+                return `superbrain://share?url=${encodeURIComponent(url)}`;
+              }
             }
-            return null;
+            
+            console.log('NavigationContainer - Default routing with URL:', url);
+            return url;
           },
           subscribe(listener) {
             // Listen for deep links while app is open
             const subscription = Linking.addEventListener('url', ({ url }) => {
+              console.log('NavigationContainer - Received URL event:', url);
+              
+              if (url) {
+                // Parse the URL to check for text content
+                const parsed = Linking.parse(url);
+                
+                // Handle Android SEND intent with text
+                if (parsed.queryParams?.text) {
+                  const textContent = parsed.queryParams.text as string;
+                  console.log('NavigationContainer - Event got text from share:', textContent);
+                  listener(`superbrain://share?text=${encodeURIComponent(textContent)}`);
+                  return;
+                }
+                
+                // Handle Instagram URLs or HTTP URLs
+                if (url.includes('instagram.com') || url.startsWith('http')) {
+                  console.log('NavigationContainer - Routing event to ShareHandler');
+                  listener(`superbrain://share?url=${encodeURIComponent(url)}`);
+                  return;
+                }
+              }
+              
               listener(url);
             });
             return () => subscription.remove();
@@ -99,7 +137,7 @@ export default function App() {
       >
         <StatusBar style="light" />
         <Stack.Navigator
-          initialRouteName={initialRoute}
+          initialRouteName="Splash"
           screenOptions={{
             headerShown: false,
             animation: 'fade',

@@ -233,6 +233,10 @@ const HomeScreen = () => {
           key={post.shortcode}
           style={[styles.largeCard, isSelected && styles.cardSelected]}
           onPress={() => {
+            if (post.processing) {
+              setToast({ visible: true, message: 'Post is still being analyzed', type: 'warning' });
+              return;
+            }
             if (selectionMode) {
               togglePostSelection(post.shortcode);
             } else {
@@ -270,6 +274,12 @@ const HomeScreen = () => {
               ) : null}
             </View>
           </LinearGradient>
+          {post.processing ? (
+            <View style={styles.processingOverlay}>
+              <ActivityIndicator size="large" color="#fff" />
+              <Text style={styles.processingText}>Processing...</Text>
+            </View>
+          ) : null}
           {selectionMode ? (
             <View style={styles.selectionOverlay}>
               <View style={[styles.selectionCheckbox, isSelected && styles.selectionCheckboxActive]}>
@@ -286,6 +296,10 @@ const HomeScreen = () => {
         key={post.shortcode}
         style={[styles.compactCard, isSelected && styles.cardSelected]}
         onPress={() => {
+          if (post.processing) {
+            setToast({ visible: true, message: 'Post is still being analyzed', type: 'warning' });
+            return;
+          }
           if (selectionMode) {
             togglePostSelection(post.shortcode);
           } else {
@@ -318,6 +332,12 @@ const HomeScreen = () => {
           </Text>
           <Text style={styles.compactUsername} numberOfLines={1}>@{post.username || 'unknown'}</Text>
         </LinearGradient>
+        {post.processing ? (
+          <View style={styles.processingOverlay}>
+            <ActivityIndicator size="small" color="#fff" />
+            <Text style={styles.processingTextSmall}>Processing...</Text>
+          </View>
+        ) : null}
         {selectionMode ? (
           <View style={styles.selectionOverlay}>
             <View style={[styles.selectionCheckbox, isSelected && styles.selectionCheckboxActive]}>
@@ -979,6 +999,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#fff',
     fontWeight: '700',
+  },
+  processingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 16,
+  },
+  processingText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '600',
+    marginTop: 12,
+  },
+  processingTextSmall: {
+    fontSize: 11,
+    color: '#fff',
+    fontWeight: '600',
+    marginTop: 8,
   },
   modalOverlay: {
     flex: 1,

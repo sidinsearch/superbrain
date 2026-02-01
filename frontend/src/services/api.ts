@@ -77,19 +77,22 @@ class ApiService {
     try {
       const headers = await this.getHeaders();
       const baseUrl = await this.getBaseUrl();
+      console.log('API - Analyzing URL:', url);
       const response = await axios.post<ApiResponse>(
         `${baseUrl}/analyze`,
         { url },
         { headers }
       );
       
-      if (response.data.success && response.data.post) {
-        return response.data.post;
+      console.log('API - Response:', response.data);
+      
+      if (response.data.success && response.data.data) {
+        return response.data.data;
       }
       
       throw new Error('Failed to analyze Instagram post');
     } catch (error: any) {
-      console.error('Error analyzing Instagram URL:', error);
+      console.error('Error analyzing Instagram URL:', error.response?.data || error.message);
       throw error;
     }
   }

@@ -82,6 +82,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#121212',
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: -60,
   },
   glowCircle: {
     position: 'absolute',

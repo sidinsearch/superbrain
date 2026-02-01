@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, StatusBar, Modal, TextInput, ActivityIndicator, Linking } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, StatusBar, Modal, TextInput, ActivityIndicator, Linking, InteractionManager } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { Post } from '../types';
@@ -38,6 +38,17 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [showCollectionsModal, setShowCollectionsModal] = useState(false);
   const [loadingCollections, setLoadingCollections] = useState(false);
+  const titleInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (showEditModal) {
+      InteractionManager.runAfterInteractions(() => {
+        setTimeout(() => {
+          titleInputRef.current?.focus();
+        }, 500);
+      });
+    }
+  }, [showEditModal]);
 
   const getInstagramImageUrl = (shortcode: string) => {
     return `https://www.instagram.com/p/${shortcode}/media/?size=l`;
@@ -84,17 +95,28 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
   };
 
   const handleOpenInstagram = async () => {
-    const url = `https://www.instagram.com/p/${post.shortcode}/`;
+    const instagramAppUrl = `instagram://media?id=${post.shortcode}`;
+    const instagramWebUrl = `https://www.instagram.com/p/${post.shortcode}/`;
+    
     try {
-      const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        await Linking.openURL(url);
+      const canOpenApp = await Linking.canOpenURL(instagramAppUrl);
+      if (canOpenApp) {
+        await Linking.openURL(instagramAppUrl);
       } else {
-        setToast({ visible: true, message: 'Cannot open Instagram', type: 'error' });
+        const canOpenWeb = await Linking.canOpenURL(instagramWebUrl);
+        if (canOpenWeb) {
+          await Linking.openURL(instagramWebUrl);
+        } else {
+          setToast({ visible: true, message: 'Cannot open Instagram', type: 'error' });
+        }
       }
     } catch (error) {
       console.error('Error opening Instagram:', error);
-      setToast({ visible: true, message: 'Failed to open link', type: 'error' });
+      try {
+        await Linking.openURL(instagramWebUrl);
+      } catch (webError) {
+        setToast({ visible: true, message: 'Failed to open link', type: 'error' });
+      }
     }
   };
 
@@ -268,18 +290,27 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
         transparent={true}
         onRequestClose={() => setShowEditModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Post</Text>
-              <TouchableOpacity onPress={() => setShowEditModal(false)}>
-                <Text style={styles.modalCloseIcon}>✕</Text>
-              </TouchableOpacity>
-            </View>
+        <TouchableOpacity 
+          activeOpacity={1} 
+          style={styles.modalOverlay}
+          onPress={() => setShowEditModal(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+            <View style={[styles.modalContent, { marginBottom: 250 }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Edit Post</Text>
+                <TouchableOpacity onPress={() => setShowEditModal(false)}>
+                  <Text style={styles.modalCloseIcon}>✕</Text>
+                </TouchableOpacity>
+              </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+              <ScrollView 
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="always"
+              >
               <Text style={styles.inputLabel}>Title</Text>
               <TextInput
+                ref={titleInputRef}
                 style={styles.modalInput}
                 value={editedTitle}
                 onChangeText={setEditedTitle}
@@ -304,6 +335,7 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
                 showsHorizontalScrollIndicator={false}
                 style={styles.categoriesScroll}
                 contentContainerStyle={styles.categoriesContent}
+                keyboardShouldPersistTaps="always"
               >
                 {CATEGORIES.map((cat) => (
                   <TouchableOpacity
@@ -345,7 +377,8 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
       </Modal>
 
       {/* Delete Confirmation Modal */}
@@ -645,7 +678,7 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: colors.overlay,
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
   },
   modalContent: {
     backgroundColor: colors.background,

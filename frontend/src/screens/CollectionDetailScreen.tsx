@@ -102,17 +102,28 @@ const CollectionDetailScreen = ({ route, navigation }: Props) => {
   };
 
   const handleOpenInstagram = async (shortcode: string) => {
-    const url = `https://www.instagram.com/p/${shortcode}/`;
+    const instagramAppUrl = `instagram://media?id=${shortcode}`;
+    const instagramWebUrl = `https://www.instagram.com/p/${shortcode}/`;
+    
     try {
-      const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        await Linking.openURL(url);
+      const canOpenApp = await Linking.canOpenURL(instagramAppUrl);
+      if (canOpenApp) {
+        await Linking.openURL(instagramAppUrl);
       } else {
-        setToast({ visible: true, message: 'Cannot open Instagram', type: 'error' });
+        const canOpenWeb = await Linking.canOpenURL(instagramWebUrl);
+        if (canOpenWeb) {
+          await Linking.openURL(instagramWebUrl);
+        } else {
+          setToast({ visible: true, message: 'Cannot open Instagram', type: 'error' });
+        }
       }
     } catch (error) {
       console.error('Error opening Instagram:', error);
-      setToast({ visible: true, message: 'Failed to open link', type: 'error' });
+      try {
+        await Linking.openURL(instagramWebUrl);
+      } catch (webError) {
+        setToast({ visible: true, message: 'Failed to open link', type: 'error' });
+      }
     }
   };
 

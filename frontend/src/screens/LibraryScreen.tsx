@@ -229,7 +229,7 @@ const LibraryScreen = () => {
                     style={styles.editButton}
                     onPress={() => handleEditCollection(collection)}
                   >
-                    <Text style={styles.editIcon}>Γ£Å∩╕Å</Text>
+                    <Text style={styles.editIcon}>✏️</Text>
                   </TouchableOpacity>
                 </View>
               ))}
