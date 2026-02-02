@@ -34,7 +34,7 @@ const navigationRef = React.createRef<any>();
 
 export default function App() {
   const [isReady, setIsReady] = useState(false);
-  const [initialRoute, setInitialRoute] = useState<'Splash' | 'ShareHandler'>('Splash');
+  const [initialRoute, setInitialRoute] = useState<'Splash' | 'Home'>('Splash');
   const [shareUrl, setShareUrl] = useState<string | undefined>(undefined);
 
   useEffect(() => {
@@ -66,12 +66,12 @@ export default function App() {
       if (url) {
         console.log('App.tsx - URL DETECTED:', url);
         if (url.includes('share')) {
-          console.log('App.tsx - Share intent detected! Setting initial route to ShareHandler');
+          console.log('App.tsx - Share intent detected! Skipping splash, going to Home');
           const parsed = Linking.parse(url);
           const sharedUrl = parsed.queryParams?.url as string;
           console.log('App.tsx - Extracted shared URL:', sharedUrl);
           
-          setInitialRoute('ShareHandler');
+          setInitialRoute('Home');  // Skip splash, go straight to Home
           setShareUrl(sharedUrl);
         } else {
           console.log('App.tsx - URL does not contain share:', url);
@@ -86,6 +86,14 @@ export default function App() {
       console.error('App initialization error:', error);
     } finally {
       setIsReady(true);
+      
+      // If we have a share URL, navigate to ShareHandler after Home loads
+      if (shareUrl && navigationRef.current) {
+        setTimeout(() => {
+          console.log('App.tsx - Auto-navigating to ShareHandler with URL:', shareUrl);
+          navigationRef.current?.navigate('ShareHandler', { url: shareUrl });
+        }, 300); // Give Home screen time to load
+      }
     }
   };
 
@@ -140,7 +148,6 @@ export default function App() {
           <Stack.Screen 
             name="ShareHandler" 
             component={ShareHandlerScreen}
-            initialParams={{ url: shareUrl }}
             options={{ 
               presentation: 'transparentModal',
               animation: 'slide_from_bottom',

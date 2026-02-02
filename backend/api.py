@@ -93,7 +93,7 @@ app.add_middleware(
 )
 
 # Request queue management (persistent)
-max_concurrent = 4  # Maximum concurrent analyses (increased for multiple shares)
+max_concurrent = 1  # Process one post at a time - queue others sequentially
 
 # Shared Instaloader instance for caption fetching (reuse session to avoid rate limits)
 caption_loader = None
@@ -141,7 +141,9 @@ def queue_worker():
                     shortcode = item['shortcode']
                     url = item['url']
                     
-                    logger.info(f"📤 Processing from queue: {shortcode}")
+                    logger.info(f"� Queue alert: Processing next in queue")
+                    logger.info(f"📊 Queue status: {len(queue) - 1} remaining after this | Starting: {shortcode}")
+                    logger.info(f"📤 [{shortcode}] Starting analysis from queue...")
                     
                     # Mark as processing
                     db.mark_processing(shortcode)
@@ -393,15 +395,25 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
                 detail="This URL is already being analyzed. Please wait and try again in a moment."
             )
         
-        # Step 3: Check queue size
+        # Check if URL is already in queue - if so, remove the old queued item
+        queue_items = db.get_queue()
+        for item in queue_items:
+            if item['shortcode'] == shortcode:
+                logger.info(f"🔄 [{shortcode}] Duplicate found in queue - removing old entry and processing fresh request")
+                db.remove_from_queue(shortcode)
+                break
+        
+        # Step 3: Check queue size (re-fetch after potential duplicate removal)
+        queue_items = db.get_queue()
         if len(processing_items) >= max_concurrent:
-            logger.warning(f"🚦 [{shortcode}] Server at capacity ({len(processing_items)}/{max_concurrent}). Adding to queue...")
+            logger.warning(f"🚦 [{shortcode}] Server busy - 1 post analyzing. Adding to queue...")
             queue_position = db.add_to_queue(shortcode, request.url)
             if queue_position > 0:
-                logger.info(f"📝 [{shortcode}] Added to persistent queue (position: {queue_position})")
+                logger.info(f"📝 [{shortcode}] ✅ Added to queue at position {queue_position}")
+                logger.info(f"📊 Queue status: {len(queue_items) + 1} waiting | 1 analyzing")
                 raise HTTPException(
                     status_code=503,
-                    detail=f"Server busy. Your request is queued (position: {queue_position}). It will be processed automatically. Check back in a few minutes."
+                    detail=f"Server busy analyzing 1 post. Your request is queued (position: {queue_position}). It will be processed automatically. Check back in a few minutes."
                 )
             else:
                 raise HTTPException(
@@ -410,6 +422,8 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
                 )
         
         # Step 4: Start processing
+        if len(queue_items) > 0:
+            logger.info(f"📊 Queue status: {len(queue_items)} waiting | Starting: {shortcode}")
         logger.info(f"🚀 [{shortcode}] Starting analysis...")
         db.mark_processing(shortcode)
         

@@ -341,11 +341,13 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
   if (!url && processing) {
     return (
       <View style={styles.overlayContainer}>
-        <TouchableOpacity 
-          style={styles.backdrop}
-          activeOpacity={1}
-          onPress={() => navigation.replace('Home')}
-        />
+        <View style={styles.backdrop}>
+          <View style={styles.logoContainer}>
+            <Text style={styles.logoText}>🧠</Text>
+            <Text style={styles.appName}>SuperBrain</Text>
+            <Text style={styles.tagline}>Save it. See it. Do it.</Text>
+          </View>
+        </View>
         <View style={styles.bottomSheet}>
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary} />
@@ -359,11 +361,13 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
   if (error) {
     return (
       <View style={styles.overlayContainer}>
-        <TouchableOpacity 
-          style={styles.backdrop}
-          activeOpacity={1}
-          onPress={() => navigation.replace('Home')}
-        />
+        <View style={styles.backdrop}>
+          <View style={styles.logoContainer}>
+            <Text style={styles.logoText}>🧠</Text>
+            <Text style={styles.appName}>SuperBrain</Text>
+            <Text style={styles.tagline}>Save it. See it. Do it.</Text>
+          </View>
+        </View>
         <View style={styles.bottomSheet}>
           <View style={styles.errorContainer}>
             <Text style={styles.errorIcon}>⚠️</Text>
@@ -380,11 +384,13 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
 
   return (
     <View style={styles.overlayContainer}>
-      <TouchableOpacity 
-        style={styles.backdrop}
-        activeOpacity={1}
-        onPress={() => navigation.goBack()}
-      />
+      <View style={styles.backdrop}>
+        <View style={styles.logoContainer}>
+          <Text style={styles.logoText}>🧠</Text>
+          <Text style={styles.appName}>SuperBrain</Text>
+          <Text style={styles.tagline}>Save it. See it. Do it.</Text>
+        </View>
+      </View>
       <View style={styles.bottomSheet}>
         {/* Handle bar */}
         <View style={styles.handleBar} />
@@ -464,11 +470,34 @@ const styles = StyleSheet.create({
   overlayContainer: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'transparent',
+    backgroundColor: colors.background,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingBottom: 200, // Move logo up to avoid bottom sheet
+  },
+  logoContainer: {
+    alignItems: 'center',
+  },
+  logoText: {
+    fontSize: 80,
+    marginBottom: 16,
+  },
+  appName: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: colors.text,
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  tagline: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: colors.textMuted,
+    letterSpacing: 0.5,
   },
   bottomSheet: {
     backgroundColor: colors.background,
