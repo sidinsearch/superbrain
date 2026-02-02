@@ -44,6 +44,8 @@ const LibraryScreen = () => {
   const [editCollectionName, setEditCollectionName] = useState('');
   const [editSelectedIcon, setEditSelectedIcon] = useState('📁');
   const [toast, setToast] = useState({ visible: false, message: '', type: 'info' as 'success' | 'error' | 'warning' | 'info' });
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedCollections, setSelectedCollections] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadCollections();
@@ -151,8 +153,24 @@ const LibraryScreen = () => {
   };
 
   const confirmDelete = async () => {
-    if (collectionToDelete) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    
+    if (selectionMode && selectedCollections.size > 0) {
+      // Delete multiple selected collections
+      for (const collectionId of Array.from(selectedCollections)) {
+        await collectionsService.deleteCollection(collectionId);
+      }
+      setShowDeleteModal(false);
+      setSelectionMode(false);
+      setSelectedCollections(new Set());
+      loadCollections();
+      setToast({ 
+        visible: true, 
+        message: `${selectedCollections.size} collection(s) deleted`, 
+        type: 'success' 
+      });
+    } else if (collectionToDelete) {
+      // Delete single collection
       await collectionsService.deleteCollection(collectionToDelete.id);
       setShowDeleteModal(false);
       setCollectionToDelete(null);
@@ -174,6 +192,26 @@ const LibraryScreen = () => {
         <Text style={styles.headerSubtitle}>
           {collections.length} collections
         </Text>
+        {selectionMode && (
+          <View style={styles.selectionButtonsContainer}>
+            <TouchableOpacity 
+              style={styles.cancelButton}
+              onPress={() => {
+                setSelectionMode(false);
+                setSelectedCollections(new Set());
+              }}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.deleteButton, selectedCollections.size === 0 && styles.deleteButtonDisabled]}
+              onPress={() => selectedCollections.size > 0 && setShowDeleteModal(true)}
+              disabled={selectedCollections.size === 0}
+            >
+              <Text style={styles.deleteButtonText}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       <View style={styles.searchContainer}>
@@ -214,14 +252,48 @@ const LibraryScreen = () => {
             </View>
           ) : (
             <View style={styles.collectionsGrid}>
-              {filteredCollections.map((collection) => (
+              {filteredCollections.map((collection) => {
+                const isSelected = selectedCollections.has(collection.id);
+                return (
                 <View key={collection.id} style={styles.collectionWrapper}>
                   <TouchableOpacity
-                    style={styles.collectionCard}
-                    onPress={() => navigation.navigate('CollectionDetail', { collection })}
-                    onLongPress={() => handleDeleteCollection(collection)}
+                    style={[
+                      styles.collectionCard,
+                      isSelected && styles.collectionCardSelected
+                    ]}
+                    onPress={() => {
+                      if (selectionMode) {
+                        const newSelected = new Set(selectedCollections);
+                        if (isSelected) {
+                          newSelected.delete(collection.id);
+                        } else {
+                          newSelected.add(collection.id);
+                        }
+                        setSelectedCollections(newSelected);
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      } else {
+                        navigation.navigate('CollectionDetail', { collection });
+                      }
+                    }}
+                    onLongPress={() => {
+                      if (!selectionMode) {
+                        setSelectionMode(true);
+                        setSelectedCollections(new Set([collection.id]));
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      }
+                    }}
                     activeOpacity={0.8}
                   >
+                    {selectionMode && (
+                      <View style={styles.checkboxContainer}>
+                        <View style={[
+                          styles.checkbox,
+                          isSelected && styles.checkboxSelected
+                        ]}>
+                          {isSelected && <Text style={styles.checkmark}>✓</Text>}
+                        </View>
+                      </View>
+                    )}
                     <View style={styles.collectionIconContainer}>
                       <Text style={styles.collectionIcon}>{collection.icon}</Text>
                     </View>
@@ -232,14 +304,16 @@ const LibraryScreen = () => {
                       {collection.postIds.length} {collection.postIds.length === 1 ? 'post' : 'posts'}
                     </Text>
                   </TouchableOpacity>
+                  {!selectionMode && (
                   <TouchableOpacity
                     style={styles.editButton}
                     onPress={() => handleEditCollection(collection)}
                   >
                     <Text style={styles.editIcon}>✏️</Text>
                   </TouchableOpacity>
+                  )}
                 </View>
-              ))}
+              );})}
             </View>
           )}
         </ScrollView>
@@ -441,7 +515,10 @@ const LibraryScreen = () => {
             </View>
             <Text style={styles.deleteTitle}>Delete Collection?</Text>
             <Text style={styles.deleteMessage}>
-              Are you sure you want to delete "{collectionToDelete?.name}"? This will not delete the posts.
+              {selectionMode && selectedCollections.size > 0
+                ? `Are you sure you want to delete ${selectedCollections.size} collection(s)? This will not delete the posts.`
+                : `Are you sure you want to delete "${collectionToDelete?.name}"? This will not delete the posts.`
+              }
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -490,6 +567,38 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 14,
     color: colors.textMuted,
+  },
+  selectionButtonsContainer: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  cancelButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: colors.backgroundCard,
+  },
+  cancelButtonText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  deleteButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: colors.error,
+  },
+  deleteButtonDisabled: {
+    backgroundColor: colors.error + '40',
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -576,9 +685,38 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundCard,
     padding: 20,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 2,
+    borderColor: 'transparent',
     alignItems: 'center',
+  },
+  collectionCardSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '10',
+  },
+  checkboxContainer: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    zIndex: 2,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  checkmark: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   editButton: {
     position: 'absolute',
@@ -689,6 +827,8 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalContent: {
     backgroundColor: colors.backgroundCard,
@@ -718,6 +858,8 @@ const styles = StyleSheet.create({
     padding: 24,
     marginHorizontal: 20,
     alignItems: 'center',
+    maxWidth: 400,
+    width: '90%',
   },
   deleteIconContainer: {
     width: 80,

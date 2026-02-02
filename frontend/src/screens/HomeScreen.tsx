@@ -57,9 +57,16 @@ const HomeScreen = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'info' as 'success' | 'error' | 'warning' | 'info' });
   const [isInitialized, setIsInitialized] = useState(false);
+  const [pollInterval, setPollInterval] = useState<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     initializeAndLoad();
+    
+    return () => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
   }, []);
 
   // Refresh when screen comes into focus (but skip first time)
@@ -116,6 +123,24 @@ const HomeScreen = () => {
       if (fetchedPosts.length > 0) {
         setPosts(fetchedPosts);
         await postsCache.savePosts(fetchedPosts);
+        
+        // Check if any posts are still analyzing
+        const hasAnalyzing = fetchedPosts.some(post => 
+          postsCache.isAnalyzing(post.shortcode) || post.processing
+        );
+        
+        if (hasAnalyzing && !pollInterval) {
+          console.log('HomeScreen - Starting polling for analyzing posts');
+          const interval = setInterval(() => {
+            console.log('HomeScreen - Polling for updates...');
+            loadPosts(true);
+          }, 10000); // Poll every 10 seconds
+          setPollInterval(interval);
+        } else if (!hasAnalyzing && pollInterval) {
+          console.log('HomeScreen - Stopping polling, no analyzing posts');
+          clearInterval(pollInterval);
+          setPollInterval(null);
+        }
       } else if (!cachedPosts || cachedPosts.length === 0) {
         console.log('HomeScreen - No posts found on server');
         showToast('No posts found. Share some Instagram posts to get started!', 'info');
