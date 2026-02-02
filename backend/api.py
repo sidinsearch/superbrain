@@ -93,7 +93,29 @@ app.add_middleware(
 )
 
 # Request queue management (persistent)
-max_concurrent = 2  # Maximum concurrent analyses
+max_concurrent = 4  # Maximum concurrent analyses (increased for multiple shares)
+
+# Shared Instaloader instance for caption fetching (reuse session to avoid rate limits)
+caption_loader = None
+caption_loader_lock = threading.Lock()
+
+def get_caption_loader():
+    """Get or create shared Instaloader instance for caption fetching"""
+    global caption_loader
+    with caption_loader_lock:
+        if caption_loader is None:
+            import instaloader
+            caption_loader = instaloader.Instaloader(
+                download_pictures=False,
+                download_videos=False,
+                download_video_thumbnails=False,
+                download_geotags=False,
+                download_comments=False,
+                save_metadata=False,
+                compress_json=False,
+                max_connection_attempts=1  # Fail fast
+            )
+        return caption_loader
 
 # Initialize database and recover interrupted items on startup
 db = get_db()
@@ -206,63 +228,92 @@ async def root():
 @app.get("/caption")
 async def get_caption(url: str, token: str = Depends(verify_token)):
     """
-    Quick caption fetch - returns Instagram post caption without running AI analysis
-    Used for share screen preview
+    Quick caption fetch - calls caption.py as subprocess
+    Simple and works every time
     """
     try:
-        import instaloader
-        import re
-        
         logger.info(f"🔍 Quick caption fetch for: {url}")
         
-        # Extract shortcode
+        # Extract shortcode for logging
         validation = validate_link(url)
         shortcode = validation['shortcode']
         
-        # Use Instaloader to get caption quickly
-        loader = instaloader.Instaloader()
-        post = instaloader.Post.from_shortcode(loader.context, shortcode)
+        # Run caption.py as subprocess - simple and reliable
+        import subprocess
+        import sys
         
-        caption = post.caption if post.caption else ""
+        loop = asyncio.get_event_loop()
         
-        if caption:
-            # Split by lines and remove hashtag sections
-            lines = caption.split('\n')
-            clean_lines = []
+        def run_caption_script():
+            # Use the same Python interpreter as the API (with all packages)
+            python_exe = sys.executable
+            print(f"[API] Using Python: {python_exe}")
             
-            for line in lines:
-                line = line.strip()
-                if line and not line.startswith('#'):
-                    clean_lines.append(line)
-                elif line.startswith('#'):
-                    break
-            
-            caption_text = ' '.join(clean_lines).strip()
-            caption_text = re.sub(r'#\w+', '', caption_text).strip()
-            
-            # Limit to 100 chars
-            title = caption_text[:100] if len(caption_text) > 100 else caption_text
-            title = title if title else "Instagram Post"
-        else:
-            title = "Instagram Post"
+            result = subprocess.run(
+                [python_exe, 'caption.py', url],
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=15,
+                cwd='D:\\Projects\\SuperBrain\\backend'
+            )
+            print(f"[API] Subprocess stdout: {repr(result.stdout[:200])}")
+            print(f"[API] Subprocess stderr: {repr(result.stderr[:200])}")
+            print(f"[API] Subprocess returncode: {result.returncode}")
+            return result.stdout.strip() if result.stdout else ""
         
-        logger.info(f"✅ Caption: {title}")
+        try:
+            caption_text = await asyncio.wait_for(
+                loop.run_in_executor(None, run_caption_script),
+                timeout=20.0
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"❌ [{shortcode}] Caption fetch timed out")
+            return {
+                "success": True,
+                "shortcode": shortcode,
+                "username": "",
+                "title": "Instagram Post",
+                "full_caption": ""
+            }
+        
+        print(f"[API] Final caption_text: {repr(caption_text)}")
+        
+        # Check if it's an error message
+        if caption_text.startswith('❌') or caption_text.startswith('ℹ️'):
+            logger.warning(f"⚠️ [{shortcode}] {caption_text}")
+            return {
+                "success": True,
+                "shortcode": shortcode,
+                "username": "",
+                "title": "Instagram Post",
+                "full_caption": ""
+            }
+        
+        # Limit to 100 chars for title
+        title = caption_text[:100] if len(caption_text) > 100 else caption_text
+        title = title if title else "Instagram Post"
+        
+        logger.info(f"✅ [{shortcode}] Caption: {title}")
         
         return {
             "success": True,
             "shortcode": shortcode,
-            "username": post.owner_username,
-            "title": title
+            "username": "",
+            "title": title,
+            "full_caption": caption_text
         }
         
     except Exception as e:
-        logger.error(f"❌ Caption fetch failed: {str(e)}")
+        logger.error(f"❌ Caption fetch failed: {str(e)}", exc_info=True)
         return {
-            "success": False,
-            "error": str(e),
+            "success": True,
+            "shortcode": "",
+            "username": "",
             "title": "Instagram Post",
-            "shortcode": None,
-            "username": ""
+            "full_caption": "",
+            "error": str(e)
         }
 
 
