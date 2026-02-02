@@ -73,6 +73,44 @@ class ApiService {
     }
   }
 
+  async getPostInfo(url: string): Promise<{ shortcode: string; username: string; title: string; full_caption: string }> {
+    try {
+      const headers = await this.getHeaders();
+      const baseUrl = await this.getBaseUrl();
+      const response = await axios.get(
+        `${baseUrl}/caption`,
+        { 
+          headers,
+          params: { url }
+        }
+      );
+      
+      if (response.data.success) {
+        return {
+          shortcode: response.data.shortcode || '',
+          username: response.data.username || '',
+          title: response.data.title || 'Instagram Post',
+          full_caption: ''
+        };
+      }
+      
+      return {
+        shortcode: '',
+        username: '',
+        title: 'Instagram Post',
+        full_caption: ''
+      };
+    } catch (error: any) {
+      console.error('Error fetching post caption:', error);
+      return {
+        shortcode: '',
+        username: '',
+        title: 'Instagram Post',
+        full_caption: ''
+      };
+    }
+  }
+
   async analyzeInstagramUrl(url: string): Promise<Post> {
     try {
       const headers = await this.getHeaders();

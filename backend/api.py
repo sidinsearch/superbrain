@@ -23,6 +23,7 @@ from pathlib import Path
 
 # Import database module
 from database import get_db
+from link_checker import validate_link
 
 # Configure logging
 logging.basicConfig(
@@ -192,6 +193,7 @@ async def root():
         "authentication": "Required - Use X-API-Key header",
         "endpoints": {
             "POST /analyze": "Analyze Instagram content (requires auth)",
+            "GET /caption": "Get post caption quickly (requires auth)",
             "GET /cache/{shortcode}": "Check cache (requires auth)",
             "GET /recent": "Get recent analyses (requires auth)",
             "GET /stats": "Database statistics (requires auth)",
@@ -199,6 +201,69 @@ async def root():
             "GET /search": "Search by tags (requires auth)"
         }
     }
+
+
+@app.get("/caption")
+async def get_caption(url: str, token: str = Depends(verify_token)):
+    """
+    Quick caption fetch - returns Instagram post caption without running AI analysis
+    Used for share screen preview
+    """
+    try:
+        import instaloader
+        import re
+        
+        logger.info(f"🔍 Quick caption fetch for: {url}")
+        
+        # Extract shortcode
+        validation = validate_link(url)
+        shortcode = validation['shortcode']
+        
+        # Use Instaloader to get caption quickly
+        loader = instaloader.Instaloader()
+        post = instaloader.Post.from_shortcode(loader.context, shortcode)
+        
+        caption = post.caption if post.caption else ""
+        
+        if caption:
+            # Split by lines and remove hashtag sections
+            lines = caption.split('\n')
+            clean_lines = []
+            
+            for line in lines:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    clean_lines.append(line)
+                elif line.startswith('#'):
+                    break
+            
+            caption_text = ' '.join(clean_lines).strip()
+            caption_text = re.sub(r'#\w+', '', caption_text).strip()
+            
+            # Limit to 100 chars
+            title = caption_text[:100] if len(caption_text) > 100 else caption_text
+            title = title if title else "Instagram Post"
+        else:
+            title = "Instagram Post"
+        
+        logger.info(f"✅ Caption: {title}")
+        
+        return {
+            "success": True,
+            "shortcode": shortcode,
+            "username": post.owner_username,
+            "title": title
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Caption fetch failed: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e),
+            "title": "Instagram Post",
+            "shortcode": None,
+            "username": ""
+        }
 
 
 @app.post("/analyze", response_model=AnalysisResponse)

@@ -67,7 +67,7 @@ const HomeScreen = () => {
     const unsubscribe = navigation.addListener('focus', () => {
       if (isInitialized) {
         console.log('HomeScreen - Screen focused, refreshing...');
-        loadPosts(true);
+        loadPosts(false); // Don't force refresh, let cache-first strategy work
       }
     });
     return unsubscribe;
@@ -76,7 +76,7 @@ const HomeScreen = () => {
   const initializeAndLoad = async () => {
     try {
       await apiService.initialize();
-      await loadPosts(true); // Force refresh on initial load to fetch from server
+      await loadPosts(false); // Use cache-first strategy even on initial load
       setIsInitialized(true);
     } catch (error) {
       console.error('Error initializing:', error);
@@ -87,29 +87,29 @@ const HomeScreen = () => {
 
   const loadPosts = async (forceRefresh: boolean = false) => {
     try {
-      // Don't show loading spinner if we have cached posts (prevents blank screen)
+      // Always load and display cached posts immediately (non-blocking)
       const cachedPosts = await postsCache.getCachedPosts();
-      if (!cachedPosts || cachedPosts.length === 0) {
-        setLoading(true);
-      }
-      
-      // Always display cached posts first for instant UI
       if (cachedPosts && cachedPosts.length > 0) {
         console.log('HomeScreen - Loaded from cache:', cachedPosts.length, 'posts');
         setPosts(cachedPosts);
+        setLoading(false); // Clear loading immediately when we have cache
         
-        // If not forcing refresh and cache is valid, we're done
+        // If cache is valid and not forcing refresh, we're done
         if (!forceRefresh) {
           const isValid = await postsCache.isCacheValid();
           if (isValid) {
-            setLoading(false);
             return;
           }
         }
+        
+        // If we got here, we'll fetch in background but UI is already showing cached posts
+      } else {
+        // No cache, show loading spinner
+        setLoading(true);
       }
       
-      // Fetch from server to check for updates (in background)
-      console.log('HomeScreen - Fetching from server...');
+      // Fetch from server in background (UI already showing if we have cache)
+      console.log('HomeScreen - Fetching from server in background...');
       const fetchedPosts = await apiService.getRecentPosts(50);
       console.log('HomeScreen - Fetched', fetchedPosts.length, 'posts from server');
       

@@ -119,6 +119,24 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
     return null;
   };
 
+  const fetchInstagramCaption = async (shortcode: string): Promise<string> => {
+    try {
+      console.log('Fetching caption from backend API...');
+      
+      // Call backend endpoint to get caption
+      const caption = await apiService.getPostInfo(`https://www.instagram.com/p/${shortcode}/`);
+      
+      if (caption && caption.title && caption.title !== 'Instagram Post') {
+        console.log('Got caption from backend:', caption.title);
+        return caption.title;
+      }
+    } catch (error) {
+      console.log('Backend caption fetch failed:', error);
+    }
+    
+    return 'Instagram Post';
+  };
+
   const handleInstagramUrl = async () => {
     if (!url) {
       console.log('ShareHandler - No URL to process');
@@ -127,7 +145,6 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
     
     try {
       console.log('ShareHandler - Processing URL:', url);
-      setProcessing(false);
       setError(null);
 
       const shortcode = extractShortcode(url);
@@ -136,10 +153,11 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
       if (!shortcode) {
         console.error('ShareHandler - Invalid Instagram URL:', url);
         setError('Invalid Instagram URL');
+        setProcessing(false);
         return;
       }
 
-      // Get Instagram thumbnail immediately
+      // Get Instagram thumbnail
       const thumbnailUrl = `https://www.instagram.com/p/${shortcode}/media/?size=m`;
       
       // Create temporary post for preview
@@ -147,7 +165,7 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
         shortcode,
         url: `https://www.instagram.com/p/${shortcode}/`,
         username: '',
-        title: 'Instagram Post',
+        title: 'Loading...',
         summary: '',
         tags: [],
         music: '',
@@ -156,14 +174,25 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
       };
       
       setPost(tempPost);
+      setProcessing(false);
       
       // Load collections immediately
       loadCollections();
       setShowCollections(true);
       
+      // Fetch Instagram caption in background (non-blocking)
+      fetchInstagramCaption(shortcode).then(caption => {
+        console.log('ShareHandler - Got caption:', caption);
+        setPost(prev => prev ? { ...prev, title: caption } : null);
+      }).catch(err => {
+        console.log('ShareHandler - Caption fetch error:', err);
+        setPost(prev => prev ? { ...prev, title: 'Instagram Post' } : null);
+      });
+      
     } catch (err: any) {
       console.error('ShareHandler - Error processing Instagram URL:', err);
       setError('Failed to process Instagram post');
+      setProcessing(false);
     }
   };
 
