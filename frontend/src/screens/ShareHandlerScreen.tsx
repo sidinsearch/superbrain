@@ -9,8 +9,8 @@ import {
   ActivityIndicator,
   ScrollView,
   Dimensions,
+  BackHandler,
 } from 'react-native';
-import * as Linking from 'expo-linking';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { colors } from '../theme/colors';
@@ -273,9 +273,9 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
       
       showToast('✨ Analyzing...', 'info');
       
-      // Navigate to Home to show the analyzing post
+      // Return to Instagram by closing the app
       setTimeout(() => {
-        navigation.replace('Home');
+        BackHandler.exitApp();
       }, 500);
     } catch (error) {
       console.error('Error adding to collection:', error);
@@ -327,9 +327,9 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
       
       showToast('✨ Analyzing...', 'info');
       
-      // Navigate to Home to show the analyzing post
+      // Return to Instagram by closing the app
       setTimeout(() => {
-        navigation.replace('Home');
+        BackHandler.exitApp();
       }, 500);
     } catch (error) {
       console.error('Error:', error);
