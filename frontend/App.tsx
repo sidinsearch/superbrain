@@ -4,7 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Linking from 'expo-linking';
-import { Platform } from 'react-native';
+import { Platform, Alert } from 'react-native';
 
 // Screens
 import SplashScreen from './src/screens/SplashScreen';
@@ -30,28 +30,58 @@ export type RootStackParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const navigationRef = React.createRef<any>();
 
 export default function App() {
   const [isReady, setIsReady] = useState(false);
-  const [initialUrl, setInitialUrl] = useState<string | null>(null);
+  const [initialRoute, setInitialRoute] = useState<'Splash' | 'ShareHandler'>('Splash');
+  const [shareUrl, setShareUrl] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     initializeApp();
+    
+    // CRITICAL: Also listen for URL events (handles share intents)
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      console.log('App.tsx - URL EVENT RECEIVED:', url);
+      if (url && url.includes('share')) {
+        const parsed = Linking.parse(url);
+        const sharedUrl = parsed.queryParams?.url as string;
+        console.log('App.tsx - Navigating to ShareHandler with URL:', sharedUrl);
+        // Navigate to ShareHandler (app is already running)
+        if (navigationRef.current) {
+          navigationRef.current.navigate('ShareHandler', { url: sharedUrl });
+        }
+      }
+    });
+    
+    return () => subscription.remove();
   }, []);
 
   const initializeApp = async () => {
     try {
+      // Check for share intent FIRST
+      const url = await Linking.getInitialURL();
+      console.log('App.tsx - Initial URL:', url);
+      
+      if (url) {
+        console.log('App.tsx - URL DETECTED:', url);
+        if (url.includes('share')) {
+          console.log('App.tsx - Share intent detected! Setting initial route to ShareHandler');
+          const parsed = Linking.parse(url);
+          const sharedUrl = parsed.queryParams?.url as string;
+          console.log('App.tsx - Extracted shared URL:', sharedUrl);
+          
+          setInitialRoute('ShareHandler');
+          setShareUrl(sharedUrl);
+        } else {
+          console.log('App.tsx - URL does not contain share:', url);
+        }
+      } else {
+        console.log('App.tsx - NO URL DETECTED (getInitialURL returned null)');
+      }
+      
       // Initialize API service
       await apiService.initialize();
-      
-      // Check for share intent (Android)
-      if (Platform.OS === 'android') {
-        const url = await Linking.getInitialURL();
-        console.log('App - Initial URL on launch:', url);
-        if (url) {
-          setInitialUrl(url);
-        }
-      }
     } catch (error) {
       console.error('App initialization error:', error);
     } finally {
@@ -66,6 +96,7 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <NavigationContainer
+        ref={navigationRef}
         linking={{
           prefixes: ['superbrain://', 'https://instagram.com', 'https://www.instagram.com'],
           config: {
@@ -74,70 +105,19 @@ export default function App() {
               Home: 'home',
               Library: 'library',
               Settings: 'settings',
-              ShareHandler: 'share',
+              ShareHandler: {
+                path: 'share',
+                parse: {
+                  url: (url: string) => decodeURIComponent(url),
+                },
+              },
             },
-          },
-          async getInitialURL() {
-            // Check if app was opened via deep link or share intent
-            const url = await Linking.getInitialURL();
-            console.log('NavigationContainer - getInitialURL:', url);
-            
-            if (url) {
-              // Parse the URL to check for text content (Android share intent)
-              const parsed = Linking.parse(url);
-              console.log('NavigationContainer - Parsed:', JSON.stringify(parsed, null, 2));
-              
-              // Handle Android SEND intent with text
-              if (parsed.queryParams?.text) {
-                const textContent = parsed.queryParams.text as string;
-                console.log('NavigationContainer - Got text from share:', textContent);
-                return `superbrain://share?text=${encodeURIComponent(textContent)}`;
-              }
-              
-              // Handle Instagram URLs or HTTP URLs
-              if (url.includes('instagram.com') || url.startsWith('http')) {
-                console.log('NavigationContainer - Routing to ShareHandler with URL:', url);
-                return `superbrain://share?url=${encodeURIComponent(url)}`;
-              }
-            }
-            
-            console.log('NavigationContainer - Default routing with URL:', url);
-            return url;
-          },
-          subscribe(listener) {
-            // Listen for deep links while app is open
-            const subscription = Linking.addEventListener('url', ({ url }) => {
-              console.log('NavigationContainer - Received URL event:', url);
-              
-              if (url) {
-                // Parse the URL to check for text content
-                const parsed = Linking.parse(url);
-                
-                // Handle Android SEND intent with text
-                if (parsed.queryParams?.text) {
-                  const textContent = parsed.queryParams.text as string;
-                  console.log('NavigationContainer - Event got text from share:', textContent);
-                  listener(`superbrain://share?text=${encodeURIComponent(textContent)}`);
-                  return;
-                }
-                
-                // Handle Instagram URLs or HTTP URLs
-                if (url.includes('instagram.com') || url.startsWith('http')) {
-                  console.log('NavigationContainer - Routing event to ShareHandler');
-                  listener(`superbrain://share?url=${encodeURIComponent(url)}`);
-                  return;
-                }
-              }
-              
-              listener(url);
-            });
-            return () => subscription.remove();
           },
         }}
       >
         <StatusBar style="light" />
         <Stack.Navigator
-          initialRouteName="Splash"
+          initialRouteName={initialRoute}
           screenOptions={{
             headerShown: false,
             animation: 'fade',
@@ -160,9 +140,11 @@ export default function App() {
           <Stack.Screen 
             name="ShareHandler" 
             component={ShareHandlerScreen}
+            initialParams={{ url: shareUrl }}
             options={{ 
-              animation: 'slide_from_bottom',
               presentation: 'transparentModal',
+              animation: 'slide_from_bottom',
+              headerShown: false,
             }}
           />
         </Stack.Navigator>

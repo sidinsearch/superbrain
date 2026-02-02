@@ -8,6 +8,7 @@ from pymongo import MongoClient, ASCENDING
 from datetime import datetime
 import os
 from pathlib import Path
+import ssl
 
 class Database:
     """MongoDB database manager with caching functionality"""
@@ -41,8 +42,13 @@ class Database:
                     print("⚠️  No valid connection string found in .mongodb_config")
                     return
             
-            # Connect to MongoDB
-            self.client = MongoClient(connection_string, serverSelectionTimeoutMS=5000)
+            # Connect to MongoDB with TLS settings for Windows
+            self.client = MongoClient(
+                connection_string, 
+                serverSelectionTimeoutMS=5000,
+                tls=True,
+                tlsAllowInvalidCertificates=True
+            )
             
             # Test connection
             self.client.server_info()
@@ -113,6 +119,8 @@ class Database:
             return False
         
         try:
+            print(f"📝 Saving to database with shortcode: {shortcode}")
+            
             document = {
                 "shortcode": shortcode,
                 "url": url,
@@ -131,17 +139,28 @@ class Database:
             }
             
             # Insert or update
-            self.collection.update_one(
+            result = self.collection.update_one(
                 {"shortcode": shortcode},
                 {"$set": document},
                 upsert=True
             )
             
-            print("✓ Analysis saved to database")
+            print(f"✓ Analysis saved to database (matched: {result.matched_count}, modified: {result.modified_count}, upserted_id: {result.upserted_id})")
+            
+            # Verify it was saved
+            saved_doc = self.collection.find_one({"shortcode": shortcode})
+            if saved_doc:
+                print(f"✓ Verified: Document exists in database with shortcode {shortcode}")
+            else:
+                print(f"⚠️  Warning: Document not found after save with shortcode {shortcode}")
+            
             return True
             
         except Exception as e:
             print(f"⚠️  Error saving to database: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
             return False
     
     def get_recent(self, limit=10):

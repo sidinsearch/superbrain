@@ -3,9 +3,73 @@ import { Post } from '../types';
 
 const POSTS_CACHE_KEY = '@superbrain_posts_cache';
 const CACHE_TIMESTAMP_KEY = '@superbrain_posts_timestamp';
+const ANALYZING_POSTS_KEY = '@superbrain_analyzing_posts';
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 class PostsCacheService {
+  private analyzingPosts: Set<string> = new Set();
+
+  constructor() {
+    this.loadAnalyzingPosts();
+  }
+
+  /**
+   * Load analyzing posts from storage
+   */
+  private async loadAnalyzingPosts(): Promise<void> {
+    try {
+      const stored = await AsyncStorage.getItem(ANALYZING_POSTS_KEY);
+      if (stored) {
+        this.analyzingPosts = new Set(JSON.parse(stored));
+      }
+    } catch (error) {
+      console.error('Error loading analyzing posts:', error);
+    }
+  }
+
+  /**
+   * Mark a post as currently being analyzed
+   */
+  async markAsAnalyzing(shortcode: string): Promise<void> {
+    try {
+      this.analyzingPosts.add(shortcode);
+      await AsyncStorage.setItem(
+        ANALYZING_POSTS_KEY, 
+        JSON.stringify(Array.from(this.analyzingPosts))
+      );
+    } catch (error) {
+      console.error('Error marking post as analyzing:', error);
+    }
+  }
+
+  /**
+   * Mark a post as analysis complete
+   */
+  async markAnalysisComplete(shortcode: string): Promise<void> {
+    try {
+      this.analyzingPosts.delete(shortcode);
+      await AsyncStorage.setItem(
+        ANALYZING_POSTS_KEY, 
+        JSON.stringify(Array.from(this.analyzingPosts))
+      );
+    } catch (error) {
+      console.error('Error marking analysis complete:', error);
+    }
+  }
+
+  /**
+   * Check if a post is currently being analyzed
+   */
+  isAnalyzing(shortcode: string): boolean {
+    return this.analyzingPosts.has(shortcode);
+  }
+
+  /**
+   * Get all analyzing posts
+   */
+  getAnalyzingPosts(): string[] {
+    return Array.from(this.analyzingPosts);
+  }
   /**
    * Save posts to local cache
    */

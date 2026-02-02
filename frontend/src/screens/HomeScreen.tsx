@@ -56,45 +56,79 @@ const HomeScreen = () => {
   const [loadingCollections, setLoadingCollections] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'info' as 'success' | 'error' | 'warning' | 'info' });
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     initializeAndLoad();
   }, []);
 
+  // Refresh when screen comes into focus (but skip first time)
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      if (isInitialized) {
+        console.log('HomeScreen - Screen focused, refreshing...');
+        loadPosts(true);
+      }
+    });
+    return unsubscribe;
+  }, [navigation, isInitialized]);
+
   const initializeAndLoad = async () => {
     try {
       await apiService.initialize();
-      await loadPosts();
+      await loadPosts(true); // Force refresh on initial load to fetch from server
+      setIsInitialized(true);
     } catch (error) {
       console.error('Error initializing:', error);
+      showToast('Failed to connect to server. Check your API settings.', 'error');
+      setIsInitialized(true);
     }
   };
 
   const loadPosts = async (forceRefresh: boolean = false) => {
     try {
-      setLoading(true);
+      // Don't show loading spinner if we have cached posts (prevents blank screen)
+      const cachedPosts = await postsCache.getCachedPosts();
+      if (!cachedPosts || cachedPosts.length === 0) {
+        setLoading(true);
+      }
       
-      // Try to load from cache first
-      if (!forceRefresh) {
-        const cachedPosts = await postsCache.getValidCachedPosts();
-        if (cachedPosts && cachedPosts.length > 0) {
-          setPosts(cachedPosts);
-          setLoading(false);
-          return;
+      // Always display cached posts first for instant UI
+      if (cachedPosts && cachedPosts.length > 0) {
+        console.log('HomeScreen - Loaded from cache:', cachedPosts.length, 'posts');
+        setPosts(cachedPosts);
+        
+        // If not forcing refresh and cache is valid, we're done
+        if (!forceRefresh) {
+          const isValid = await postsCache.isCacheValid();
+          if (isValid) {
+            setLoading(false);
+            return;
+          }
         }
       }
       
-      // Fetch from server if cache is invalid or force refresh
+      // Fetch from server to check for updates (in background)
+      console.log('HomeScreen - Fetching from server...');
       const fetchedPosts = await apiService.getRecentPosts(50);
+      console.log('HomeScreen - Fetched', fetchedPosts.length, 'posts from server');
+      
       if (fetchedPosts.length > 0) {
         setPosts(fetchedPosts);
         await postsCache.savePosts(fetchedPosts);
+      } else if (!cachedPosts || cachedPosts.length === 0) {
+        console.log('HomeScreen - No posts found on server');
+        showToast('No posts found. Share some Instagram posts to get started!', 'info');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading posts:', error);
-      // Try to load from cache even if expired when server fails
+      
+      // Only show error if we don't have cached posts
       const cachedPosts = await postsCache.getCachedPosts();
-      if (cachedPosts && cachedPosts.length > 0) {
+      if (!cachedPosts || cachedPosts.length === 0) {
+        showToast('Failed to load posts: ' + (error.message || 'Unknown error'), 'error');
+      } else {
+        console.log('HomeScreen - Using cached posts after server error');
         setPosts(cachedPosts);
       }
     } finally {
@@ -106,6 +140,10 @@ const HomeScreen = () => {
     setRefreshing(true);
     await loadPosts(true); // Force refresh from server
     setRefreshing(false);
+  };
+
+  const showToast = (message: string, type: 'success' | 'error' | 'warning' | 'info') => {
+    setToast({ visible: true, message, type });
   };
 
   const filteredPosts = posts.filter(post => {
@@ -291,13 +329,15 @@ const HomeScreen = () => {
       );
     }
 
+    const isAnalyzing = postsCache.isAnalyzing(post.shortcode);
+    
     return (
       <TouchableOpacity
         key={post.shortcode}
         style={[styles.compactCard, isSelected && styles.cardSelected]}
         onPress={() => {
-          if (post.processing) {
-            setToast({ visible: true, message: 'Post is still being analyzed', type: 'warning' });
+          if (isAnalyzing || post.processing) {
+            setToast({ visible: true, message: '✨ Post is being analyzed...', type: 'warning' });
             return;
           }
           if (selectionMode) {
@@ -307,9 +347,11 @@ const HomeScreen = () => {
           }
         }}
         onLongPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          setSelectionMode(true);
-          togglePostSelection(post.shortcode);
+          if (!isAnalyzing && !post.processing) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            setSelectionMode(true);
+            togglePostSelection(post.shortcode);
+          }
         }}
         activeOpacity={0.9}
       >
@@ -332,7 +374,12 @@ const HomeScreen = () => {
           </Text>
           <Text style={styles.compactUsername} numberOfLines={1}>@{post.username || 'unknown'}</Text>
         </LinearGradient>
-        {post.processing ? (
+        {isAnalyzing ? (
+          <View style={styles.analyzingOverlay}>
+            <ActivityIndicator size="large" color="#fff" />
+            <Text style={styles.analyzingText}>✨ Analyzing...</Text>
+          </View>
+        ) : post.processing ? (
           <View style={styles.processingOverlay}>
             <ActivityIndicator size="small" color="#fff" />
             <Text style={styles.processingTextSmall}>Processing...</Text>
@@ -1010,6 +1057,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 16,
+  },
+  analyzingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 16,
+  },
+  analyzingText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '600',
+    marginTop: 12,
   },
   processingText: {
     fontSize: 14,

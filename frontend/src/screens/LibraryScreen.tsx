@@ -47,7 +47,14 @@ const LibraryScreen = () => {
 
   useEffect(() => {
     loadCollections();
-  }, []);
+    
+    // Add focus listener to reload when returning from collection detail
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadCollections();
+    });
+    
+    return unsubscribe;
+  }, [navigation]);
 
   useEffect(() => {
     if (showCreateModal) {

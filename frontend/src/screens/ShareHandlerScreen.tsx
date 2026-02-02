@@ -127,7 +127,7 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
     
     try {
       console.log('ShareHandler - Processing URL:', url);
-      setProcessing(true);
+      setProcessing(false);
       setError(null);
 
       const shortcode = extractShortcode(url);
@@ -136,79 +136,34 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
       if (!shortcode) {
         console.error('ShareHandler - Invalid Instagram URL:', url);
         setError('Invalid Instagram URL');
-        setProcessing(false);
-        return;
-      }
-
-      // Normalize the URL to standard format
-      const normalizedUrl = `https://www.instagram.com/p/${shortcode}/`;
-      console.log('ShareHandler - Normalized URL:', normalizedUrl);
-
-      // Check if post already exists in cache
-      const cachedPosts = await postsCache.getCachedPosts();
-      const existingPost = cachedPosts?.find(p => p.shortcode === shortcode);
-
-      if (existingPost && !existingPost.processing) {
-        console.log('ShareHandler - Found existing completed post in cache');
-        setPost(existingPost);
-        setProcessing(false);
-        setShowCollections(true);
         return;
       }
 
       // Get Instagram thumbnail immediately
       const thumbnailUrl = `https://www.instagram.com/p/${shortcode}/media/?size=m`;
       
-      // Create temporary post with processing status
+      // Create temporary post for preview
       const tempPost: Post = {
         shortcode,
-        url: normalizedUrl,
+        url: `https://www.instagram.com/p/${shortcode}/`,
         username: '',
-        title: 'Processing...',
+        title: 'Instagram Post',
         summary: '',
         tags: [],
         music: '',
         category: 'other',
         thumbnail_url: thumbnailUrl,
-        processing: true,
       };
       
-      console.log('ShareHandler - Created temp post, adding to cache');
-      // Add to cache immediately so it shows in Home
-      const currentPosts = await postsCache.getCachedPosts() || [];
-      await postsCache.savePosts([tempPost, ...currentPosts]);
-      
-      // Show thumbnail with processing overlay
       setPost(tempPost);
-      showToast('Analyzing post...', 'info');
       
-      console.log('ShareHandler - Calling backend API to analyze with URL:', normalizedUrl);
-      // Call backend to analyze the post in background
-      const response = await apiService.analyzeInstagramUrl(normalizedUrl);
-      console.log('ShareHandler - Got response from API:', response);
+      // Load collections immediately
+      loadCollections();
+      setShowCollections(true);
       
-      if (response && response.shortcode) {
-        console.log('ShareHandler - Analysis successful, refreshing cache');
-        // Refresh cache to get the analyzed post data
-        const updatedPosts = await apiService.getPosts();
-        await postsCache.savePosts(updatedPosts);
-        
-        const analyzedPost = updatedPosts.find(p => p.shortcode === shortcode);
-        if (analyzedPost) {
-          console.log('ShareHandler - Found analyzed post, showing collections');
-          analyzedPost.processing = false;
-          setPost(analyzedPost);
-          setProcessing(false);
-          setShowCollections(true);
-          showToast('Post analyzed!', 'success');
-        }
-      }
     } catch (err: any) {
       console.error('ShareHandler - Error processing Instagram URL:', err);
-      console.error('ShareHandler - Error details:', err.response?.data || err.message);
       setError('Failed to process Instagram post');
-      setProcessing(false);
-      showToast('Failed to process post', 'error');
     }
   };
 
@@ -220,7 +175,19 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
     try {
       setLoadingCollections(true);
       const data = await collectionsService.getCollections();
-      setCollections(data);
+      console.log('ShareHandler - Raw collections data:', data);
+      
+      // Filter: only show collections with both name and id, and that are not "All Posts"
+      const userCollections = data.filter(c => 
+        c.name && 
+        c.id && 
+        c.name !== 'All Posts' && 
+        c.name !== 'Instagram Post' &&
+        c.name !== 'Instagram Posts'
+      );
+      
+      console.log('ShareHandler - Filtered collections:', userCollections);
+      setCollections(userCollections);
     } catch (error) {
       console.error('Error loading collections:', error);
       setToast({ visible: true, message: 'Failed to load collections', type: 'error' });
@@ -236,21 +203,50 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
   }, [showCollections]);
 
   const handleAddToCollection = async (collectionId: string) => {
-    if (!post || isSaving) return;
+    if (isSaving) return;
     
     try {
       setIsSaving(true);
-      await collectionsService.addPostToCollection(collectionId, post.shortcode);
-      showToast('Saved to collection!', 'success');
       
-      // Navigate to the collection detail screen
-      setTimeout(() => {
-        const collection = collections.find(c => c.id === collectionId);
-        if (collection) {
-          navigation.replace('CollectionDetail', { collectionId, collectionName: collection.name });
-        } else {
-          navigation.replace('Home');
+      if (url && post) {
+        // Extract shortcode for collection save
+        const shortcode = extractShortcode(url);
+        if (shortcode) {
+          // Mark as analyzing in cache
+          postsCache.markAsAnalyzing(shortcode);
+          
+          // Create placeholder post and add to cache immediately
+          const placeholderPost: Post = {
+            ...post,
+            shortcode,
+            processing: true,
+          };
+          
+          // Add placeholder to cache so it appears in feed
+          const cachedPosts = await postsCache.getCachedPosts() || [];
+          const updatedPosts = [placeholderPost, ...cachedPosts.filter(p => p.shortcode !== shortcode)];
+          await postsCache.savePosts(updatedPosts);
+          
+          await collectionsService.addPostToCollection(collectionId, shortcode);
+          
+          // Trigger backend analysis in background
+          apiService.analyzeInstagramUrl(url).then(async () => {
+            // When analysis completes, refresh cache
+            const freshPosts = await apiService.getRecentPosts(50);
+            await postsCache.savePosts(freshPosts);
+            postsCache.markAnalysisComplete(shortcode);
+          }).catch(err => {
+            console.error('Background analysis error:', err);
+            postsCache.markAnalysisComplete(shortcode);
+          });
         }
+      }
+      
+      showToast('✨ Analyzing...', 'info');
+      
+      // Navigate to Home to show the analyzing post
+      setTimeout(() => {
+        navigation.replace('Home');
       }, 500);
     } catch (error) {
       console.error('Error adding to collection:', error);
@@ -260,15 +256,50 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
   };
 
   const handleDone = async () => {
-    if (!post || isSaving) return;
+    if (isSaving) return;
     
     try {
       setIsSaving(true);
-      // Post is already saved by backend, just navigate to All Saved Posts
-      showToast('Saved to All Posts!', 'success');
       
+      if (url && post) {
+        const shortcode = extractShortcode(url);
+        if (shortcode) {
+          // Mark as analyzing in cache
+          postsCache.markAsAnalyzing(shortcode);
+          
+          // Create placeholder post and add to cache immediately
+          const placeholderPost: Post = {
+            ...post,
+            shortcode,
+            processing: true,
+          };
+          
+          // Add placeholder to cache so it appears in feed
+          const cachedPosts = await postsCache.getCachedPosts() || [];
+          const updatedPosts = [placeholderPost, ...cachedPosts.filter(p => p.shortcode !== shortcode)];
+          await postsCache.savePosts(updatedPosts);
+        }
+        
+        // Trigger backend analysis in background
+        apiService.analyzeInstagramUrl(url).then(async () => {
+          // When analysis completes, refresh cache
+          const freshPosts = await apiService.getRecentPosts(50);
+          await postsCache.savePosts(freshPosts);
+          if (extractShortcode(url)) {
+            postsCache.markAnalysisComplete(extractShortcode(url));
+          }
+        }).catch(err => {
+          console.error('Background analysis error:', err);
+          if (extractShortcode(url)) {
+            postsCache.markAnalysisComplete(extractShortcode(url));
+          }
+        });
+      }
+      
+      showToast('✨ Analyzing...', 'info');
+      
+      // Navigate to Home to show the analyzing post
       setTimeout(() => {
-        // Navigate to Home which shows all posts
         navigation.replace('Home');
       }, 500);
     } catch (error) {
@@ -277,114 +308,117 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
     }
   };
 
-  if (processing) {
+  // Skip processing state, show collections immediately
+  if (!url && processing) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }}>
-        {post?.thumbnail_url ? (
-          <View style={styles.thumbnailContainer}>
-            <Image
-              source={{ uri: post.thumbnail_url }}
-                  style={styles.thumbnail}
-                  resizeMode="cover"
-                />
-                <View style={styles.processingOverlay}>
-                  <ActivityIndicator size="large" color="#fff" />
-                  <Text style={styles.processingText}>Processing...</Text>
-                </View>
-              </View>
-            ) : (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={styles.loadingText}>Processing Instagram post...</Text>
-              </View>
-            )}
+      <View style={styles.overlayContainer}>
+        <TouchableOpacity 
+          style={styles.backdrop}
+          activeOpacity={1}
+          onPress={() => navigation.replace('Home')}
+        />
+        <View style={styles.bottomSheet}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.loadingText}>Loading...</Text>
+          </View>
+        </View>
       </View>
     );
   }
 
   if (error) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-        <Text style={styles.errorIcon}>⚠️</Text>
-        <Text style={styles.errorTitle}>Error</Text>
-        <Text style={styles.errorMessage}>{error}</Text>
-        <TouchableOpacity style={styles.closeButton} onPress={() => navigation.replace('Home')}>
-          <Text style={styles.closeButtonText}>Close</Text>
-        </TouchableOpacity>
+      <View style={styles.overlayContainer}>
+        <TouchableOpacity 
+          style={styles.backdrop}
+          activeOpacity={1}
+          onPress={() => navigation.replace('Home')}
+        />
+        <View style={styles.bottomSheet}>
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorIcon}>⚠️</Text>
+            <Text style={styles.errorTitle}>Error</Text>
+            <Text style={styles.errorMessage}>{error}</Text>
+            <TouchableOpacity style={styles.closeButton} onPress={() => navigation.replace('Home')}>
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <View style={styles.contentContainer}>
-          {/* Handle bar */}
-          <View style={styles.handleBar} />
-          
-          <View style={styles.header}>
-            <Text style={styles.headerIcon}>💾</Text>
-            <Text style={styles.headerTitle}>Save to SuperBrain</Text>
-            <Text style={styles.headerSubtitle}>Choose a collection or tap Done</Text>
+    <View style={styles.overlayContainer}>
+      <TouchableOpacity 
+        style={styles.backdrop}
+        activeOpacity={1}
+        onPress={() => navigation.goBack()}
+      />
+      <View style={styles.bottomSheet}>
+        {/* Handle bar */}
+        <View style={styles.handleBar} />
+        
+        {/* Post Preview */}
+        {post && (
+          <View style={styles.postPreview}>
+            <Image 
+              source={{ uri: post.thumbnail_url }} 
+              style={styles.thumbnail}
+              resizeMode="cover"
+            />
+            <View style={styles.postInfo}>
+              <Text style={styles.postUrl} numberOfLines={1}>{url}</Text>
+              <Text style={styles.postTitle}>{post.title || 'Instagram Post'}</Text>
+            </View>
           </View>
+        )}
+        
+        <Text style={styles.sectionTitle}>Select Collection</Text>
 
-          {post && (
-            <View style={styles.postPreview}>
-              <Image
-                source={{ uri: post.thumbnail_url }}
-                style={styles.previewImage}
-                resizeMode="cover"
-              />
-              <View style={styles.postInfo}>
-                <Text style={styles.postTitle} numberOfLines={2}>
-                  {post.title || 'Instagram Post'}
-                </Text>
-                <Text style={styles.postSubtitle}>Select a collection to save</Text>
-              </View>
-            </View>
-          )}
-
-          <Text style={styles.collectionsTitle}>Select Collection</Text>
-
-          {loadingCollections ? (
-            <View style={styles.collectionsLoading}>
-              <ActivityIndicator size="small" color={colors.primary} />
-            </View>
-          ) : collections.length === 0 ? (
-            <View style={styles.emptyCollections}>
-              <Text style={styles.emptyText}>📁 No collections yet</Text>
-              <Text style={styles.emptySubtext}>Create one in the Library tab</Text>
-            </View>
-          ) : (
-            <ScrollView style={styles.collectionsList} showsVerticalScrollIndicator={false}>
-              {collections.map((collection) => (
-                <TouchableOpacity
-                  key={collection.id}
-                  style={[styles.collectionItem, isSaving && styles.collectionItemDisabled]}
-                  onPress={() => handleAddToCollection(collection.id)}
-                  disabled={isSaving}
-                >
-                  <Text style={styles.collectionIcon}>{collection.icon}</Text>
-                  <View style={styles.collectionInfo}>
-                    <Text style={styles.collectionName}>{collection.name}</Text>
-                    <Text style={styles.collectionCount}>
-                      {collection.postIds.length} {collection.postIds.length === 1 ? 'post' : 'posts'}
-                    </Text>
-                  </View>
-                  <Text style={styles.collectionArrow}>→</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-
-          <TouchableOpacity 
-            style={[styles.doneButton, isSaving && styles.doneButtonDisabled]} 
-            onPress={handleDone}
-            disabled={isSaving}
+        {loadingCollections ? (
+          <View style={styles.collectionsLoading}>
+            <ActivityIndicator size="small" color={colors.primary} />
+          </View>
+        ) : collections.length === 0 ? (
+          <View style={styles.emptyCollections}>
+            <Text style={styles.emptyText}>📁 No collections yet</Text>
+            <Text style={styles.emptySubtext}>Create one in the Library tab</Text>
+          </View>
+        ) : (
+          <ScrollView 
+            horizontal 
+            style={styles.collectionsScroll}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.collectionsContent}
           >
-            <Text style={styles.doneButtonText}>
-              {isSaving ? 'Saving...' : 'Done (Save to All Posts)'}
-            </Text>
-          </TouchableOpacity>
+            {collections.map((collection) => (
+              <TouchableOpacity
+                key={collection.id}
+                style={[styles.collectionCard, isSaving && styles.collectionCardDisabled]}
+                onPress={() => handleAddToCollection(collection.id)}
+                disabled={isSaving}
+              >
+                <Text style={styles.collectionCardIcon}>{collection.icon}</Text>
+                <Text style={styles.collectionCardName} numberOfLines={2}>{collection.name}</Text>
+                <Text style={styles.collectionCardCount}>
+                  {collection.postIds.length} {collection.postIds.length === 1 ? 'post' : 'posts'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
+        <TouchableOpacity 
+          style={[styles.doneButton, isSaving && styles.doneButtonDisabled]} 
+          onPress={handleDone}
+          disabled={isSaving}
+        >
+          <Text style={styles.doneButtonText}>
+            {isSaving ? 'Saving...' : 'Done'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <CustomToast
@@ -398,19 +432,23 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
 };
 
 const styles = StyleSheet.create({
-  modalOverlay: {
+  overlayContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
+    backgroundColor: 'transparent',
   },
-  contentContainer: {
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  bottomSheet: {
     backgroundColor: colors.background,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 8,
     paddingHorizontal: 20,
     paddingBottom: 40,
-    maxHeight: '65%',
+    maxHeight: '50%',
   },
   handleBar: {
     width: 40,
@@ -418,37 +456,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
     borderRadius: 2,
     alignSelf: 'center',
-    marginBottom: 20,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  headerIcon: {
-    fontSize: 40,
-    marginBottom: 8,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: colors.textMuted,
+    marginBottom: 16,
   },
   postPreview: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.backgroundCard,
-    padding: 12,
+    padding: 10,
     borderRadius: 12,
-    marginBottom: 20,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  previewImage: {
+  thumbnail: {
     width: 60,
     height: 60,
     borderRadius: 8,
@@ -457,17 +477,17 @@ const styles = StyleSheet.create({
   postInfo: {
     flex: 1,
   },
-  postTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text,
+  postUrl: {
+    fontSize: 11,
+    color: colors.textMuted,
     marginBottom: 4,
   },
-  postSubtitle: {
-    fontSize: 13,
-    color: colors.textMuted,
+  postTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
   },
-  collectionsTitle: {
+  sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: colors.text,
@@ -477,40 +497,40 @@ const styles = StyleSheet.create({
     padding: 20,
     alignItems: 'center',
   },
-  collectionsList: {
-    maxHeight: 180,
+  collectionsScroll: {
     marginBottom: 16,
+    maxHeight: 120,
   },
-  collectionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
+  collectionsContent: {
+    paddingRight: 20,
+  },
+  collectionCard: {
+    width: 110,
     backgroundColor: colors.backgroundCard,
     borderRadius: 12,
-    marginBottom: 10,
+    padding: 12,
+    marginRight: 12,
     borderWidth: 1,
     borderColor: colors.border,
+    alignItems: 'center',
   },
-  collectionIcon: {
-    fontSize: 24,
-    marginRight: 12,
+  collectionCardIcon: {
+    fontSize: 32,
+    marginBottom: 8,
   },
-  collectionInfo: {
-    flex: 1,
-  },
-  collectionName: {
-    fontSize: 15,
+  collectionCardName: {
+    fontSize: 13,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 2,
+    textAlign: 'center',
+    marginBottom: 4,
   },
-  collectionCount: {
-    fontSize: 12,
+  collectionCardCount: {
+    fontSize: 11,
     color: colors.textMuted,
   },
-  collectionArrow: {
-    fontSize: 18,
-    color: colors.textMuted,
+  collectionCardDisabled: {
+    opacity: 0.5,
   },
   emptyCollections: {
     padding: 20,
@@ -540,16 +560,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
-  collectionItemDisabled: {
-    opacity: 0.5,
-  },
-  processingContainer: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 24,
-    alignItems: 'center',
-  },
   loadingContainer: {
     padding: 40,
     alignItems: 'center',
@@ -558,6 +568,10 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 16,
     marginTop: 16,
+  },
+  errorContainer: {
+    padding: 40,
+    alignItems: 'center',
   },
   errorIcon: {
     fontSize: 48,
@@ -574,6 +588,17 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: 24,
+  },
+  closeButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+  },
+  closeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
   closeButton: {
     paddingVertical: 16,

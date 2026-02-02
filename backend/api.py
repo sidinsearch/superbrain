@@ -213,11 +213,19 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
     """
     start_time = datetime.now()
     
-    # Extract shortcode from URL
+    # Extract shortcode from URL (handle both /p/ and /reel/)
     try:
-        shortcode = request.url.split('/p/')[-1].strip('/').split('?')[0]
-    except:
-        raise HTTPException(status_code=400, detail="Invalid Instagram URL format")
+        url_str = str(request.url)
+        if '/p/' in url_str:
+            shortcode = url_str.split('/p/')[-1].strip('/').split('?')[0]
+        elif '/reel/' in url_str:
+            shortcode = url_str.split('/reel/')[-1].strip('/').split('?')[0]
+        elif '/tv/' in url_str:
+            shortcode = url_str.split('/tv/')[-1].strip('/').split('?')[0]
+        else:
+            raise ValueError("URL must contain /p/, /reel/, or /tv/")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid Instagram URL format: {str(e)}")
     
     logger.info(f"📥 New request: {shortcode}")
     

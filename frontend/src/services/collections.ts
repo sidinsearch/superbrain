@@ -7,7 +7,12 @@ class CollectionsService {
   async getCollections(): Promise<Collection[]> {
     try {
       const data = await AsyncStorage.getItem(COLLECTIONS_KEY);
-      return data ? JSON.parse(data) : [];
+      const collections = data ? JSON.parse(data) : [];
+      // Clean up postIds - filter out null/undefined/empty strings
+      return collections.map((col: Collection) => ({
+        ...col,
+        postIds: (col.postIds || []).filter((id: string) => id && id.trim())
+      }));
     } catch (error) {
       console.error('Error loading collections:', error);
       return [];
@@ -16,7 +21,12 @@ class CollectionsService {
 
   async saveCollections(collections: Collection[]): Promise<void> {
     try {
-      await AsyncStorage.setItem(COLLECTIONS_KEY, JSON.stringify(collections));
+      // Clean up postIds before saving - remove empty/null/undefined values
+      const cleanedCollections = collections.map(col => ({
+        ...col,
+        postIds: (col.postIds || []).filter((id: string) => id && id.trim())
+      }));
+      await AsyncStorage.setItem(COLLECTIONS_KEY, JSON.stringify(cleanedCollections));
     } catch (error) {
       console.error('Error saving collections:', error);
     }
