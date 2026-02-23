@@ -1,15 +1,16 @@
 """
-Instagram post downloader — powered by instagrapi (Instagram Private API).
+Instagram post downloader — dual-engine approach.
 
-Approach inspired by instagram-cli (https://github.com/supreme-gg-gg/instagram-cli):
-  - Authenticates with a real Instagram account once, then reuses the saved
-    session file to avoid repeated logins (which trigger security checkpoints).
-  - Uses the same private mobile API that the official Instagram app uses,
-    making it far more stable and rate-limit-resistant than instaloader's
-    anonymous web-scraping approach.
+Primary  : instagrapi (Instagram Private Mobile API).
+           Inspired by instagram-cli (https://github.com/supreme-gg-gg/instagram-cli).
+           Authenticates with a saved session file → stable, no cooldowns.
+           Requires INSTAGRAM_USERNAME + INSTAGRAM_PASSWORD in backend/.api_keys.
 
-Session is cached at backend/.instagram_session.json.
-Credentials: set INSTAGRAM_USERNAME and INSTAGRAM_PASSWORD in backend/.api_keys
+Fallback : instaloader (anonymous web-scraping).
+           Used automatically when instagrapi is unavailable or credentials are
+           not supplied. More fragile (403s, rate-limits) but needs no account.
+
+Session cache : backend/.instagram_session.json  (instagrapi, gitignored)
 """
 
 import os
@@ -32,6 +33,15 @@ try:
     INSTAGRAPI_AVAILABLE = True
 except ImportError:
     INSTAGRAPI_AVAILABLE = False
+
+# ── instaloader: anonymous fallback ──────────────────────────────────────────
+try:
+    import instaloader
+    import contextlib
+    from urllib.request import urlretrieve as _urlretrieve_il
+    INSTALOADER_AVAILABLE = True
+except ImportError:
+    INSTALOADER_AVAILABLE = False
 
 # ── Audio extraction ──────────────────────────────────────────────────────────
 try:
@@ -171,26 +181,56 @@ def download_instagram_content(url: str) -> str | None:
     """
     Download an Instagram post (photo / video / carousel) to temp/<folder>/.
 
+    Tries instagrapi (authenticated, rate-limit-resistant) first.
+    Falls back to instaloader (anonymous) automatically on any failure.
     Returns the folder path string on success, or None on failure.
-    Drop-in replacement for the previous instaloader-based version.
     """
     TEMP_DIR.mkdir(exist_ok=True)
 
+    # ── Primary: instagrapi ───────────────────────────────────────────────────
+    username, password = _load_credentials()
+    if INSTAGRAPI_AVAILABLE and username and password:
+        print("[instagrapi] Attempting download via Private API...")
+        result = _download_via_instagrapi(url)
+        if result is not None:
+            return result
+        print("[instagrapi] Failed — falling back to instaloader...")
+    else:
+        if not INSTAGRAPI_AVAILABLE:
+            print("[instagrapi] Not installed — using instaloader fallback")
+        else:
+            print("[instagrapi] No credentials set — using instaloader fallback")
+
+    # ── Fallback: instaloader ─────────────────────────────────────────────────
+    if INSTALOADER_AVAILABLE:
+        print("[instaloader] Attempting anonymous download...")
+        return _download_via_instaloader(url)
+
+    print("✗ Neither instagrapi nor instaloader is available.")
+    print("  Install at least one:")
+    print("    pip install instagrapi   (recommended — needs IG credentials)")
+    print("    pip install instaloader  (anonymous fallback)")
+    return None
+
+
+# ── instagrapi engine ─────────────────────────────────────────────────────────
+def _download_via_instagrapi(url: str) -> str | None:
+    """Primary download path using instagrapi (Instagram Private API)."""
     # ── Auth ──────────────────────────────────────────────────────────────────
     try:
         cl = _get_client()
     except RuntimeError as e:
-        print(f"\n✗ {e}")
+        print(f"  ✗ {e}")
         return None
 
     # ── Extract shortcode ─────────────────────────────────────────────────────
     match = re.search(r"/(?:reels?|p|tv)/([^/?#&]+)", url)
     if not match:
-        print("✗ Invalid Instagram URL. Expected a /p/, /reel/, or /tv/ link.")
+        print("  ✗ Invalid Instagram URL.")
         return None
     shortcode = match.group(1)
 
-    print(f"Fetching post metadata for shortcode: {shortcode}...")
+    print(f"  Fetching post metadata for shortcode: {shortcode}...")
 
     # ── Fetch media info with session-expiry retry ────────────────────────────
     media = None
@@ -200,25 +240,25 @@ def download_instagram_content(url: str) -> str | None:
             media    = cl.media_info(media_pk)
             break
         except MediaNotFound:
-            print(f"✗ Post not found or is private: {shortcode}")
+            print(f"  ✗ Post not found or is private: {shortcode}")
             return None
         except RateLimitError:
-            print("✗ Instagram rate limit hit. Wait a few minutes and retry.")
+            print("  ✗ Rate limit hit.")
             return None
         except LoginRequired:
             if attempt == 0:
-                print("Session expired mid-request, re-authenticating...")
+                print("  Session expired mid-request, re-authenticating...")
                 SESSION_FILE.unlink(missing_ok=True)
                 try:
                     cl = _get_client()
                 except RuntimeError as e:
-                    print(f"✗ Re-authentication failed: {e}")
+                    print(f"  ✗ Re-authentication failed: {e}")
                     return None
             else:
-                print("✗ Still getting LoginRequired after re-authentication.")
+                print("  ✗ Still getting LoginRequired after re-authentication.")
                 return None
         except ClientError as e:
-            print(f"✗ Instagram API error: {e}")
+            print(f"  ✗ Instagram API error: {e}")
             return None
 
     if media is None:
@@ -238,53 +278,148 @@ def download_instagram_content(url: str) -> str | None:
     # ── Download by media type ────────────────────────────────────────────────
     try:
         if media_type == 2:
-            # Single video
-            print("Downloading video...")
+            print("  Downloading video...")
             dl_path    = cl.video_download(media_pk, folder=folder)
             final_path = folder / f"{folder_name}.mp4"
             dl_path.rename(final_path)
-
-            audio_path = folder / f"{folder_name}_audio.mp3"
-            extract_audio_from_video(str(final_path), str(audio_path))
-
+            extract_audio_from_video(str(final_path),
+                                     str(folder / f"{folder_name}_audio.mp3"))
             if media.thumbnail_url:
                 _download_url(str(media.thumbnail_url),
                               folder / f"{folder_name}_thumbnail.jpg")
 
         elif media_type == 8:
-            # Carousel (album)
             total = len(media.resources)
-            print(f"Downloading carousel ({total} items)...")
+            print(f"  Downloading carousel ({total} items)...")
             paths = cl.album_download(media_pk, folder=folder)
             for i, dl_path in enumerate(paths, 1):
-                suffix     = dl_path.suffix          # .jpg or .mp4
+                suffix     = dl_path.suffix
                 final_path = folder / f"{folder_name}_{i}{suffix}"
                 dl_path.rename(final_path)
                 if suffix == ".mp4":
-                    audio_path = folder / f"{folder_name}_{i}_audio.mp3"
-                    extract_audio_from_video(str(final_path), str(audio_path))
+                    extract_audio_from_video(
+                        str(final_path),
+                        str(folder / f"{folder_name}_{i}_audio.mp3")
+                    )
                 print(f"  → item {i}/{total}")
 
         else:
-            # Single photo (media_type == 1)
-            print("Downloading image...")
+            print("  Downloading image...")
             dl_path    = cl.photo_download(media_pk, folder=folder)
             final_path = folder / f"{folder_name}.jpg"
             dl_path.rename(final_path)
 
     except RateLimitError:
-        print("✗ Rate limited during download. Try again in a few minutes.")
+        print("  ✗ Rate limited during download.")
         return None
     except Exception as e:
-        print(f"✗ Download error: {e}")
+        print(f"  ✗ Download error: {e}")
         import traceback; traceback.print_exc()
         return None
 
-    # ── Write info.txt ────────────────────────────────────────────────────────
     _write_info(folder, url, media, media_type, caption, shortcode)
-
-    print(f"\n✓ Download complete: {folder}")
+    print(f"\n✓ Download complete (instagrapi): {folder}")
     return str(folder)
+
+
+# ── instaloader engine (fallback) ─────────────────────────────────────────────
+def _download_via_instaloader(url: str) -> str | None:
+    """Fallback download path using instaloader (anonymous web-scraping)."""
+    match = re.search(r"/(?:reels?|p|tv)/([^/?#&]+)", url)
+    if not match:
+        print("  ✗ Invalid Instagram URL.")
+        return None
+    shortcode = match.group(1)
+
+    L = instaloader.Instaloader(
+        download_video_thumbnails=False,
+        download_geotags=False,
+        download_comments=False,
+        save_metadata=False,
+        compress_json=False,
+        user_agent=(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+        max_connection_attempts=3,
+    )
+
+    try:
+        print(f"  Fetching post for shortcode: {shortcode}...")
+        with contextlib.redirect_stderr(open(os.devnull, "w")):
+            post = instaloader.Post.from_shortcode(L.context, shortcode)
+
+        caption           = post.caption if post.caption else f"post_{shortcode}"
+        caption_first_line = caption.split("\n")[0]
+        folder_name       = sanitize_folder_name(caption_first_line)
+        folder            = _unique_folder(TEMP_DIR, folder_name)
+
+        print(f"  User   : @{post.owner_username}")
+        print(f"  Caption: {caption_first_line[:80]}...")
+
+        file_counter = 1
+        if post.is_video:
+            video_path = str(folder / f"{folder_name}.mp4")
+            print("  Downloading video...")
+            _urlretrieve_il(post.video_url, video_path)
+            extract_audio_from_video(video_path,
+                                     str(folder / f"{folder_name}_audio.mp3"))
+            _urlretrieve_il(post.url, str(folder / f"{folder_name}_thumbnail.jpg"))
+
+        elif post.typename == "GraphSidecar":
+            print(f"  Downloading carousel ({post.mediacount} items)...")
+            for node in post.get_sidecar_nodes():
+                if node.is_video:
+                    fp = str(folder / f"{folder_name}_{file_counter}.mp4")
+                    _urlretrieve_il(node.video_url, fp)
+                    extract_audio_from_video(
+                        fp,
+                        str(folder / f"{folder_name}_{file_counter}_audio.mp3")
+                    )
+                else:
+                    _urlretrieve_il(
+                        node.display_url,
+                        str(folder / f"{folder_name}_{file_counter}.jpg")
+                    )
+                print(f"  → item {file_counter}/{post.mediacount}")
+                file_counter += 1
+
+        else:
+            print("  Downloading image...")
+            _urlretrieve_il(post.url, str(folder / f"{folder_name}.jpg"))
+
+        # info.txt (instaloader variant — uses post object fields)
+        with open(folder / "info.txt", "w", encoding="utf-8") as f:
+            f.write("Instagram Post Information\n")
+            f.write("=" * 50 + "\n\n")
+            f.write(f"URL: {url}\n")
+            f.write(f"Username: @{post.owner_username}\n")
+            f.write(f"Date: {post.date_utc}\n")
+            f.write(f"Likes: {post.likes}\n")
+            f.write(f"Type: {'Video' if post.is_video else 'Image'}\n")
+            if post.typename == "GraphSidecar":
+                f.write(f"Media Count: {post.mediacount} items\n")
+            f.write("\n")
+            f.write(f"Caption:\n{'-' * 50}\n")
+            f.write(post.caption if post.caption else "No caption")
+            f.write(f"\n{'-' * 50}\n\n")
+            hashtags = re.findall(r"#\w+", post.caption or "")
+            if hashtags:
+                f.write("Hashtags:\n")
+                f.write(", ".join(hashtags) + "\n")
+
+        print(f"\n✓ Download complete (instaloader): {folder}")
+        return str(folder)
+
+    except instaloader.exceptions.LoginRequiredException:
+        print("  ✗ instaloader: Login required — Instagram blocked anonymous access.")
+    except instaloader.exceptions.ConnectionException as e:
+        print(f"  ✗ instaloader: Connection error — {e}")
+    except Exception as e:
+        print(f"  ✗ instaloader error: {e}")
+        import traceback; traceback.print_exc()
+    return None
 
 
 # ── Private helpers ───────────────────────────────────────────────────────────
