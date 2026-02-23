@@ -479,6 +479,16 @@ MODELS: List[Dict[str, Any]] = [
 MODELS_BY_KEY: Dict[str, Dict] = {m["key"]: m for m in MODELS}
 
 
+def _has_image_input(m: Dict) -> bool:
+    """Return True if an OpenRouter model object supports image (vision) input."""
+    arch = m.get("architecture", {})
+    # OpenRouter returns input_modalities as a list, e.g. ["text", "image"]
+    mods: Any = arch.get("input_modalities") or arch.get("modality") or ""
+    if isinstance(mods, list):
+        return "image" in mods
+    return "image" in str(mods)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  MODEL ROUTER
 # ─────────────────────────────────────────────────────────────────────────────
@@ -502,8 +512,8 @@ class ModelRouter:
         self._load_api_keys()
         self._load_state()
         self._print_startup_status()
-        # Background: discover & rank free OpenRouter models
-        threading.Thread(target=self._refresh_openrouter_models, daemon=True).start()
+        # Background: discover & rank free OpenRouter models, auto-refreshes every OPENROUTER_FREE_CACHE_HOURS
+        threading.Thread(target=self._auto_refresh_loop, daemon=True).start()
 
     # ── Configuration ─────────────────────────────────────────────────────────
 
@@ -568,11 +578,20 @@ class ModelRouter:
             score += (1 - trust_idx / len(TRUSTED_PROVIDERS)) * RANKING_WEIGHTS["provider_trust"]
         return score
 
+    def _auto_refresh_loop(self):
+        """Run _refresh_openrouter_models once immediately, then repeat every OPENROUTER_FREE_CACHE_HOURS."""
+        while True:
+            try:
+                self._refresh_openrouter_models()
+            except Exception as e:
+                print(f"⚠️  OpenRouter auto-refresh error: {e}")
+            time.sleep(OPENROUTER_FREE_CACHE_HOURS * 3600)
+
     def _refresh_openrouter_models(self):
         """
         Fetch free models from OpenRouter API, score & rank them, cache to disk,
         and inject the top models into self._dynamic_models for routing.
-        Called once at startup in a background thread; safe to call again to refresh.
+        Called by _auto_refresh_loop every OPENROUTER_FREE_CACHE_HOURS; safe to call manually.
         Based on FreeRide's fetch_all_models + filter_free_models + rank_free_models.
         """
         api_key = self._key("OPENROUTER_API_KEY")
@@ -585,8 +604,15 @@ class ModelRouter:
                 cache = json.loads(OPENROUTER_FREE_CACHE_FILE.read_text())
                 cached_at = datetime.fromisoformat(cache.get("cached_at", "2000-01-01"))
                 if (datetime.utcnow() - cached_at).total_seconds() < OPENROUTER_FREE_CACHE_HOURS * 3600:
-                    self._inject_dynamic_models(cache.get("models", []))
-                    print(f"🔄 OpenRouter free models: loaded {len(cache.get('models', []))} from cache")
+                    models = cache.get("models", [])
+                    self._inject_dynamic_models(models)
+                    vision_count = sum(1 for m in models if _has_image_input(m))
+                    next_refresh_m = int(
+                        (OPENROUTER_FREE_CACHE_HOURS * 3600
+                         - (datetime.utcnow() - cached_at).total_seconds()) / 60
+                    )
+                    print(f"🔄 OpenRouter free models: loaded {len(models)} from cache "
+                          f"({vision_count} vision-capable) — next refresh in ~{next_refresh_m}m")
                     return
         except Exception:
             pass
@@ -621,8 +647,8 @@ class ModelRouter:
 
         # Score and rank
         scored = sorted(free_models, key=self._score_openrouter_model, reverse=True)
-        # Take top 20 text models (vision handled by static entries)
-        top = [m for m in scored if "vision" not in m.get("id", "").lower()][:20]
+        # Take top 30 across all types (text + vision-capable)
+        top = scored[:30]
 
         # Persist cache
         try:
@@ -634,7 +660,11 @@ class ModelRouter:
             pass
 
         self._inject_dynamic_models(top)
-        print(f"🔄 OpenRouter free models: discovered & ranked {len(top)} models (refreshed)")
+        vision_count = sum(
+            1 for m in top
+            if _has_image_input(m)
+        )
+        print(f"🔄 OpenRouter free models: discovered & ranked {len(top)} models ({vision_count} vision-capable) — next refresh in {OPENROUTER_FREE_CACHE_HOURS}h")
 
     def _inject_dynamic_models(self, raw_models: List[Dict]):
         """
@@ -642,28 +672,54 @@ class ModelRouter:
         add them to self._dynamic_models with priorities starting at 20
         (after all hardcoded models, so they serve as additional fallbacks).
         Models already in the static MODELS_BY_KEY are skipped.
+        Vision-capable models get an additional entry with type='vision'.
         """
+        static_model_ids = {mm["model_id"] for mm in MODELS_BY_KEY.values()}
         with self._dynamic_models_lock:
             self._dynamic_models.clear()
             for i, m in enumerate(raw_models):
                 mid = m.get("id", "")
                 if not mid:
                     continue
-                key = "dyn_" + mid.replace("/", "_").replace(":", "_").replace(".", "_")
-                if mid in {mm["model_id"] for mm in MODELS_BY_KEY.values()}:
-                    continue  # Already covered by a static entry
-                entry = {
-                    "key": key,
-                    "provider": "openrouter",
-                    "model_id": mid if ":free" in mid else f"{mid}:free",
-                    "type": "text",
-                    "base_priority": 20 + i,  # Beyond all hardcoded models
-                    "desc": f"[Dynamic] {mid} — score={self._score_openrouter_model(m):.3f}",
-                }
-                self._dynamic_models[key] = entry
-                # Seed state if not already tracked
-                if key not in self._state:
-                    self._state[key] = self._default_model_state_dynamic(key, 20 + i)
+                safe_id = mid.replace("/", "_").replace(":", "_").replace(".", "_")
+                model_id_free = mid if ":free" in mid else f"{mid}:free"
+                score = self._score_openrouter_model(m)
+                is_vision = _has_image_input(m)
+                base_p = 20 + i
+
+                # Text entry — skip if already a static entry
+                if mid not in static_model_ids:
+                    key = f"dyn_{safe_id}"
+                    entry = {
+                        "key": key,
+                        "provider": "openrouter",
+                        "model_id": model_id_free,
+                        "type": "text",
+                        "base_priority": base_p,
+                        "desc": f"[Dynamic] {mid} — score={score:.3f}",
+                    }
+                    self._dynamic_models[key] = entry
+                    if key not in self._state:
+                        self._state[key] = self._default_model_state_dynamic(key, base_p)
+
+                # Vision entry — inject if vision-capable and not already in static vision models
+                if is_vision:
+                    static_vision_ids = {
+                        mm["model_id"] for mm in MODELS_BY_KEY.values() if mm["type"] == "vision"
+                    }
+                    if mid not in static_vision_ids:
+                        vkey = f"dyn_v_{safe_id}"
+                        ventry = {
+                            "key": vkey,
+                            "provider": "openrouter",
+                            "model_id": model_id_free,
+                            "type": "vision",
+                            "base_priority": base_p,
+                            "desc": f"[Dynamic-Vision] {mid} — score={score:.3f}",
+                        }
+                        self._dynamic_models[vkey] = ventry
+                        if vkey not in self._state:
+                            self._state[vkey] = self._default_model_state_dynamic(vkey, base_p)
 
     # ── State persistence ──────────────────────────────────────────────────────
 
