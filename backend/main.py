@@ -32,9 +32,9 @@ def print_section(title):
     print('─' * 80 + "\n")
 
 def generate_final_summary(results, instagram_url):
-    """Generate comprehensive summary using all analysis results"""
-    import ollama
-    
+    """Generate comprehensive summary using all analysis results via ModelRouter."""
+    from model_router import get_router
+
     # Collect all analysis data
     visual_summary = ""
     audio_summary = ""
@@ -125,22 +125,14 @@ Be specific, concise, and actionable. Focus on useful information."""
 
     try:
         print("🤖 Generating comprehensive summary with AI...")
-        response = ollama.generate(
-            model='qwen3:latest',
-            prompt=prompt,
-            options={
-                'temperature': 0.7,
-                'num_predict': 600
-            }
-        )
-        
-        summary = response.get('response', '').strip()
-        
+        router = get_router()
+        summary = router.generate_text(prompt)
+
         if not summary:
             summary = "Unable to generate comprehensive summary."
-        
+
         return summary
-        
+
     except Exception as e:
         return f"Error generating summary: {e}\n\nRaw data available in individual analysis sections above."
 

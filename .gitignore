@@ -12,3 +12,9 @@ __pycache__/
 .vscode/
 .idea/
 .DS_Store
+# SuperBrain secrets & generated files
+backend/.api_keys
+backend/.mongodb_config
+backend/model_rankings.json
+backend/superbrain.db
+backend/token.txt
