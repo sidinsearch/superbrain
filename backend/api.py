@@ -358,10 +358,6 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
         if cached_result:
             logger.info(f"⚡ [{shortcode}] Found in cache! Returning instantly.")
             
-            # Remove MongoDB _id
-            if '_id' in cached_result:
-                del cached_result['_id']
-            
             # Filter response
             filtered_data = {
                 'url': cached_result.get('url', ''),
@@ -483,10 +479,6 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
                 detail="Analysis completed but result not found in database"
             )
         
-        # Remove MongoDB _id
-        if '_id' in analysis:
-            del analysis['_id']
-        
         # Filter response
         filtered_data = {
             'url': analysis.get('url', ''),
@@ -541,10 +533,6 @@ async def check_cache(shortcode: str, token: str = Depends(verify_token)):
         if not result:
             raise HTTPException(status_code=404, detail="Not found in cache")
         
-        # Remove MongoDB _id
-        if '_id' in result:
-            del result['_id']
-        
         # Filter response to only include essential fields
         filtered_data = {
             'url': result.get('url', ''),
@@ -580,11 +568,6 @@ async def get_recent_analyses(limit: int = Query(default=10, ge=1, le=100), toke
     try:
         db = get_db()
         results = db.get_recent(limit=limit)
-        
-        # Remove MongoDB _id from all results
-        for result in results:
-            if '_id' in result:
-                del result['_id']
         
         return {
             "success": True,
@@ -637,11 +620,6 @@ async def get_by_category(
         db = get_db()
         results = db.get_by_category(category, limit=limit)
         
-        # Remove MongoDB _id
-        for result in results:
-            if '_id' in result:
-                del result['_id']
-        
         return {
             "success": True,
             "category": category,
@@ -671,11 +649,6 @@ async def search_by_tags(
         
         db = get_db()
         results = db.search_tags(tag_list, limit=limit)
-        
-        # Remove MongoDB _id
-        for result in results:
-            if '_id' in result:
-                del result['_id']
         
         return {
             "success": True,
