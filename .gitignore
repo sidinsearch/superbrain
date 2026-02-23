@@ -17,5 +17,6 @@ backend/.api_keys
 backend/.mongodb_config
 backend/model_rankings.json
 backend/openrouter_free_models.json
+backend/.instagram_session.json
 backend/superbrain.db
 backend/token.txt

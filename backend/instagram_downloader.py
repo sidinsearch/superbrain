@@ -1,180 +1,336 @@
-import instaloader
-import sys
-import re
+"""
+Instagram post downloader — powered by instagrapi (Instagram Private API).
+
+Approach inspired by instagram-cli (https://github.com/supreme-gg-gg/instagram-cli):
+  - Authenticates with a real Instagram account once, then reuses the saved
+    session file to avoid repeated logins (which trigger security checkpoints).
+  - Uses the same private mobile API that the official Instagram app uses,
+    making it far more stable and rate-limit-resistant than instaloader's
+    anonymous web-scraping approach.
+
+Session is cached at backend/.instagram_session.json.
+Credentials: set INSTAGRAM_USERNAME and INSTAGRAM_PASSWORD in backend/.api_keys
+"""
+
 import os
-import shutil
-from urllib.request import urlretrieve
-from moviepy.editor import VideoFileClip
-import contextlib
+import re
+import sys
+import pathlib
 
-def sanitize_folder_name(text, max_length=50):
-    """Sanitize text for use as folder name"""
-    # Remove emojis and special Unicode characters
-    text = text.encode('ascii', 'ignore').decode('ascii')
-    # Remove or replace invalid characters
-    text = re.sub(r'[<>:"/\\|?*\n\r]', '', text)
-    # Replace multiple spaces with single space
-    text = re.sub(r'\s+', ' ', text)
-    # Trim and limit length
-    text = text.strip()[:max_length]
-    return text if text else "instagram_post"
+# ── instagrapi: Instagram Private API client (used by instagram-cli) ──────────
+try:
+    from instagrapi import Client
+    from instagrapi.exceptions import (
+        LoginRequired,
+        RateLimitError,
+        MediaNotFound,
+        ClientError,
+        BadPassword,
+        TwoFactorRequired,
+        ChallengeRequired,
+    )
+    INSTAGRAPI_AVAILABLE = True
+except ImportError:
+    INSTAGRAPI_AVAILABLE = False
 
-def extract_audio_from_video(video_path, audio_path):
-    """Extract audio from video file and save separately"""
+# ── Audio extraction ──────────────────────────────────────────────────────────
+try:
+    from moviepy.editor import VideoFileClip
+    MOVIEPY_AVAILABLE = True
+except ImportError:
+    MOVIEPY_AVAILABLE = False
+
+# ── Paths ─────────────────────────────────────────────────────────────────────
+BACKEND_DIR   = pathlib.Path(__file__).parent
+TEMP_DIR      = BACKEND_DIR / "temp"
+SESSION_FILE  = BACKEND_DIR / ".instagram_session.json"
+API_KEYS_FILE = BACKEND_DIR / ".api_keys"
+
+
+# ── Credential loader ─────────────────────────────────────────────────────────
+def _load_credentials() -> tuple[str, str]:
+    """Read INSTAGRAM_USERNAME / INSTAGRAM_PASSWORD from .api_keys or env."""
+    creds: dict[str, str] = {}
+    if API_KEYS_FILE.exists():
+        for line in API_KEYS_FILE.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if "=" in line and not line.startswith("#"):
+                k, _, v = line.partition("=")
+                creds[k.strip()] = v.strip()
+
+    username = creds.get("INSTAGRAM_USERNAME") or os.getenv("INSTAGRAM_USERNAME", "")
+    password = creds.get("INSTAGRAM_PASSWORD") or os.getenv("INSTAGRAM_PASSWORD", "")
+    return username, password
+
+
+# ── Session management ────────────────────────────────────────────────────────
+def _get_client() -> "Client":
+    """
+    Return an authenticated instagrapi Client.
+
+    Strategy (mirrors instagram-cli session approach):
+      1. Load saved session settings (cookies, tokens) from SESSION_FILE.
+      2. Call login() — when settings are pre-loaded this is a lightweight token
+         refresh, NOT a full login, which avoids checkpoint triggers.
+      3. On any session error → delete stale file → do fresh login → save.
+    """
+    if not INSTAGRAPI_AVAILABLE:
+        raise RuntimeError(
+            "instagrapi is not installed. Run:  pip install instagrapi"
+        )
+
+    username, password = _load_credentials()
+    if not username or not password:
+        raise RuntimeError(
+            "Instagram credentials missing.\n"
+            "Add to backend/.api_keys:\n"
+            "  INSTAGRAM_USERNAME=your_username\n"
+            "  INSTAGRAM_PASSWORD=your_password"
+        )
+
+    cl = Client()
+    cl.delay_range = [1, 3]   # human-like request pacing (same as instagram-cli)
+
+    # ── Try to reuse cached session ───────────────────────────────────────────
+    if SESSION_FILE.exists():
+        try:
+            cl.load_settings(SESSION_FILE)
+            cl.login(username, password)          # lightweight token refresh
+            print("✓ Reused saved Instagram session")
+            return cl
+        except LoginRequired:
+            print("  Session expired, performing fresh login...")
+            SESSION_FILE.unlink(missing_ok=True)
+        except Exception as e:
+            print(f"  Session reuse failed ({e}), performing fresh login...")
+            SESSION_FILE.unlink(missing_ok=True)
+
+    # ── Fresh login ───────────────────────────────────────────────────────────
     try:
-        print(f"  Extracting audio...")
+        cl.login(username, password)
+    except BadPassword:
+        raise RuntimeError("Instagram login failed: incorrect password.")
+    except TwoFactorRequired:
+        code = input("Enter Instagram 2FA verification code: ").strip()
+        cl.login(username, password, verification_code=code)
+    except ChallengeRequired:
+        raise RuntimeError(
+            "Instagram is asking for a security challenge (suspicious login).\n"
+            "Log in manually on a browser or phone with this account first, "
+            "then retry."
+        )
+
+    cl.dump_settings(SESSION_FILE)
+    print("✓ Instagram login successful — session saved")
+    return cl
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+def sanitize_folder_name(text: str, max_length: int = 50) -> str:
+    """Strip non-ASCII and filesystem-unsafe characters; trim to max_length."""
+    text = text.encode("ascii", "ignore").decode("ascii")
+    text = re.sub(r'[<>:"/\\|?*\n\r]', "", text)
+    text = re.sub(r"\s+", " ", text).strip()[:max_length]
+    return text or "instagram_post"
+
+
+def _unique_folder(base: pathlib.Path, name: str) -> pathlib.Path:
+    """Return a non-existing path under base, appending _N suffix if needed."""
+    folder = base / name
+    counter = 1
+    while folder.exists():
+        folder = base / f"{name}_{counter}"
+        counter += 1
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def extract_audio_from_video(video_path: str, audio_path: str) -> bool:
+    """Extract audio track from a video file and save as MP3."""
+    if not MOVIEPY_AVAILABLE:
+        print("  ⚠ moviepy not installed — skipping audio extraction")
+        return False
+    try:
+        print("  Extracting audio...")
         video = VideoFileClip(video_path)
         if video.audio is not None:
             video.audio.write_audiofile(audio_path, verbose=False, logger=None)
             video.close()
             print(f"  ✓ Audio saved: {os.path.basename(audio_path)}")
             return True
-        else:
-            video.close()
-            print(f"  ⚠ No audio in video")
-            return False
+        video.close()
+        print("  ⚠ No audio track in video")
+        return False
     except Exception as e:
         print(f"  ⚠ Audio extraction failed: {e}")
         return False
 
-def download_instagram_content(url):
-    # Set download directory to temp folder in backend
-    temp_dir = os.path.join(os.path.dirname(__file__), 'temp')
-    
-    # Ensure the temp directory exists
-    if not os.path.exists(temp_dir):
-        os.makedirs(temp_dir)
 
-    # Initialize Instaloader
-    L = instaloader.Instaloader(
-        download_video_thumbnails=False,
-        download_geotags=False,
-        download_comments=False,
-        save_metadata=False,
-        compress_json=False,
-        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        max_connection_attempts=3
-    )
-    
-    # Extract shortcode from URL
-    match = re.search(r'/(?:reels?|p|tv)/([^/?#&]+)', url)
-    if not match:
-        print("Invalid Instagram link. Please provide a valid Reel, Post, or IGTV link.")
-        return
+# ── Main download function ────────────────────────────────────────────────────
+def download_instagram_content(url: str) -> str | None:
+    """
+    Download an Instagram post (photo / video / carousel) to temp/<folder>/.
 
-    shortcode = match.group(1)
-    
+    Returns the folder path string on success, or None on failure.
+    Drop-in replacement for the previous instaloader-based version.
+    """
+    TEMP_DIR.mkdir(exist_ok=True)
+
+    # ── Auth ──────────────────────────────────────────────────────────────────
     try:
-        print(f"Fetching content for shortcode: {shortcode}...")
-        
-        # Suppress 403 retry warnings (they're harmless, library auto-retries)
-        with contextlib.redirect_stderr(open(os.devnull, 'w')):
-            post = instaloader.Post.from_shortcode(L.context, shortcode)
-        
-        # Get caption and create folder name
-        caption = post.caption if post.caption else f"post_{shortcode}"
-        caption_first_line = caption.split('\n')[0] if caption else f"post_{shortcode}"
-        folder_name = sanitize_folder_name(caption_first_line)
-        
-        # Create unique folder
-        final_folder = os.path.join(temp_dir, folder_name)
-        counter = 1
-        original_folder_name = folder_name
-        while os.path.exists(final_folder):
-            folder_name = f"{original_folder_name}_{counter}"
-            final_folder = os.path.join(temp_dir, folder_name)
-            counter += 1
-        
-        os.makedirs(final_folder, exist_ok=True)
-        
-        print(f"Downloading content from @{post.owner_username}...")
-        print(f"Caption: {caption_first_line[:60]}...")
-        
-        # Download all media files
-        file_counter = 1
-        
-        if post.is_video:
-            # Download video
-            video_path = os.path.join(final_folder, f"{folder_name}.mp4")
-            print(f"Downloading video...")
-            urlretrieve(post.video_url, video_path)
-            
-            # Extract audio from video
-            audio_path = os.path.join(final_folder, f"{folder_name}_audio.mp3")
-            extract_audio_from_video(video_path, audio_path)
-            
-            # Download video thumbnail
-            thumb_path = os.path.join(final_folder, f"{folder_name}_thumbnail.jpg")
-            urlretrieve(post.url, thumb_path)
-        else:
-            # Download images (works for single and carousel posts)
-            if post.typename == 'GraphSidecar':
-                # Multiple images/videos in carousel
-                print(f"Downloading {post.mediacount} items from carousel post...")
-                for node in post.get_sidecar_nodes():
-                    if node.is_video:
-                        file_path = os.path.join(final_folder, f"{folder_name}_{file_counter}.mp4")
-                        urlretrieve(node.video_url, file_path)
-                        
-                        # Extract audio from carousel video
-                        audio_path = os.path.join(final_folder, f"{folder_name}_{file_counter}_audio.mp3")
-                        extract_audio_from_video(file_path, audio_path)
-                    else:
-                        file_path = os.path.join(final_folder, f"{folder_name}_{file_counter}.jpg")
-                        urlretrieve(node.display_url, file_path)
-                    print(f"  Downloaded item {file_counter}/{post.mediacount}")
-                    file_counter += 1
-            else:
-                # Single image
-                print(f"Downloading image...")
-                image_path = os.path.join(final_folder, f"{folder_name}.jpg")
-                urlretrieve(post.url, image_path)
-        
-        # Create info text file
-        info_file = os.path.join(final_folder, 'info.txt')
-        with open(info_file, 'w', encoding='utf-8') as f:
-            f.write(f"Instagram Post Information\n")
-            f.write(f"=" * 50 + "\n\n")
-            f.write(f"URL: {url}\n")
-            f.write(f"Username: @{post.owner_username}\n")
-            f.write(f"Date: {post.date_utc}\n")
-            f.write(f"Likes: {post.likes}\n")
-            f.write(f"Type: {'Video' if post.is_video else 'Image'}\n")
-            if post.typename == 'GraphSidecar':
-                f.write(f"Media Count: {post.mediacount} items\n")
-            f.write(f"\n")
-            f.write(f"Caption:\n{'-' * 50}\n")
-            f.write(post.caption if post.caption else "No caption")
-            f.write(f"\n{'-' * 50}\n\n")
-            
-            # Extract hashtags
-            if post.caption:
-                hashtags = re.findall(r'#\w+', post.caption)
-                if hashtags:
-                    f.write(f"Hashtags:\n")
-                    f.write(', '.join(hashtags))
-        
-        print(f"\nDownload completed successfully!")
-        print(f"Files saved to: {final_folder}")
-        
-        return final_folder  # Return folder path for main.py
-        
-    except instaloader.exceptions.LoginRequiredException:
-        print("\nError: Login Required. Instagram is blocking anonymous access for this content.")
-    except instaloader.exceptions.ConnectionException as e:
-        print(f"\nConnection Error: {e}. Instagram might be rate-limiting you.")
-    except Exception as e:
-        print(f"\nAn error occurred: {e}")
-        import traceback
-        traceback.print_exc()
+        cl = _get_client()
+    except RuntimeError as e:
+        print(f"\n✗ {e}")
+        return None
 
+    # ── Extract shortcode ─────────────────────────────────────────────────────
+    match = re.search(r"/(?:reels?|p|tv)/([^/?#&]+)", url)
+    if not match:
+        print("✗ Invalid Instagram URL. Expected a /p/, /reel/, or /tv/ link.")
+        return None
+    shortcode = match.group(1)
+
+    print(f"Fetching post metadata for shortcode: {shortcode}...")
+
+    # ── Fetch media info with session-expiry retry ────────────────────────────
+    media = None
+    for attempt in range(2):
+        try:
+            media_pk = cl.media_pk_from_code(shortcode)
+            media    = cl.media_info(media_pk)
+            break
+        except MediaNotFound:
+            print(f"✗ Post not found or is private: {shortcode}")
+            return None
+        except RateLimitError:
+            print("✗ Instagram rate limit hit. Wait a few minutes and retry.")
+            return None
+        except LoginRequired:
+            if attempt == 0:
+                print("Session expired mid-request, re-authenticating...")
+                SESSION_FILE.unlink(missing_ok=True)
+                try:
+                    cl = _get_client()
+                except RuntimeError as e:
+                    print(f"✗ Re-authentication failed: {e}")
+                    return None
+            else:
+                print("✗ Still getting LoginRequired after re-authentication.")
+                return None
+        except ClientError as e:
+            print(f"✗ Instagram API error: {e}")
+            return None
+
+    if media is None:
+        return None
+
+    # ── Setup download folder ─────────────────────────────────────────────────
+    caption     = media.caption_text or f"post_{shortcode}"
+    folder_name = sanitize_folder_name(caption.split("\n")[0])
+    folder      = _unique_folder(TEMP_DIR, folder_name)
+    media_type  = media.media_type          # 1 = photo, 2 = video, 8 = carousel
+
+    type_label = {1: "Photo", 2: "Video", 8: "Carousel"}.get(media_type, "Unknown")
+    print(f"  User   : @{media.user.username}")
+    print(f"  Caption: {caption[:80]}...")
+    print(f"  Type   : {type_label}")
+
+    # ── Download by media type ────────────────────────────────────────────────
+    try:
+        if media_type == 2:
+            # Single video
+            print("Downloading video...")
+            dl_path    = cl.video_download(media_pk, folder=folder)
+            final_path = folder / f"{folder_name}.mp4"
+            dl_path.rename(final_path)
+
+            audio_path = folder / f"{folder_name}_audio.mp3"
+            extract_audio_from_video(str(final_path), str(audio_path))
+
+            if media.thumbnail_url:
+                _download_url(str(media.thumbnail_url),
+                              folder / f"{folder_name}_thumbnail.jpg")
+
+        elif media_type == 8:
+            # Carousel (album)
+            total = len(media.resources)
+            print(f"Downloading carousel ({total} items)...")
+            paths = cl.album_download(media_pk, folder=folder)
+            for i, dl_path in enumerate(paths, 1):
+                suffix     = dl_path.suffix          # .jpg or .mp4
+                final_path = folder / f"{folder_name}_{i}{suffix}"
+                dl_path.rename(final_path)
+                if suffix == ".mp4":
+                    audio_path = folder / f"{folder_name}_{i}_audio.mp3"
+                    extract_audio_from_video(str(final_path), str(audio_path))
+                print(f"  → item {i}/{total}")
+
+        else:
+            # Single photo (media_type == 1)
+            print("Downloading image...")
+            dl_path    = cl.photo_download(media_pk, folder=folder)
+            final_path = folder / f"{folder_name}.jpg"
+            dl_path.rename(final_path)
+
+    except RateLimitError:
+        print("✗ Rate limited during download. Try again in a few minutes.")
+        return None
+    except Exception as e:
+        print(f"✗ Download error: {e}")
+        import traceback; traceback.print_exc()
+        return None
+
+    # ── Write info.txt ────────────────────────────────────────────────────────
+    _write_info(folder, url, media, media_type, caption, shortcode)
+
+    print(f"\n✓ Download complete: {folder}")
+    return str(folder)
+
+
+# ── Private helpers ───────────────────────────────────────────────────────────
+def _download_url(url: str, dest: pathlib.Path) -> None:
+    from urllib.request import urlretrieve
+    urlretrieve(url, dest)
+
+
+def _write_info(
+    folder: pathlib.Path,
+    url: str,
+    media: object,
+    media_type: int,
+    caption: str,
+    shortcode: str,
+) -> None:
+    """Write metadata to info.txt in the download folder."""
+    type_names = {1: "Photo", 2: "Video", 8: "Carousel"}
+    with open(folder / "info.txt", "w", encoding="utf-8") as f:
+        f.write("Instagram Post Information\n")
+        f.write("=" * 50 + "\n\n")
+        f.write(f"URL: {url}\n")
+        f.write(f"Username: @{media.user.username}\n")
+        f.write(f"Date: {media.taken_at}\n")
+        f.write(f"Likes: {media.like_count}\n")
+        f.write(f"Type: {type_names.get(media_type, 'Unknown')}\n")
+        if media_type == 8:
+            f.write(f"Media Count: {len(media.resources)} items\n")
+        f.write("\n")
+        f.write(f"Caption:\n{'-' * 50}\n")
+        f.write(caption or "No caption")
+        f.write(f"\n{'-' * 50}\n\n")
+        hashtags = re.findall(r"#\w+", caption or "")
+        if hashtags:
+            f.write("Hashtags:\n")
+            f.write(", ".join(hashtags) + "\n")
+
+
+# ── CLI entry-point ───────────────────────────────────────────────────────────
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        url = sys.argv[1]
+        _url = sys.argv[1]
     else:
-        url = input("Enter the Instagram Reel/Post/Video link: ").strip()
-    
-    if url:
-        download_instagram_content(url)
+        _url = input("Enter Instagram Reel / Post / IGTV link: ").strip()
+
+    if _url:
+        download_instagram_content(_url)
     else:
         print("No URL provided.")
