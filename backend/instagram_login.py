@@ -215,12 +215,40 @@ def _try_browser_cookies(cl, username: str) -> bool:
     if not session_id:
         return False
 
+    # URL-decode if needed (browsers sometimes copy it percent-encoded)
+    from urllib.parse import unquote
+    session_id = unquote(session_id)
+    print(f"  Using sessionid: {session_id[:20]}…")
+
+    # Try 1: instagrapi's built-in method
     try:
         cl.login_by_sessionid(session_id)
         print("  ✓ Logged in via sessionid cookie!")
         return True
     except Exception as e:
-        print(f"  ✗ sessionid login failed: {e}")
+        print(f"  ⚠️  login_by_sessionid failed ({e}), trying direct cookie inject...")
+
+    # Try 2: inject the cookie directly into the underlying requests session
+    # This skips login_flow() so Instagram doesn't see an extra API burst
+    try:
+        cl.private.cookies.set("sessionid", session_id, domain=".instagram.com")
+        cl.private.cookies.set("ds_user_id", "", domain=".instagram.com")
+        # Lightweight check — does not trigger login_flow
+        info = cl.account_info()
+        print(f"  ✓ Logged in as @{info.username} via direct cookie inject!")
+        return True
+    except Exception as e2:
+        print(f"  ✗ Direct cookie inject also failed: {e2}")
+        print()
+        print("  This usually means Instagram is blocking all API requests from")
+        print("  this IP address (common with cloud/VPS servers).")
+        print()
+        print("  What to do:")
+        print("   • If you're on a home/office connection: open Firefox on this")
+        print("     machine, log in to Instagram, solve any verification there,")
+        print("     then re-run this script and choose option A.")
+        print("   • The anonymous instaloader fallback will keep working fine")
+        print("     for downloading public posts.")
         return False
 
 
