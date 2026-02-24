@@ -45,21 +45,21 @@ def generate_final_summary(results, instagram_url):
     if results['visual']:
         visual_summary = "VISUAL ANALYSIS:\n"
         for item in results['visual']:
-            # Extract key parts from output
             output = item['output']
-            if 'SUMMARY:' in output:
-                summary_part = output.split('SUMMARY:')[1].split('📋')[0].strip()
-                visual_summary += f"- {summary_part[:500]}...\n"
+            clean = _clean_visual(output)
+            if clean:
+                visual_summary += f"- {clean[:600]}\n"
     
     # Extract audio transcription
     if results['audio_transcription']:
         audio_summary = "AUDIO TRANSCRIPTION:\n"
         for item in results['audio_transcription']:
             output = item['output']
-            if 'TRANSCRIBED TEXT:' in output:
-                lines = output.split('TRANSCRIBED TEXT:')[1].split('─')[0].strip()
-                audio_summary += f"- Language: {output.split('Detected Language:')[1].split('(')[0].strip() if 'Detected Language:' in output else 'Unknown'}\n"
-                audio_summary += f"- Content: {lines[:300]}...\n"
+            clean = _clean_audio(output)
+            lang = output.split('Detected Language:')[1].split('(')[0].strip() if 'Detected Language:' in output else 'Unknown'
+            audio_summary += f"- Language: {lang}\n"
+            if clean:
+                audio_summary += f"- Content: {clean[:400]}\n"
     
     # Extract music identification
     if results['music_identification']:
@@ -68,7 +68,7 @@ def generate_final_summary(results, instagram_url):
             output = item['output']
             if '🎵 Song:' in output:
                 song = output.split('🎵 Song:')[1].split('\n')[0].strip()
-                artist = output.split('🎤 Artist:')[1].split('\n')[0].strip() if '🎤 Artist:' in output else 'Unknown'
+                artist = output.split('👤 Artist:')[1].split('\n')[0].strip() if '👤 Artist:' in output else 'Unknown'
                 music_info += f"- {song} by {artist}\n"
             elif 'No match found' in output:
                 music_info += "- No music identified (likely voiceover/no background music)\n"
@@ -77,10 +77,9 @@ def generate_final_summary(results, instagram_url):
     if results['text']:
         text_summary = "TEXT ANALYSIS:\n"
         for item in results['text']:
-            output = item['output']
-            if 'ANALYSIS:' in output:
-                analysis_part = output.split('ANALYSIS:')[1].split('─')[0].strip()
-                text_summary += f"{analysis_part[:500]}...\n"
+            clean = _clean_text(item['output'])
+            if clean:
+                text_summary += f"{clean[:600]}\n"
     
     # Combine all information
     combined_info = f"""
@@ -278,6 +277,43 @@ def run_analysis_task(task_name, script_name, file_path, task_type="light"):
     
     return result
 
+def _extract_section(output: str, marker: str) -> str:
+    """Extract the content after a section marker, stopping at the next divider."""
+    if marker not in output:
+        return output[:2000]
+    after = output.split(marker, 1)[1]
+    lines = after.split("\n")
+    content_lines = []
+    started = False
+    for line in lines:
+        stripped = line.strip('-').strip('=').strip('─').strip()
+        if not started:
+            # Skip blank lines and pure divider lines
+            if stripped:
+                started = True
+                content_lines.append(line)
+        else:
+            # Stop at a divider line (5+ repeated chars)
+            raw = line.strip()
+            if (raw.startswith('─' * 5) or raw.startswith('-' * 5) or
+                    raw.startswith('=' * 5) or raw.startswith('*' * 5)):
+                break
+            content_lines.append(line)
+    return "\n".join(content_lines).strip()
+
+
+def _clean_visual(output: str) -> str:
+    return _extract_section(output, "📝 ANALYSIS:")
+
+
+def _clean_audio(output: str) -> str:
+    return _extract_section(output, "📝 TRANSCRIBED TEXT:")
+
+
+def _clean_text(output: str) -> str:
+    return _extract_section(output, "🔍 ANALYSIS:")
+
+
 def cleanup_temp_folder(folder_path):
     """Delete temp folder after successful database save"""
     try:
@@ -423,7 +459,7 @@ def main():
                     'type': 'video',
                     'output': result['output']
                 })
-                print(result['output'][:500] + "...\n")
+                print(_clean_visual(result['output'])[:600] + "\n")
         
         for img in jpg_files:
             result = run_analysis_task("Visual", 'visual_analyze.py', str(img), "heavy")
@@ -433,7 +469,7 @@ def main():
                     'type': 'image',
                     'output': result['output']
                 })
-                print(result['output'][:500] + "...\n")
+                print(_clean_visual(result['output'])[:600] + "\n")
     
     # === PHASE 2: Audio Transcription (HEAVY) - Run alone ===
     if mp3_files:
@@ -446,7 +482,7 @@ def main():
                     'file': result['file'],
                     'output': result['output']
                 })
-                print(result['output'][:500] + "...\n")
+                print(_clean_audio(result['output'])[:600] + "\n")
     
     # === PHASE 3: Light tasks in PARALLEL ===
     print(f"\n⚡ Phase 3: Light Tasks (Parallel Execution)")
@@ -488,7 +524,10 @@ def main():
                             'output': result['output']
                         })
                     
-                    print(result['output'][:300] + "...\n")
+                    if task_type == 'music':
+                        print(result['output'][:400] + "\n")
+                    else:
+                        print(_clean_text(result['output'])[:600] + "\n")
     
     analysis_elapsed = time.time() - analysis_start
     print(f"\n⏱️  Total Analysis Time: {analysis_elapsed:.1f}s")
@@ -529,10 +568,10 @@ def main():
     # Save to database
     print_section("💾 Saving to Database")
     
-    # Combine analysis texts
-    visual_text = "\n".join([r['output'][:500] for r in results['visual']])
-    audio_text = "\n".join([r['output'][:500] for r in results['audio_transcription']])
-    text_text = "\n".join([r['output'][:500] for r in results['text']])
+    # Combine analysis texts — extract clean content (not raw stdout)
+    visual_text = "\n\n".join([_clean_visual(r['output']) for r in results['visual']])
+    audio_text = "\n\n".join([_clean_audio(r['output']) for r in results['audio_transcription']])
+    text_text = "\n\n".join([_clean_text(r['output']) for r in results['text']])
     
     db.save_analysis(
         shortcode=shortcode,
