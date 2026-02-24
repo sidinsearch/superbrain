@@ -125,9 +125,10 @@ def _get_client() -> "Client":
         cl.login(username, password, verification_code=code)
     except ChallengeRequired:
         raise RuntimeError(
-            "Instagram is asking for a security challenge (suspicious login).\n"
-            "Log in manually on a browser or phone with this account first, "
-            "then retry."
+            "Instagram requires a security challenge (new device/IP detected).\n"
+            "Run the one-time setup script to authenticate interactively:\n"
+            "  python backend/instagram_login.py\n"
+            "It will walk you through the challenge and save the session."
         )
     except Exception as e:
         raise RuntimeError(f"Instagram login error: {e}")
