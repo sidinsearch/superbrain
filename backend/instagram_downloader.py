@@ -129,6 +129,8 @@ def _get_client() -> "Client":
             "Log in manually on a browser or phone with this account first, "
             "then retry."
         )
+    except Exception as e:
+        raise RuntimeError(f"Instagram login error: {e}")
 
     cl.dump_settings(SESSION_FILE)
     print("✓ Instagram login successful — session saved")
@@ -219,8 +221,8 @@ def _download_via_instagrapi(url: str) -> str | None:
     # ── Auth ──────────────────────────────────────────────────────────────────
     try:
         cl = _get_client()
-    except RuntimeError as e:
-        print(f"  ✗ {e}")
+    except Exception as e:
+        print(f"  ✗ instagrapi login failed: {e}")
         return None
 
     # ── Extract shortcode ─────────────────────────────────────────────────────

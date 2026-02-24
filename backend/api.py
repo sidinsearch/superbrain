@@ -258,7 +258,7 @@ async def get_caption(url: str, token: str = Depends(verify_token)):
                 encoding='utf-8',
                 errors='replace',
                 timeout=15,
-                cwd='D:\\Projects\\SuperBrain\\backend'
+                cwd=str(Path(__file__).parent)
             )
             print(f"[API] Subprocess stdout: {repr(result.stdout[:200])}")
             print(f"[API] Subprocess stderr: {repr(result.stderr[:200])}")
@@ -433,6 +433,7 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
             text=True,
             encoding='utf-8',
             env={**os.environ, 'PYTHONIOENCODING': 'utf-8'},
+            cwd=str(Path(__file__).parent),
             bufsize=1
         )
         
@@ -459,6 +460,10 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
         process.wait()
         stdout = ''.join(stdout_lines)
         stderr = process.stderr.read()
+        
+        if stderr.strip():
+            # Log stderr from main.py to help diagnose issues
+            logger.warning(f"⚠️  [{shortcode}] main.py stderr:\n{stderr[:1000]}")
         
         if process.returncode != 0:
             logger.error(f"❌ [{shortcode}] Analysis failed!")
