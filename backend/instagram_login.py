@@ -85,6 +85,168 @@ def _verify_session(cl) -> bool:
         return False
 
 
+def _handle_challenge(cl, username: str, password: str) -> bool:
+    """Handle ChallengeRequired — send code then let user enter it."""
+    print("\n  🔒 Instagram requires a security challenge.")
+    print("     This happens when logging in from a new device or IP.")
+    print()
+    try:
+        cl.challenge_resolve(cl.last_json)
+        time.sleep(2)
+        print("  ✓ Challenge request sent.")
+    except Exception as e:
+        print(f"  ⚠️  Auto-send failed ({e})")
+
+    print("  Instagram sent a verification code to your email or phone.")
+    print("  Check your inbox / SMS now.\n")
+
+    for attempt in range(3):
+        code = input(f"  Enter the verification code (attempt {attempt+1}/3): ").strip()
+        if not code:
+            continue
+        try:
+            cl.challenge_resolve(cl.last_json, code)
+            print("  ✓ Challenge solved!")
+            return True
+        except Exception as e:
+            print(f"  ✗ Code rejected: {e}")
+
+    print("\n✗ Could not solve challenge after 3 attempts.")
+    _print_manual_fix()
+    return False
+
+
+def _handle_challenge_manual(cl, username: str, password: str) -> bool:
+    """
+    Called when Instagram's challenge API returns empty/bad responses
+    (account flagged for this IP).  Offers the user two paths:
+
+      A) Trust this IP by logging in via a browser on this same machine,
+         then re-run the script.
+      B) Import browser cookies that instaloader can read (Firefox / Chrome).
+    """
+    print()
+    print("  Instagram is refusing the automated challenge flow — this account")
+    print("  has not been used from this IP before and IG is extra cautious.")
+    print()
+    print("  Choose a fix:")
+    print()
+    print("  [A]  Browser login  (recommended)")
+    print("       Open Firefox/Chromium on THIS machine, log into Instagram,")
+    print("       complete any security check there, then come back here.")
+    print()
+    print("  [B]  Import Firefox/Chrome cookies  (if already logged in)")
+    print("       If you are already logged in on this machine's browser,")
+    print("       this option imports those cookies automatically.")
+    print()
+    print("  [S]  Skip  (keep using instaloader anonymous fallback for now)")
+    print()
+
+    choice = input("  Your choice [A/B/S]: ").strip().upper()
+
+    if choice == "A":
+        print()
+        print("  ➤  Open Firefox or Chromium now and log in at:")
+        print("     https://www.instagram.com/accounts/login/")
+        print()
+        print("  ➤  Complete any security check Instagram shows.")
+        print()
+        input("  Press ENTER when you have logged in successfully in the browser...")
+        print()
+        print("  Retrying login with instagrapi now...")
+        from instagrapi import Client
+        cl2 = Client()
+        cl2.delay_range = [1, 3]
+        try:
+            cl2.login(username, password)
+            # Copy settings back to original client
+            cl.set_settings(cl2.get_settings())
+            print("  ✓ Login succeeded after browser trust!")
+            return True
+        except Exception as e:
+            print(f"  ✗ Still failing: {e}")
+            print("  Try option B (cookie import) or wait a few hours and retry.")
+            return False
+
+    elif choice == "B":
+        return _try_browser_cookies(cl, username)
+
+    else:
+        print()
+        print("  Skipped — instaloader anonymous fallback will be used.")
+        return False
+
+
+def _try_browser_cookies(cl, username: str) -> bool:
+    """Attempt to build a session from browser cookies using instaloader."""
+    try:
+        import instaloader
+    except ImportError:
+        print("  ✗ instaloader not installed — cannot import browser cookies.")
+        return False
+
+    print()
+    print("  Trying to import browser cookies via instaloader ...")
+    print("  Supported browsers: Firefox, Chrome, Chromium, Edge, Safari")
+    print()
+
+    browsers = ["firefox", "chrome", "chromium", "edge", "safari"]
+    for browser in browsers:
+        try:
+            L = instaloader.Instaloader()
+            instaloader.load_session_from_cookies(L, browser, username)  # type: ignore[attr-defined]
+            if L.context.is_logged_in:
+                print(f"  ✓ Imported session from {browser}!")
+                # Export instaloader cookies to a temp file, load in instagrapi
+                _convert_instaloader_to_instagrapi(L, cl, username)
+                return True
+        except Exception:
+            continue
+
+    # Fallback: just let the user provide the session cookie manually
+    print("  Could not find browser cookies automatically.")
+    print()
+    print("  Manual cookie import:")
+    print("  1. Open your browser's DevTools (F12) → Application → Cookies")
+    print("     → https://www.instagram.com")
+    print("  2. Copy the value of the 'sessionid' cookie.")
+    print()
+    session_id = input("  Paste sessionid value (or press ENTER to skip): ").strip()
+    if not session_id:
+        return False
+
+    try:
+        cl.login_by_sessionid(session_id)
+        print("  ✓ Logged in via sessionid cookie!")
+        return True
+    except Exception as e:
+        print(f"  ✗ sessionid login failed: {e}")
+        return False
+
+
+def _convert_instaloader_to_instagrapi(
+    L: "instaloader.Instaloader", cl, username: str
+) -> None:
+    """Copy instaloader cookies into instagrapi client via sessionid."""
+    try:
+        session_id = L.context._session.cookies.get("sessionid", domain=".instagram.com")
+        if session_id:
+            cl.login_by_sessionid(session_id)
+    except Exception:
+        pass  # best effort
+
+
+def _print_manual_fix() -> None:
+    print()
+    print("  ── Manual fix ─────────────────────────────────────────────")
+    print("  1. On THIS machine open Firefox/Chromium and log in at:")
+    print("     https://www.instagram.com/accounts/login/")
+    print("  2. Complete any security verification Instagram shows.")
+    print("  3. Re-run:  python backend/instagram_login.py")
+    print("  ────────────────────────────────────────────────────────────")
+    print()
+
+
 def main() -> None:
     _banner("🔐 SuperBrain — Instagram Session Setup")
 
@@ -184,43 +346,26 @@ def main() -> None:
             sys.exit(1)
 
     except ChallengeRequired:
-        print("\n  🔒 Instagram requires a security challenge.")
-        print("     This usually means the login is on a new device/IP.")
-        print()
-
-        # instagrapi stores the challenge info in cl.last_json
-        try:
-            cl.challenge_resolve(cl.last_json)
-            time.sleep(2)
-        except Exception as e:
-            print(f"  Could not auto-resolve challenge: {e}")
-
-        print("  Instagram sent a verification code to your email or phone.")
-        print("  Check your inbox / SMS now.\n")
-
-        while True:
-            code = input("  Enter the verification code: ").strip().replace(" ", "")
-            if code:
-                break
-            print("  Code cannot be empty.")
-
-        try:
-            cl.challenge_resolve(cl.last_json, code)
-            login_ok = True
-        except Exception as e:
-            print(f"\n✗ Challenge resolution failed: {e}")
-            print()
-            print("  If this keeps failing, try these alternatives:")
-            print("  1. Log into Instagram on your phone / browser from this IP")
-            print("     (same network as this server), then re-run this script.")
-            print("  2. Temporarily disable 'Login Activity' alerts in IG settings.")
+        login_ok = _handle_challenge(cl, username, password)
+        if not login_ok:
             sys.exit(1)
 
     except Exception as e:
-        print(f"\n✗ Login error: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+        # Instagram's challenge flow sometimes returns empty body → JSONDecodeError
+        # instagrapi wraps this same scenario without raising ChallengeRequired
+        err_str = str(e)
+        if "JSONDecodeError" in type(e).__name__ or "Expecting value" in err_str:
+            print("\n  🔒 Instagram is blocking this login (security challenge,")
+            print("     empty challenge response).")
+            print()
+            login_ok = _handle_challenge_manual(cl, username, password)
+            if not login_ok:
+                sys.exit(1)
+        else:
+            print(f"\n✗ Login error: {e}")
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
 
     if not login_ok:
         print("\n✗ Login did not succeed.")
