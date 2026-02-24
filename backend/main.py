@@ -135,10 +135,49 @@ Be specific, concise, and actionable. Focus on useful information."""
     except Exception as e:
         return f"Error generating summary: {e}\n\nRaw data available in individual analysis sections above."
 
+def _parse_field(text: str, emoji: str, label: str) -> str:
+    """
+    Extract a field value from AI output — handles all common AI formatting variations:
+      📌 TITLE: value
+      📌 **TITLE:** value
+      📌 **TITLE**  \n  value
+    Also handles emoji variation selectors (U+FE0F) that may or may not be present.
+    Returns the first non-empty content after the label, stopped at the next
+    section emoji line or blank-line boundary.
+    """
+    # Strip variation selector from emoji so pattern works whether or not it's present
+    emoji_base = emoji.replace('\ufe0f', '')
+    pattern = re.compile(
+        rf'{re.escape(emoji_base)}\ufe0f?\s*\*{{0,2}}{re.escape(label)}\*{{0,2}}:?\s*',
+        re.IGNORECASE
+    )
+    m = pattern.search(text)
+    if not m:
+        return ""
+    after = text[m.end():]
+    # Collect until next section (identified by an emoji at line start) or 2 blank lines
+    lines = after.split('\n')
+    content_lines = []
+    for line in lines:
+        stripped = line.strip()
+        # Stop at next section header (starts with an emoji-like char used as markers)
+        if content_lines and re.match(r'^[📌📝🏷🎵📂]', stripped):
+            break
+        # Skip pure markdown bold/italic wrapper lines but keep the text
+        content_lines.append(re.sub(r'\*{1,3}([^*]+?)\*{1,3}', r'\1',
+                                      re.sub(r'^\*{1,3}|\*{1,3}$', '', stripped)))
+    # Remove leading/trailing blank lines and join
+    result = ' '.join(l for l in content_lines if l).strip()
+    # Strip surrounding markdown bold (**)
+    result = re.sub(r'^\*+|\*+$', '', result).strip('"').strip()
+    return result
+
+
 def parse_summary(summary_text):
     """
-    Parse AI-generated summary to extract structured data
-    
+    Parse AI-generated summary to extract structured data.
+    Robust against markdown bold, missing colons, varied whitespace.
+
     Returns:
         tuple: (title, summary, tags, music, category)
     """
@@ -147,46 +186,35 @@ def parse_summary(summary_text):
     tags = []
     music = ""
     category = ""
-    
+
     try:
-        # Extract title
-        if "📌 TITLE:" in summary_text:
-            title_section = summary_text.split("📌 TITLE:")[1].split("\n\n")[0].strip()
-            title = title_section.replace("\n", " ").strip()
-        
-        # Extract summary
-        if "📝 SUMMARY:" in summary_text:
-            summary_section = summary_text.split("📝 SUMMARY:")[1].split("\n\n")[0].strip()
-            summary = summary_section.replace("\n", " ").strip()
-        
-        # Extract tags
-        if "🏷️ TAGS:" in summary_text:
-            tags_section = summary_text.split("🏷️ TAGS:")[1].split("\n\n")[0].strip()
-            # Split by common separators
-            tags = [tag.strip() for tag in re.split(r'[,\s]+', tags_section) if tag.strip()]
-        
-        # Extract music
-        if "🎵 MUSIC:" in summary_text:
-            music_section = summary_text.split("🎵 MUSIC:")[1].split("\n\n")[0].strip()
-            music = music_section.replace("\n", " ").strip()
-        
-        # Extract category
-        if "📂 CATEGORY:" in summary_text:
-            category_section = summary_text.split("📂 CATEGORY:")[1].strip()
-            # Get first non-empty line
-            for line in category_section.split('\n'):
-                line = line.strip().lower()
-                if line and not line.startswith('='):
-                    category = line
-                    break
-    
+        title   = _parse_field(summary_text, "📌", "TITLE")
+        summary = _parse_field(summary_text, "📝", "SUMMARY")
+        music   = _parse_field(summary_text, "🎵", "MUSIC")
+
+        # Tags: grab block then split on whitespace/commas
+        raw_tags = _parse_field(summary_text, "🏷️", "TAGS")
+        if not raw_tags:  # try without variation selector too
+            raw_tags = _parse_field(summary_text, "🏷", "TAGS")
+        if raw_tags:
+            tags = [t.strip() for t in re.split(r'[\s,]+', raw_tags) if t.strip()]
+
+        # Category: grab first word/phrase that matches a known category
+        raw_cat = _parse_field(summary_text, "📂", "CATEGORY").lower()
+        # Strip markdown bold leftovers and pick first line
+        raw_cat = re.sub(r'\*+', '', raw_cat).strip()
+        raw_cat = raw_cat.split('\n')[0].strip()
+        category = raw_cat
+
     except Exception as e:
         print(f"⚠️ Error parsing summary: {e}")
-    
-    # Fallback: Auto-detect category if empty
-    if not category:
+
+    # Fallback: Auto-detect category if empty or unrecognised
+    valid_categories = {'product', 'places', 'recipe', 'software', 'book',
+                        'tv shows', 'workout', 'film', 'event', 'other'}
+    if not category or category not in valid_categories:
         category = auto_detect_category(summary_text, title, summary, tags)
-    
+
     return title, summary, tags, music, category
 
 def auto_detect_category(summary_text, title, summary, tags):

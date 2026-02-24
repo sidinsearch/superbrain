@@ -52,6 +52,40 @@ async def identify_music(audio_path):
         
         track = result['track']
         
+        # ── Robust artist extraction (try every available field) ──────────────
+        artist = ""
+        
+        # 1. subtitle is the primary artist string from Shazam
+        if not artist and track.get('subtitle', '').strip():
+            artist = track['subtitle'].strip()
+        
+        # 2. artists array (present on most tracks)
+        if not artist and track.get('artists'):
+            aliases = [a.get('alias', '').replace('-', ' ').title()
+                       for a in track['artists'] if a.get('alias')]
+            if aliases:
+                artist = ', '.join(aliases)
+        
+        # 3. SONG section metadata may have an "Artist" entry
+        if not artist and 'sections' in track:
+            for section in track['sections']:
+                if section.get('type') == 'SONG':
+                    for meta in section.get('metadata', []):
+                        if meta.get('title', '').lower() in ('artist', 'artists'):
+                            artist = meta.get('text', '').strip()
+                    # tabname fallback
+                    if not artist and section.get('tabname', '').strip():
+                        artist = section['tabname'].strip()
+        
+        # 4. hub explicit action text (sometimes has "artist - song" format)
+        if not artist and 'hub' in track:
+            hub_text = track['hub'].get('actions', [{}])[0].get('name', '')
+            if ' - ' in hub_text:
+                artist = hub_text.split(' - ')[0].strip()
+        
+        if not artist:
+            artist = 'Unknown'
+        
         # Display results
         print("=" * 70)
         print("✅ MUSIC IDENTIFIED")
@@ -63,8 +97,7 @@ async def identify_music(audio_path):
             print(f"🎵 Song: {track['title']}")
         
         # Artist
-        if 'subtitle' in track:
-            print(f"👤 Artist: {track['subtitle']}")
+        print(f"👤 Artist: {artist}")
         
         # Album
         if 'sections' in track:
