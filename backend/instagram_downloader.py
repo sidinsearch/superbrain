@@ -125,6 +125,7 @@ def _download_via_instaloader(url: str) -> str | None:
         download_comments=False,
         save_metadata=False,
         compress_json=False,
+        iphone_support=False,          # disable mobile API — use web only, no 403s
         user_agent=(
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -144,11 +145,7 @@ def _download_via_instaloader(url: str) -> str | None:
 
     try:
         print(f"  Fetching post for shortcode: {shortcode}...")
-        # Suppress instaloader's internal stderr noise (403 high-quality API
-        # fallback messages, retry notices) — they are non-fatal; instaloader
-        # always falls back to the web-available stream successfully.
-        _devnull = open(os.devnull, "w")
-        with contextlib.redirect_stderr(_devnull):
+        with contextlib.redirect_stderr(open(os.devnull, "w")):
             post = instaloader.Post.from_shortcode(L.context, shortcode)
 
         caption           = post.caption if post.caption else f"post_{shortcode}"
@@ -163,9 +160,7 @@ def _download_via_instaloader(url: str) -> str | None:
         if post.is_video:
             video_path = str(folder / f"{folder_name}.mp4")
             print("  Downloading video...")
-            with contextlib.redirect_stderr(_devnull):
-                video_url = post.video_url          # triggers the 403 API call
-            _urlretrieve_il(video_url, video_path)
+            _urlretrieve_il(post.video_url, video_path)
             extract_audio_from_video(video_path,
                                      str(folder / f"{folder_name}_audio.mp3"))
             _urlretrieve_il(post.url, str(folder / f"{folder_name}_thumbnail.jpg"))
@@ -175,9 +170,7 @@ def _download_via_instaloader(url: str) -> str | None:
             for node in post.get_sidecar_nodes():
                 if node.is_video:
                     fp = str(folder / f"{folder_name}_{file_counter}.mp4")
-                    with contextlib.redirect_stderr(_devnull):
-                        node_video_url = node.video_url
-                    _urlretrieve_il(node_video_url, fp)
+                    _urlretrieve_il(node.video_url, fp)
                     extract_audio_from_video(
                         fp,
                         str(folder / f"{folder_name}_{file_counter}_audio.mp3")
