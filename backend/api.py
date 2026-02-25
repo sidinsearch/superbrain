@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
 from typing import Optional, List
 import subprocess
+import asyncio
 import sys
 import os
 from datetime import datetime
@@ -22,8 +23,8 @@ import time
 from pathlib import Path
 
 # Import database module
-from database import get_db
-from link_checker import validate_link
+from core.database import get_db
+from core.link_checker import validate_link
 
 # Configure logging
 logging.basicConfig(
@@ -128,9 +129,24 @@ if db.is_connected():
 def queue_worker():
     """Background thread that processes queued items automatically"""
     logger.info("🔧 Queue worker thread started")
+    _retry_check_counter = 0
     
     while True:
         try:
+            # ── Periodic retry-queue drain (every ~2.5 min) ─────────────────
+            _retry_check_counter += 1
+            if _retry_check_counter >= 30:
+                _retry_check_counter = 0
+                ready = db.get_retry_ready()
+                if ready:
+                    logger.info(f"🔄 Promoting {len(ready)} retry-ready item(s) back to queue")
+                    for r_item in ready:
+                        logger.info(
+                            f"   ↩ {r_item['shortcode']} "
+                            f"(reason={r_item['reason']}, attempts={r_item['attempts']})"
+                        )
+                        db.add_to_queue(r_item['shortcode'], r_item['url'])
+
             # Check if we have capacity
             processing = db.get_processing()
             if len(processing) < max_concurrent:
@@ -141,7 +157,7 @@ def queue_worker():
                     shortcode = item['shortcode']
                     url = item['url']
                     
-                    logger.info(f"� Queue alert: Processing next in queue")
+                    logger.info(f"📋 Queue alert: Processing next in queue")
                     logger.info(f"📊 Queue status: {len(queue) - 1} remaining after this | Starting: {shortcode}")
                     logger.info(f"📤 [{shortcode}] Starting analysis from queue...")
                     
@@ -164,11 +180,14 @@ def queue_worker():
                         
                         if process.returncode == 0:
                             logger.info(f"✅ Queue item completed: {shortcode}")
+                            db.remove_from_queue(shortcode)
+                        elif process.returncode == 2:
+                            # main.py queued this item for retry — status already set in DB
+                            logger.info(f"⏰ [{shortcode}] Quota exhausted — moved to retry queue")
+                            db.remove_from_queue(shortcode)
                         else:
-                            logger.error(f"❌ Queue item failed: {shortcode}")
-                        
-                        # Remove from queue
-                        db.remove_from_queue(shortcode)
+                            logger.error(f"❌ Queue item failed (rc={process.returncode}): {shortcode}")
+                            db.remove_from_queue(shortcode)
                         
                     except Exception as e:
                         logger.error(f"❌ Error processing queue item {shortcode}: {e}")
@@ -189,11 +208,13 @@ logger.info("✅ Background queue worker initialized")
 # Request/Response models
 class AnalyzeRequest(BaseModel):
     url: str
-    
+    force: bool = False
+
     class Config:
         json_schema_extra = {
             "example": {
-                "url": "https://www.instagram.com/p/DRWKk5JiL0h/"
+                "url": "https://www.instagram.com/p/DRWKk5JiL0h/",
+                "force": False
             }
         }
 
@@ -216,7 +237,7 @@ async def root():
         "status": "operational",
         "authentication": "Required - Use X-API-Key header",
         "endpoints": {
-            "POST /analyze": "Analyze Instagram content (requires auth)",
+            "POST /analyze": "Analyze content from Instagram, YouTube, or any web page (requires auth)",
             "GET /caption": "Get post caption quickly (requires auth)",
             "GET /cache/{shortcode}": "Check cache (requires auth)",
             "GET /recent": "Get recent analyses (requires auth)",
@@ -322,28 +343,27 @@ async def get_caption(url: str, token: str = Depends(verify_token)):
 @app.post("/analyze", response_model=AnalysisResponse)
 async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify_token)):
     """
-    Analyze Instagram content from URL
-    
+    Analyze content from URL (Instagram, YouTube, or web page)
+
     - Checks cache first for instant retrieval
     - If not cached, adds to processing queue
     - Handles multiple concurrent requests with queuing
     - Returns comprehensive summary with title, tags, music, category
     """
     start_time = datetime.now()
-    
-    # Extract shortcode from URL (handle both /p/ and /reel/)
+
+    # Detect content type and extract primary key
     try:
         url_str = str(request.url)
-        if '/p/' in url_str:
-            shortcode = url_str.split('/p/')[-1].strip('/').split('?')[0]
-        elif '/reel/' in url_str:
-            shortcode = url_str.split('/reel/')[-1].strip('/').split('?')[0]
-        elif '/tv/' in url_str:
-            shortcode = url_str.split('/tv/')[-1].strip('/').split('?')[0]
-        else:
-            raise ValueError("URL must contain /p/, /reel/, or /tv/")
+        validation = validate_link(url_str)
+        if not validation['valid']:
+            raise ValueError(validation['error'])
+        shortcode    = validation['shortcode']
+        content_type = validation['content_type']
+        # Use the normalised URL (e.g. canonical YouTube URL)
+        url_str = validation['url']
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid Instagram URL format: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid URL: {str(e)}")
     
     logger.info(f"📥 New request: {shortcode}")
     
@@ -356,12 +376,26 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
         cached_result = db.check_cache(shortcode)
         
         if cached_result:
-            logger.info(f"⚡ [{shortcode}] Found in cache! Returning instantly.")
-            
+            # Force re-analyze: hard-delete existing record and proceed with fresh analysis
+            if request.force:
+                logger.info(f"🔄 [{shortcode}] Force re-analyze requested — clearing cached data")
+                db.hard_delete_post(shortcode)
+                cached_result = None  # fall through to fresh analysis
+            # Restore soft-deleted post if user is re-adding it
+            elif cached_result.get('is_hidden') == 1:
+                db.restore_post(shortcode)
+                cached_result['is_hidden'] = 0
+                logger.info(f"♻️ [{shortcode}] Restored from soft-delete. Returning cached data.")
+            else:
+                logger.info(f"⚡ [{shortcode}] Found in cache! Returning instantly.")
+
+        if cached_result:
             # Filter response
             filtered_data = {
                 'url': cached_result.get('url', ''),
                 'username': cached_result.get('username', ''),
+                'content_type': cached_result.get('content_type', content_type),
+                'thumbnail': cached_result.get('thumbnail', ''),
                 'title': cached_result.get('title', ''),
                 'summary': cached_result.get('summary', ''),
                 'tags': cached_result.get('tags', []),
@@ -423,49 +457,56 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
         logger.info(f"🚀 [{shortcode}] Starting analysis...")
         db.mark_processing(shortcode)
         
-        # Run main.py as subprocess with real-time logging
+        # Run main.py as subprocess — executed in a thread pool so the asyncio
+        # event loop stays free to serve /ping and other requests during analysis.
         logger.info(f"📊 [{shortcode}] Phase 1: Downloading content...")
-        
-        process = subprocess.Popen(
-            [sys.executable, "main.py", request.url],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding='utf-8',
-            env={**os.environ, 'PYTHONIOENCODING': 'utf-8'},
-            cwd=str(Path(__file__).parent),
-            bufsize=1
-        )
-        
-        # Stream output in real-time
-        stdout_lines = []
-        for line in process.stdout:
-            stdout_lines.append(line)
-            line_clean = line.strip()
-            
-            # Log important progress markers
-            if "Step 4: Visual Analysis" in line_clean:
-                logger.info(f"🎬 [{shortcode}] Phase 2: Visual analysis (AI processing)...")
-            elif "Step 5: Audio Transcription" in line_clean or "Phase 2: Audio" in line_clean:
-                logger.info(f"🎙️ [{shortcode}] Phase 3: Audio transcription (Whisper)...")
-            elif "Phase 3: Light Tasks" in line_clean:
-                logger.info(f"⚡ [{shortcode}] Phase 4: Music ID + Text (parallel)...")
-            elif "GENERATING COMPREHENSIVE SUMMARY" in line_clean:
-                logger.info(f"🧠 [{shortcode}] Phase 5: Generating AI summary...")
-            elif "Saving to Database" in line_clean:
-                logger.info(f"💾 [{shortcode}] Phase 6: Saving to database...")
-            elif "Cleaned up temp folder" in line_clean:
-                logger.info(f"🗑️ [{shortcode}] Phase 7: Cleanup complete")
-        
-        process.wait()
-        stdout = ''.join(stdout_lines)
-        stderr = process.stderr.read()
+
+        def _run_subprocess() -> tuple:
+            proc = subprocess.Popen(
+                [sys.executable, "main.py", url_str],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                env={**os.environ, 'PYTHONIOENCODING': 'utf-8'},
+                cwd=str(Path(__file__).parent),
+                bufsize=1
+            )
+            lines = []
+            for line in proc.stdout:
+                lines.append(line)
+                lc = line.strip()
+                if "Step 4: Visual Analysis" in lc:
+                    logger.info(f"🎬 [{shortcode}] Phase 2: Visual analysis (AI processing)...")
+                elif "Step 5: Audio Transcription" in lc or "Phase 2: Audio" in lc:
+                    logger.info(f"🎙️ [{shortcode}] Phase 3: Audio transcription (Whisper)...")
+                elif "Phase 3: Light Tasks" in lc:
+                    logger.info(f"⚡ [{shortcode}] Phase 4: Music ID + Text (parallel)...")
+                elif "GENERATING COMPREHENSIVE SUMMARY" in lc:
+                    logger.info(f"🧠 [{shortcode}] Phase 5: Generating AI summary...")
+                elif "Saving to Database" in lc:
+                    logger.info(f"💾 [{shortcode}] Phase 6: Saving to database...")
+                elif "Cleaned up temp folder" in lc:
+                    logger.info(f"🗑️ [{shortcode}] Phase 7: Cleanup complete")
+            proc.wait()
+            return proc.returncode, ''.join(lines), proc.stderr.read()
+
+        returncode, stdout, stderr = await asyncio.to_thread(_run_subprocess)
         
         if stderr.strip():
             # Log stderr from main.py to help diagnose issues
             logger.warning(f"⚠️  [{shortcode}] main.py stderr:\n{stderr[:1000]}")
         
-        if process.returncode != 0:
+        if returncode == 2:
+            # main.py detected quota exhaustion and queued item for retry
+            logger.info(f"⏰ [{shortcode}] Quota exhausted — queued for automatic retry")
+            db.remove_from_queue(shortcode)
+            raise HTTPException(
+                status_code=202,
+                detail="API quota exhausted. Your request has been queued for automatic retry in 24 hours."
+            )
+        
+        if returncode != 0:
             logger.error(f"❌ [{shortcode}] Analysis failed!")
             raise HTTPException(
                 status_code=400,
@@ -488,6 +529,8 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
         filtered_data = {
             'url': analysis.get('url', ''),
             'username': analysis.get('username', ''),
+            'content_type': analysis.get('content_type', content_type),
+            'thumbnail': analysis.get('thumbnail', ''),
             'title': analysis.get('title', ''),
             'summary': analysis.get('summary', ''),
             'tags': analysis.get('tags', []),
@@ -666,6 +709,90 @@ async def search_by_tags(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/ping")
+async def ping():
+    """Ultra-lightweight liveness check — no DB, no auth, instant response."""
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+
+# ──────────────────────────────────────────────────────────────────
+# Collections endpoints
+# ──────────────────────────────────────────────────────────────────
+
+class CollectionUpsertRequest(BaseModel):
+    id: str
+    name: str
+    icon: str = "📁"
+    post_ids: List[str] = []
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class CollectionPostsRequest(BaseModel):
+    post_ids: List[str]
+
+
+@app.get("/collections")
+async def get_collections(token: str = Depends(verify_token)):
+    """Return all collections stored on the server."""
+    try:
+        db = get_db()
+        return {"success": True, "data": db.get_collections()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/collections")
+async def upsert_collection(req: CollectionUpsertRequest, token: str = Depends(verify_token)):
+    """Create or fully replace a collection (upsert by id)."""
+    try:
+        db = get_db()
+        saved = db.upsert_collection(
+            req.id, req.name, req.icon, req.post_ids,
+            req.created_at, req.updated_at
+        )
+        if saved:
+            return {"success": True, "data": saved}
+        raise HTTPException(status_code=500, detail="Failed to save collection")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/collections/{collection_id}/posts")
+async def update_collection_posts(collection_id: str, req: CollectionPostsRequest,
+                                   token: str = Depends(verify_token)):
+    """Replace the post_ids list for a collection."""
+    try:
+        db = get_db()
+        ok = db.update_collection_posts(collection_id, req.post_ids)
+        if ok:
+            return {"success": True, "data": db.get_collection(collection_id)}
+        raise HTTPException(status_code=404, detail="Collection not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/collections/{collection_id}")
+async def delete_collection(collection_id: str, token: str = Depends(verify_token)):
+    """Delete a collection by id. The default Watch Later cannot be deleted."""
+    if collection_id == "default_watch_later":
+        raise HTTPException(status_code=403, detail="Cannot delete the default Watch Later collection")
+    try:
+        db = get_db()
+        ok = db.delete_collection(collection_id)
+        if ok:
+            return {"success": True, "message": "Collection deleted"}
+        raise HTTPException(status_code=404, detail="Collection not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/health")
 async def health_check(token: str = Depends(verify_token)):
     """API health check with database connectivity test (requires auth)"""
@@ -696,11 +823,14 @@ async def queue_status(token: str = Depends(verify_token)):
         processing = db.get_processing()
         queue = db.get_queue()
         
+        retry_queue = db.get_retry_queue()
         return {
             "currently_processing": processing,
             "processing_count": len(processing),
             "queue": queue,
             "queue_count": len(queue),
+            "retry_queue": retry_queue,
+            "retry_count": len(retry_queue),
             "max_concurrent": max_concurrent,
             "available_slots": max(0, max_concurrent - len(processing))
         }
@@ -766,6 +896,37 @@ async def update_post(shortcode: str, updates: dict, token: str = Depends(verify
         raise
     except Exception as e:
         logger.error(f"Error updating post: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/queue/retry")
+async def get_retry_queue(token: str = Depends(verify_token)):
+    """Show all items currently scheduled for automatic retry"""
+    try:
+        items = db.get_retry_queue()
+        return {
+            "retry_queue": items,
+            "count": len(items)
+        }
+    except Exception as e:
+        logger.error(f"Error fetching retry queue: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/queue/retry/flush")
+async def flush_retry_queue(token: str = Depends(verify_token)):
+    """Immediately promote all retry-ready items to the active queue"""
+    try:
+        ready = db.get_retry_ready()
+        for item in ready:
+            db.add_to_queue(item['shortcode'], item['url'])
+            logger.info(f"🔄 Flushed retry item: {item['shortcode']} ({item['reason']})")
+        return {
+            "flushed": len(ready),
+            "items": [i['shortcode'] for i in ready]
+        }
+    except Exception as e:
+        logger.error(f"Error flushing retry queue: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
