@@ -18,6 +18,7 @@ import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors } from '../theme/colors';
+import { rescheduleWatchLaterNotification } from '../services/notificationService';
 import { RootStackParamList } from '../../App';
 import collectionsService from '../services/collections';
 import { Collection } from '../types';
@@ -92,6 +93,11 @@ const LibraryScreen = () => {
       setLoading(true);
       const data = await collectionsService.getCollections();
       setCollections(data);
+      // Reschedule Watch Later notification if it has posts
+      const watchLater = data.find(c => c.id === 'default_watch_later');
+      if (watchLater && watchLater.postIds.length > 0) {
+        rescheduleWatchLaterNotification().catch(() => {});
+      }
     } catch (error) {
       console.error('Error loading collections:', error);
     } finally {
@@ -118,6 +124,10 @@ const LibraryScreen = () => {
   };
 
   const handleEditCollection = (collection: Collection) => {
+    if (collection.id === 'default_watch_later') {
+      setToast({ visible: true, message: 'Watch Later is a default collection and cannot be edited', type: 'warning' });
+      return;
+    }
     setCollectionToEdit(collection);
     setEditCollectionName(collection.name);
     setEditSelectedIcon(collection.icon);
@@ -147,6 +157,10 @@ const LibraryScreen = () => {
   };
 
   const handleDeleteCollection = (collection: Collection) => {
+    if (collection.id === 'default_watch_later') {
+      setToast({ visible: true, message: 'Watch Later is a default collection and cannot be deleted', type: 'warning' });
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setCollectionToDelete(collection);
     setShowDeleteModal(true);
@@ -156,8 +170,9 @@ const LibraryScreen = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
     if (selectionMode && selectedCollections.size > 0) {
-      // Delete multiple selected collections
+      // Delete multiple selected collections (skip default Watch Later)
       for (const collectionId of Array.from(selectedCollections)) {
+        if (collectionId === 'default_watch_later') continue;
         await collectionsService.deleteCollection(collectionId);
       }
       setShowDeleteModal(false);
@@ -276,7 +291,7 @@ const LibraryScreen = () => {
                       }
                     }}
                     onLongPress={() => {
-                      if (!selectionMode) {
+                      if (!selectionMode && collection.id !== 'default_watch_later') {
                         setSelectionMode(true);
                         setSelectedCollections(new Set([collection.id]));
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -304,7 +319,7 @@ const LibraryScreen = () => {
                       {collection.postIds.length} {collection.postIds.length === 1 ? 'post' : 'posts'}
                     </Text>
                   </TouchableOpacity>
-                  {!selectionMode && (
+                  {!selectionMode && collection.id !== 'default_watch_later' && (
                   <TouchableOpacity
                     style={styles.editButton}
                     onPress={() => handleEditCollection(collection)}

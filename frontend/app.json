@@ -32,7 +32,16 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#667eea"
       },
+      "notification": {
+        "icon": "./assets/notification-icon.png",
+        "color": "#667eea"
+      },
       "package": "com.superbrain.mobile",
+      "permissions": [
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
       "intentFilters": [
         {
           "action": "VIEW",
@@ -84,6 +93,15 @@
       "eas": {
         "projectId": "6b012e21-716f-49b4-9b47-13aa3d9a1fe9"
       }
-    }
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#667eea"
+        }
+      ]
+    ]
   }
 }

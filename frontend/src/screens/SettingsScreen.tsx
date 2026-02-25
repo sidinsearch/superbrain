@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StatusBar,
+  Linking,
 } from 'react-native';
 import { colors } from '../theme/colors';
 import { useNavigation } from '@react-navigation/native';
@@ -15,6 +16,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import apiService from '../services/api';
 import CustomToast from '../components/CustomToast';
 import { RootStackParamList } from '../../App';
+import { QueueStatus } from '../types';
+import { sendImmediateWatchLaterNotification } from '../services/notificationService';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -25,6 +28,9 @@ const SettingsScreen = () => {
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'testing'>('disconnected');
+  const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
+  const [flushingRetry, setFlushingRetry] = useState(false);
+  const [testingNotif, setTestingNotif] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'info' as 'success' | 'error' | 'warning' | 'info' });
 
   useEffect(() => {
@@ -42,6 +48,8 @@ const SettingsScreen = () => {
       // Test connection if token exists
       if (token) {
         testConnection();
+        // Load queue status in background
+        apiService.getQueueStatus().then(s => setQueueStatus(s)).catch(() => {});
       }
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -80,6 +88,8 @@ const SettingsScreen = () => {
       const connected = await testConnection();
       
       if (connected) {
+        // Refresh queue status
+        apiService.getQueueStatus().then(s => setQueueStatus(s)).catch(() => {});
         setToast({ visible: true, message: 'Configuration saved and connected!', type: 'success' });
       } else {
         setToast({ visible: true, message: 'Saved but could not connect to server', type: 'warning' });
@@ -107,6 +117,49 @@ const SettingsScreen = () => {
       case 'testing': return '⟳ Testing...';
       case 'disconnected': return '✕ Disconnected';
       default: return '⚠ Unknown';
+    }
+  };
+
+  const handleTestNotification = async () => {
+    try {
+      setTestingNotif(true);
+      await sendImmediateWatchLaterNotification({
+        shortcode: 'test_notif',
+        title: 'SuperBrain Test Notification',
+        summary: 'This is a test notification from SuperBrain.',
+        content_type: 'youtube',
+        category: 'entertainment',
+        url: '',
+        username: 'sidinsearch',
+        thumbnail: '',
+        tags: [],
+        music: '',
+      } as any);
+      setToast({ visible: true, message: '🔔 Test notification sent!', type: 'success' });
+    } catch (e) {
+      setToast({ visible: true, message: 'Failed to send test notification', type: 'error' });
+    } finally {
+      setTestingNotif(false);
+    }
+  };
+
+  const handleFlushRetry = async () => {
+    try {
+      setFlushingRetry(true);
+      const result = await apiService.flushRetryQueue();
+      const s = await apiService.getQueueStatus();
+      setQueueStatus(s);
+      setToast({
+        visible: true,
+        message: result.flushed > 0
+          ? `↩ Moved ${result.flushed} item(s) back to queue`
+          : '✔ No retry items ready yet',
+        type: result.flushed > 0 ? 'success' : 'info',
+      });
+    } catch {
+      setToast({ visible: true, message: 'Failed to flush retry queue', type: 'error' });
+    } finally {
+      setFlushingRetry(false);
     }
   };
 
@@ -195,6 +248,30 @@ const SettingsScreen = () => {
           </TouchableOpacity>
         </View>
 
+        {/* Queue */}
+        {queueStatus !== null && (
+          <View style={styles.retryCard}>
+            <View style={styles.retryHeader}>
+              <Text style={styles.sectionTitle}>⏰ Queue</Text>
+              <View style={styles.retryBadge}>
+                <Text style={styles.retryBadgeText}>{queueStatus.retry_count ?? 0} pending</Text>
+              </View>
+            </View>
+            <Text style={styles.retryInfo}>
+              Items here were quota-limited and will be auto-retried when ready.
+            </Text>
+            <TouchableOpacity
+              style={[styles.testButton, flushingRetry && { opacity: 0.6 }]}
+              onPress={handleFlushRetry}
+              disabled={flushingRetry}
+            >
+              <Text style={styles.testButtonText}>
+                {flushingRetry ? 'Flushing...' : 'Retry Now (flush ready items)'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Information */}
         <View style={styles.infoCard}>
           <Text style={styles.infoTitle}>ℹ️ How to get your API token</Text>
@@ -208,8 +285,24 @@ const SettingsScreen = () => {
 
         {/* App Info */}
         <View style={styles.appInfo}>
-          <Text style={styles.appInfoText}>SuperBrain v1.04</Text>
-          <Text style={styles.appInfoText}>AI-Powered Instagram Analyzer</Text>
+          <Text style={styles.appInfoTitle}>SuperBrain</Text>
+          <View style={styles.appInfoCreditRow}>
+            <Text style={styles.appInfoCreditText}>made with ❤️ by </Text>
+            <TouchableOpacity onPress={() => Linking.openURL('https://github.com/sidinsearch')}>
+              <Text style={styles.appInfoCreditLink}>sidinsearch</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Test Notification */}
+          <TouchableOpacity
+            style={styles.testNotifButton}
+            onPress={handleTestNotification}
+            disabled={testingNotif}
+          >
+            {testingNotif
+              ? <ActivityIndicator size="small" color={colors.text} />
+              : <Text style={styles.testNotifText}>🔔 Test Notification</Text>}
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -361,6 +454,37 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     marginBottom: 24,
   },
+  retryCard: {
+    backgroundColor: colors.backgroundCard,
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 24,
+  },
+  retryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  retryBadge: {
+    backgroundColor: 'rgba(255,165,0,0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  retryBadgeText: {
+    color: '#FFA500',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  retryInfo: {
+    fontSize: 13,
+    color: colors.textMuted,
+    lineHeight: 18,
+    marginBottom: 14,
+  },
   infoTitle: {
     fontSize: 15,
     fontWeight: '600',
@@ -374,12 +498,44 @@ const styles = StyleSheet.create({
   },
   appInfo: {
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: 24,
+    gap: 8,
+  },
+  appInfoTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    letterSpacing: 1,
+  },
+  appInfoCreditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  appInfoCreditText: {
+    fontSize: 13,
+    color: colors.text,
+  },
+  appInfoCreditLink: {
+    fontSize: 13,
+    color: colors.primary,
   },
   appInfoText: {
     fontSize: 12,
     color: colors.textMuted,
     marginBottom: 4,
+  },
+  testNotifButton: {
+    marginTop: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.backgroundCard,
+  },
+  testNotifText: {
+    fontSize: 14,
+    color: colors.text,
   },
   bottomNav: {
     position: 'absolute',

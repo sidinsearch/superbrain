@@ -17,6 +17,8 @@ import ShareHandlerScreen from './src/screens/ShareHandlerScreen';
 
 // API Service
 import apiService from './src/services/api';
+import * as Notifications from 'expo-notifications';
+import { scheduleWatchLaterNotification, handleMarkAsWatched } from './src/services/notificationService';
 import { Post, Collection } from './src/types';
 
 export type RootStackParamList = {
@@ -39,6 +41,15 @@ export default function App() {
 
   useEffect(() => {
     initializeApp();
+
+    // Handle notification action buttons (e.g. "Mark as Watched")
+    const notifSub = Notifications.addNotificationResponseReceivedListener(async response => {
+      const { actionIdentifier, notification } = response;
+      const shortcode = notification.request.content.data?.shortcode as string | undefined;
+      if (actionIdentifier === 'mark_watched' && shortcode) {
+        await handleMarkAsWatched(shortcode);
+      }
+    });
     
     // CRITICAL: Also listen for URL events (handles share intents)
     const subscription = Linking.addEventListener('url', ({ url }) => {
@@ -54,7 +65,10 @@ export default function App() {
       }
     });
     
-    return () => subscription.remove();
+    return () => {
+      subscription.remove();
+      notifSub.remove();
+    };
   }, []);
 
   const initializeApp = async () => {
@@ -82,6 +96,9 @@ export default function App() {
       
       // Initialize API service
       await apiService.initialize();
+
+      // Schedule Watch Later notifications in background
+      scheduleWatchLaterNotification().catch(() => {});
     } catch (error) {
       console.error('App initialization error:', error);
     } finally {
@@ -106,7 +123,11 @@ export default function App() {
       <NavigationContainer
         ref={navigationRef}
         linking={{
-          prefixes: ['superbrain://', 'https://instagram.com', 'https://www.instagram.com'],
+          prefixes: [
+            'superbrain://',
+            'https://instagram.com', 'https://www.instagram.com',
+            'https://youtube.com', 'https://www.youtube.com', 'https://youtu.be',
+          ],
           config: {
             screens: {
               Splash: 'splash',
