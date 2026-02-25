@@ -1,6 +1,16 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Post, ApiResponse, QueueStatus, DatabaseStats } from '../types';
+import { Post, ApiResponse, QueueStatus, DatabaseStats, RetryQueueItem, Collection } from '../types';
+
+/** Normalise a raw API post so that thumbnail_url always resolves to an image. */
+function normalizePost(p: any): Post {
+  const post = { ...p } as Post;
+  // Backend sends `thumbnail`; frontend UI uses `thumbnail_url`
+  if (!post.thumbnail_url && post.thumbnail) {
+    post.thumbnail_url = post.thumbnail;
+  }
+  return post;
+}
 
 class ApiService {
   private apiToken: string | null = null;
@@ -48,6 +58,28 @@ class ApiService {
       'X-API-Key': token,
       'Content-Type': 'application/json',
     };
+  }
+
+  async reanalyzePost(url: string): Promise<ApiResponse> {
+    try {
+      const headers = await this.getHeaders();
+      const baseUrl = await this.getBaseUrl();
+      const response = await axios.post<ApiResponse>(
+        `${baseUrl}/analyze`,
+        { url, force: true },
+        { headers }
+      );
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 503) {
+        return {
+          success: false,
+          cached: false,
+          error: error.response.data.detail || 'Request queued',
+        };
+      }
+      throw error;
+    }
   }
 
   async analyzePost(url: string): Promise<ApiResponse> {
@@ -125,12 +157,19 @@ class ApiService {
       console.log('API - Response:', response.data);
       
       if (response.data.success && response.data.data) {
-        return response.data.data;
+        return normalizePost(response.data.data);
       }
       
-      throw new Error('Failed to analyze Instagram post');
+      throw new Error('Failed to analyze post');
     } catch (error: any) {
-      console.error('Error analyzing Instagram URL:', error.response?.data || error.message);
+      console.error('Error analyzing URL:', error.response?.data || error.message);
+      // 202 = quota exhausted, queued for automatic retry
+      if (error.response?.status === 202) {
+        const err = new Error('QUEUED_FOR_RETRY') as any;
+        err.isRetryQueued = true;
+        err.detail = error.response.data?.detail || 'Queued for retry tomorrow';
+        throw err;
+      }
       throw error;
     }
   }
@@ -143,7 +182,7 @@ class ApiService {
         `${baseUrl}/recent?limit=100`,
         { headers }
       );
-      return response.data.data || [];
+      return (response.data.data || []).map(normalizePost);
     } catch (error: any) {
       console.error('Error fetching all posts:', error.response?.data?.detail || error.message);
       return [];
@@ -158,7 +197,7 @@ class ApiService {
         `${baseUrl}/recent?limit=${limit}`,
         { headers }
       );
-      return response.data.data || [];
+      return (response.data.data || []).map(normalizePost);
     } catch (error: any) {
       console.error('Error fetching posts:', error.response?.data?.detail || error.message);
       return [];
@@ -244,15 +283,46 @@ class ApiService {
 
   async testConnection(): Promise<boolean> {
     try {
-      const headers = await this.getHeaders();
       const baseUrl = await this.getBaseUrl();
+      // Use /ping — no auth, no DB, instant response even while backend is analyzing
       const response = await axios.get(
-        `${baseUrl}/health`,
-        { headers, timeout: 5000 }
+        `${baseUrl}/ping`,
+        { timeout: 8000 }
       );
       return response.status === 200;
     } catch (error) {
       return false;
+    }
+  }
+
+  async getRetryQueue(): Promise<RetryQueueItem[]> {
+    try {
+      const headers = await this.getHeaders();
+      const baseUrl = await this.getBaseUrl();
+      const response = await axios.get<{ retry_queue: RetryQueueItem[]; count: number }>(
+        `${baseUrl}/queue/retry`,
+        { headers }
+      );
+      return response.data.retry_queue || [];
+    } catch (error) {
+      console.error('Error fetching retry queue:', error);
+      return [];
+    }
+  }
+
+  async flushRetryQueue(): Promise<{ flushed: number; items: string[] }> {
+    try {
+      const headers = await this.getHeaders();
+      const baseUrl = await this.getBaseUrl();
+      const response = await axios.post<{ flushed: number; items: string[] }>(
+        `${baseUrl}/queue/retry/flush`,
+        {},
+        { headers }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error flushing retry queue:', error);
+      throw error;
     }
   }
 
@@ -283,6 +353,62 @@ class ApiService {
       console.error('Error updating post:', error);
       throw error;
     }
+  }
+
+  // ── Collections API ──────────────────────────────────────────────
+
+  async getCollections(): Promise<Collection[]> {
+    const headers = await this.getHeaders();
+    const baseUrl = await this.getBaseUrl();
+    const res = await axios.get<{ success: boolean; data: any[] }>(
+      `${baseUrl}/collections`, { headers, timeout: 10000 }
+    );
+    // normalise snake_case → camelCase
+    return res.data.data.map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      icon: c.icon,
+      postIds: c.post_ids ?? [],
+      createdAt: c.created_at,
+      updatedAt: c.updated_at,
+    }));
+  }
+
+  async upsertCollection(collection: Collection): Promise<Collection> {
+    const headers = await this.getHeaders();
+    const baseUrl = await this.getBaseUrl();
+    const res = await axios.post<{ success: boolean; data: any }>(
+      `${baseUrl}/collections`,
+      {
+        id: collection.id,
+        name: collection.name,
+        icon: collection.icon,
+        post_ids: collection.postIds,
+        created_at: collection.createdAt,
+        updated_at: collection.updatedAt,
+      },
+      { headers, timeout: 10000 }
+    );
+    const c = res.data.data;
+    return { id: c.id, name: c.name, icon: c.icon, postIds: c.post_ids ?? [], createdAt: c.created_at, updatedAt: c.updated_at };
+  }
+
+  async updateCollectionPosts(collectionId: string, postIds: string[]): Promise<Collection> {
+    const headers = await this.getHeaders();
+    const baseUrl = await this.getBaseUrl();
+    const res = await axios.put<{ success: boolean; data: any }>(
+      `${baseUrl}/collections/${collectionId}/posts`,
+      { post_ids: postIds },
+      { headers, timeout: 10000 }
+    );
+    const c = res.data.data;
+    return { id: c.id, name: c.name, icon: c.icon, postIds: c.post_ids ?? [], createdAt: c.created_at, updatedAt: c.updated_at };
+  }
+
+  async deleteCollection(collectionId: string): Promise<void> {
+    const headers = await this.getHeaders();
+    const baseUrl = await this.getBaseUrl();
+    await axios.delete(`${baseUrl}/collections/${collectionId}`, { headers, timeout: 10000 });
   }
 }
 

@@ -11,6 +11,7 @@ import {
   Dimensions,
   BackHandler,
 } from 'react-native';
+import * as Linking from 'expo-linking';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { colors } from '../theme/colors';
@@ -70,9 +71,9 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
           const textContent = decodeURIComponent(parsed.queryParams.text as string);
           console.log('ShareHandler - Got text content:', textContent);
           // Extract Instagram URL from text
-          const urlMatch = textContent.match(/(https?:\/\/(?:www\.)?instagram\.com\/(?:p|reel|tv)\/[A-Za-z0-9_-]+\/?)/);
+          const urlMatch = textContent.match(/(https?:\/\/[^\s]+)/);
           if (urlMatch) {
-            console.log('ShareHandler - Extracted Instagram URL from text:', urlMatch[0]);
+            console.log('ShareHandler - Extracted URL from text:', urlMatch[0]);
             setUrl(urlMatch[0]);
           } else {
             setUrl(textContent);
@@ -98,9 +99,65 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
 
   useEffect(() => {
     if (url) {
-      handleInstagramUrl();
+      handleUrl();
     }
   }, [url]);
+
+  // ── URL type helpers ──────────────────────────────────────────────────────
+
+  const detectUrlType = (u: string): 'instagram' | 'youtube' | 'webpage' => {
+    if (/instagram\.com|instagr\.am/.test(u)) return 'instagram';
+    if (/(?:youtube\.com|youtu\.be)/.test(u)) return 'youtube';
+    return 'webpage';
+  };
+
+  const extractYouTubeVideoId = (u: string): string | null => {
+    const patterns = [
+      /[?&]v=([A-Za-z0-9_-]{11})/,
+      /youtu\.be\/([A-Za-z0-9_-]{11})/,
+      /\/(?:embed|shorts|live)\/([A-Za-z0-9_-]{11})/,
+    ];
+    for (const p of patterns) {
+      const m = u.match(p);
+      if (m) return m[1];
+    }
+    return null;
+  };
+
+  /** Generate a frontend-side shortcode that mirrors the backend's convention. */
+  const buildShortcode = (u: string, type: string, ytId: string | null): string | null => {
+    if (type === 'instagram') {
+      const patterns = [
+        /instagram\.com\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/,
+      ];
+      for (const p of patterns) {
+        const m = u.match(p);
+        if (m) return m[1];
+      }
+      return null;
+    }
+    if (type === 'youtube' && ytId) return `YT_${ytId}`;
+    // Webpage: deterministic FNV-1a hash → 16 hex chars (mirrors WP_ prefix)
+    const clean = u.toLowerCase().replace(/\/$/, '');
+    let h = 2166136261;
+    for (let i = 0; i < clean.length; i++) {
+      h ^= clean.charCodeAt(i);
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    let h2 = h ^ 0xdeadbeef;
+    h2 = Math.imul(h2, 16777619) >>> 0;
+    return `WP_${h.toString(16).padStart(8, '0')}${h2.toString(16).padStart(8, '0')}`;
+  };
+
+  const buildThumbnailUrl = (type: string, shortcode: string, ytId: string | null): string => {
+    if (type === 'youtube' && ytId)
+      return `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
+    if (type === 'instagram')
+      return `https://www.instagram.com/p/${shortcode}/media/?size=m`;
+    return ''; // webpage: no preview thumbnail
+  };
+
+  // ── Main URL handler ──────────────────────────────────────────────────────
 
   const extractShortcode = (instagramUrl: string): string | null => {
     // Handle various Instagram URL formats
@@ -138,60 +195,72 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
   };
 
   const handleInstagramUrl = async () => {
+    if (!url) return;
+    // Legacy alias kept for any residual calls
+    return handleUrl();
+  };
+
+  const handleUrl = async () => {
     if (!url) {
       console.log('ShareHandler - No URL to process');
       return;
     }
-    
+
     try {
       console.log('ShareHandler - Processing URL:', url);
       setError(null);
 
-      const shortcode = extractShortcode(url);
-      console.log('ShareHandler - Extracted shortcode:', shortcode);
-      
+      const urlType = detectUrlType(url);
+      const ytId = urlType === 'youtube' ? extractYouTubeVideoId(url) : null;
+      const shortcode = buildShortcode(url, urlType, ytId);
+      console.log('ShareHandler - type=%s shortcode=%s', urlType, shortcode);
+
       if (!shortcode) {
-        console.error('ShareHandler - Invalid Instagram URL:', url);
-        setError('Invalid Instagram URL');
+        setError('Could not parse this URL');
         setProcessing(false);
         return;
       }
 
-      // Get Instagram thumbnail
-      const thumbnailUrl = `https://www.instagram.com/p/${shortcode}/media/?size=m`;
-      
-      // Create temporary post for preview
+      const thumbnailUrl = buildThumbnailUrl(urlType, shortcode, ytId);
+      const defaultTitle =
+        urlType === 'youtube' ? 'YouTube Video' :
+        urlType === 'webpage' ? 'Web Page' :
+        'Instagram Post';
+
       const tempPost: Post = {
         shortcode,
-        url: `https://www.instagram.com/p/${shortcode}/`,
+        url,
         username: '',
         title: 'Loading...',
         summary: '',
         tags: [],
         music: '',
         category: 'other',
-        thumbnail_url: thumbnailUrl,
+        content_type: urlType,
+        thumbnail_url: thumbnailUrl || undefined,
       };
-      
+
       setPost(tempPost);
       setProcessing(false);
-      
+
       // Load collections immediately
       loadCollections();
       setShowCollections(true);
-      
-      // Fetch Instagram caption in background (non-blocking)
-      fetchInstagramCaption(shortcode).then(caption => {
-        console.log('ShareHandler - Got caption:', caption);
-        setPost(prev => prev ? { ...prev, title: caption } : null);
-      }).catch(err => {
-        console.log('ShareHandler - Caption fetch error:', err);
-        setPost(prev => prev ? { ...prev, title: 'Instagram Post' } : null);
-      });
-      
+
+      // For Instagram try to fetch a better title from backend
+      if (urlType === 'instagram') {
+        fetchInstagramCaption(shortcode).then(caption => {
+          setPost(prev => prev ? { ...prev, title: caption } : null);
+        }).catch(() => {
+          setPost(prev => prev ? { ...prev, title: defaultTitle } : null);
+        });
+      } else {
+        setPost(prev => prev ? { ...prev, title: defaultTitle } : null);
+      }
+
     } catch (err: any) {
-      console.error('ShareHandler - Error processing Instagram URL:', err);
-      setError('Failed to process Instagram post');
+      console.error('ShareHandler - Error processing URL:', err);
+      setError('Failed to process this URL');
       setProcessing(false);
     }
   };
@@ -238,8 +307,7 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
       setIsSaving(true);
       
       if (url && post) {
-        // Extract shortcode for collection save
-        const shortcode = extractShortcode(url);
+        const shortcode = post.shortcode; // already computed correctly for all URL types
         if (shortcode) {
           // Mark as analyzing in cache
           postsCache.markAsAnalyzing(shortcode);
@@ -264,16 +332,20 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
             const freshPosts = await apiService.getRecentPosts(50);
             await postsCache.savePosts(freshPosts);
             postsCache.markAnalysisComplete(shortcode);
-          }).catch(err => {
-            console.error('Background analysis error:', err);
+          }).catch((err: any) => {
+            if (err?.isRetryQueued) {
+              showToast('⏰ Queued — will retry automatically tomorrow', 'info');
+            } else {
+              console.error('Background analysis error:', err);
+            }
             postsCache.markAnalysisComplete(shortcode);
           });
         }
       }
       
-      showToast('✨ Analyzing...', 'info');
+      showToast('✨ Saved — analyzing in background...', 'info');
       
-      // Return to Instagram by closing the app
+      // Return to previous app
       setTimeout(() => {
         BackHandler.exitApp();
       }, 500);
@@ -291,7 +363,7 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
       setIsSaving(true);
       
       if (url && post) {
-        const shortcode = extractShortcode(url);
+        const shortcode = post.shortcode; // already computed correctly for all URL types
         if (shortcode) {
           // Mark as analyzing in cache
           postsCache.markAsAnalyzing(shortcode);
@@ -311,23 +383,22 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
         
         // Trigger backend analysis in background
         apiService.analyzeInstagramUrl(url).then(async () => {
-          // When analysis completes, refresh cache
           const freshPosts = await apiService.getRecentPosts(50);
           await postsCache.savePosts(freshPosts);
-          if (extractShortcode(url)) {
-            postsCache.markAnalysisComplete(extractShortcode(url));
+          if (post.shortcode) postsCache.markAnalysisComplete(post.shortcode);
+        }).catch((err: any) => {
+          if (err?.isRetryQueued) {
+            showToast('⏰ Quota full — queued for retry tomorrow', 'info');
+          } else {
+            console.error('Background analysis error:', err);
           }
-        }).catch(err => {
-          console.error('Background analysis error:', err);
-          if (extractShortcode(url)) {
-            postsCache.markAnalysisComplete(extractShortcode(url));
-          }
+          if (post.shortcode) postsCache.markAnalysisComplete(post.shortcode);
         });
       }
       
-      showToast('✨ Analyzing...', 'info');
+      showToast('✨ Saved — analyzing in background...', 'info');
       
-      // Return to Instagram by closing the app
+      // Return to previous app
       setTimeout(() => {
         BackHandler.exitApp();
       }, 500);
@@ -646,17 +717,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: 24,
-  },
-  closeButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-  },
-  closeButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
   },
   closeButton: {
     paddingVertical: 16,

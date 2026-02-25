@@ -10,6 +10,7 @@ import postsCache from '../services/postsCache';
 import CustomToast from '../components/CustomToast';
 import collectionsService from '../services/collections';
 import { Collection } from '../types';
+import { schedulePostWatchLaterNotification } from '../services/notificationService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PostDetail'>;
 
@@ -34,6 +35,7 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
   const [editedSummary, setEditedSummary] = useState(post.summary);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'info' as 'success' | 'error' | 'warning' | 'info' });
   const [collections, setCollections] = useState<Collection[]>([]);
   const [showCollectionsModal, setShowCollectionsModal] = useState(false);
@@ -50,8 +52,18 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
     }
   }, [showEditModal]);
 
-  const getInstagramImageUrl = (shortcode: string) => {
-    return `https://www.instagram.com/p/${shortcode}/media/?size=l`;
+  const getPostImageUrl = (post: Post) => {
+    if (post.thumbnail_url) return post.thumbnail_url;
+    if (post.thumbnail) return post.thumbnail;
+    return `https://www.instagram.com/p/${post.shortcode}/media/?size=l`;
+  };
+
+  const getContentTypeLabel = (type?: string) => {
+    switch (type) {
+      case 'youtube':  return { icon: '▶️', label: 'YouTube' };
+      case 'webpage':  return { icon: '🌐', label: 'Web Page' };
+      default:         return { icon: '📸', label: 'Instagram' };
+    }
   };
 
   const getCategoryColor = (category: string) => {
@@ -79,6 +91,10 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
   const handleAddToCollection = async (collectionId: string) => {
     try {
       await collectionsService.addPostToCollection(collectionId, post.shortcode);
+      // Schedule daily Watch Later notification when added to that collection
+      if (collectionId === 'default_watch_later') {
+        schedulePostWatchLaterNotification(post).catch(() => {});
+      }
       
       setShowCollectionsModal(false);
       setToast({ visible: true, message: 'Added to collection', type: 'success' });
@@ -95,29 +111,38 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
   };
 
   const handleOpenInstagram = async () => {
-    const instagramAppUrl = `instagram://media?id=${post.shortcode}`;
-    const instagramWebUrl = `https://www.instagram.com/p/${post.shortcode}/`;
-    
+    const targetUrl = post.url || `https://www.instagram.com/p/${post.shortcode}/`;
     try {
-      const canOpenApp = await Linking.canOpenURL(instagramAppUrl);
-      if (canOpenApp) {
-        await Linking.openURL(instagramAppUrl);
-      } else {
-        const canOpenWeb = await Linking.canOpenURL(instagramWebUrl);
-        if (canOpenWeb) {
-          await Linking.openURL(instagramWebUrl);
-        } else {
-          setToast({ visible: true, message: 'Cannot open Instagram', type: 'error' });
-        }
-      }
+      await Linking.openURL(targetUrl);
     } catch (error) {
-      console.error('Error opening Instagram:', error);
-      try {
-        await Linking.openURL(instagramWebUrl);
-      } catch (webError) {
-        setToast({ visible: true, message: 'Failed to open link', type: 'error' });
-      }
+      console.error('Error opening URL:', error);
+      setToast({ visible: true, message: 'Failed to open link', type: 'error' });
     }
+  };
+
+  const handleReanalyze = async () => {
+    if (reanalyzing) return;
+    setReanalyzing(true);
+    const targetUrl = post.url || `https://www.instagram.com/p/${post.shortcode}/`;
+    const { shortcode } = post;
+
+    // Mark in cache so HomeScreen shows the analyzing overlay immediately
+    await postsCache.markAsAnalyzing(shortcode);
+
+    // Go back right away — user sees the overlay on HomeScreen while analysis runs
+    navigation.goBack();
+
+    // Fire-and-forget: component stays alive in nav stack, closure is safe
+    apiService.reanalyzePost(targetUrl)
+      .then(async () => {
+        await postsCache.markAnalysisComplete(shortcode);
+        // Clear stale cache so HomeScreen refetches fresh data on next poll
+        await postsCache.removePostFromCache(shortcode);
+      })
+      .catch(async () => {
+        await postsCache.markAnalysisComplete(shortcode);
+      })
+      .finally(() => setReanalyzing(false));
   };
 
   const handleDelete = () => {
@@ -185,22 +210,18 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Post Details</Text>
         <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.actionButton} onPress={() => {
-            
-            handleShowCollections();
-          }}>
+          <TouchableOpacity style={styles.actionButton} onPress={() => handleShowCollections()}>
             <Text style={styles.actionIcon}>📁</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton} onPress={() => {
-            
-            handleEdit();
-          }}>
+          <TouchableOpacity style={styles.actionButton} onPress={handleReanalyze} disabled={reanalyzing}>
+            {reanalyzing
+              ? <ActivityIndicator size="small" color={colors.text} />
+              : <Text style={styles.actionIcon}>🔄</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionButton} onPress={() => handleEdit()}>
             <Text style={styles.actionIcon}>✏️</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton} onPress={() => {
-            
-            handleDelete();
-          }}>
+          <TouchableOpacity style={styles.actionButton} onPress={() => handleDelete()}>
             <Text style={styles.actionIcon}>🗑️</Text>
           </TouchableOpacity>
         </View>
@@ -210,7 +231,7 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
         {/* Image */}
         <TouchableOpacity onPress={handleOpenInstagram} activeOpacity={0.9}>
           <Image
-            source={{ uri: getInstagramImageUrl(post.shortcode) }}
+            source={{ uri: getPostImageUrl(post) }}
             style={styles.image}
             resizeMode="cover"
           />
@@ -223,6 +244,16 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
             <Text style={styles.categoryBadgeText}>{post.category.toUpperCase()}</Text>
           </View>
         ) : null}
+
+        {/* Content Type Badge */}
+        {(() => {
+          const ct = getContentTypeLabel(post.content_type);
+          return (
+            <View style={styles.contentTypeBadge}>
+              <Text style={styles.contentTypeBadgeText}>{ct.icon} {ct.label}</Text>
+            </View>
+          );
+        })()}
 
         {/* Title */}
         <Text style={styles.title}>{post.title || 'Untitled'}</Text>
@@ -255,8 +286,8 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
           </View>
         ) : null}
 
-        {/* Music */}
-        {post.music && post.music !== 'No music identified' && post.music !== '' ? (
+        {/* Music - not shown for webpages */}
+        {post.content_type !== 'webpage' && post.music && post.music !== 'No music identified' && post.music !== '' ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Music</Text>
             <View style={styles.musicCard}>
@@ -279,7 +310,11 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
 
         {/* Original URL */}
         <TouchableOpacity style={styles.linkButton} onPress={handleOpenInstagram}>
-          <Text style={styles.linkButtonText}>Open in Instagram</Text>
+          <Text style={styles.linkButtonText}>
+            {post.content_type === 'youtube' ? 'Open in YouTube' :
+             post.content_type === 'webpage' ? 'Open Web Page' :
+             'Open in Instagram'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -520,9 +555,12 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: 'row',
     gap: 12,
+    alignItems: 'center',
   },
   actionButton: {
     padding: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   actionIcon: {
     fontSize: 22,
@@ -558,6 +596,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
     letterSpacing: 1,
+  },
+  contentTypeBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    marginHorizontal: 20,
+    marginBottom: 12,
+  },
+  contentTypeBadgeText: {
+    fontSize: 12,
+    color: colors.textMuted,
+    fontWeight: '500',
   },
   title: {
     fontSize: 24,

@@ -57,6 +57,7 @@ const HomeScreen = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'info' as 'success' | 'error' | 'warning' | 'info' });
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isConfigured, setIsConfigured] = useState(true);
   const [pollInterval, setPollInterval] = useState<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -83,6 +84,16 @@ const HomeScreen = () => {
   const initializeAndLoad = async () => {
     try {
       await apiService.initialize();
+      const token = await apiService.getApiToken();
+      if (!token) {
+        setIsConfigured(false);
+        setLoading(false);
+        setIsInitialized(true);
+        return;
+      }
+      setIsConfigured(true);
+      // Sync collections from backend in parallel with loading posts
+      collectionsService.syncFromBackend().catch(() => {});
       await loadPosts(false); // Use cache-first strategy even on initial load
       setIsInitialized(true);
     } catch (error) {
@@ -94,6 +105,13 @@ const HomeScreen = () => {
 
   const loadPosts = async (forceRefresh: boolean = false) => {
     try {
+      // Guard: never show any data if token is not configured
+      const token = await apiService.getApiToken();
+      if (!token) {
+        setIsConfigured(false);
+        setLoading(false);
+        return;
+      }
       // Always load and display cached posts immediately (non-blocking)
       const cachedPosts = await postsCache.getCachedPosts();
       if (cachedPosts && cachedPosts.length > 0) {
@@ -201,8 +219,19 @@ const HomeScreen = () => {
     return categoryMap[category] || '📌';
   };
 
-  const getInstagramImageUrl = (post: Post) => {
+  const getPostImageUrl = (post: Post) => {
+    // Use backend-provided thumbnail (YouTube, webpage) or fall back to Instagram CDN
+    if (post.thumbnail_url) return post.thumbnail_url;
+    if (post.thumbnail) return post.thumbnail;
     return `https://www.instagram.com/p/${post.shortcode}/media/?size=l`;
+  };
+
+  const getContentTypeIcon = (post: Post) => {
+    switch (post.content_type) {
+      case 'youtube':  return '▶️';
+      case 'webpage':  return '🌐';
+      default:         return '📸'; // instagram
+    }
   };
 
   const togglePostSelection = (shortcode: string) => {
@@ -286,18 +315,19 @@ const HomeScreen = () => {
   };
 
   const renderPost = (post: Post, index: number) => {
-    const isLargeCard = index % 6 === 0 || index % 6 === 3;
     const categoryColor = getCategoryColor(post.category);
     const isSelected = selectedPosts.has(post.shortcode);
 
-    if (isLargeCard) {
+    // YouTube and webpage always get a landscape (full-width 16:9) card
+    if (post.content_type === 'youtube' || post.content_type === 'webpage') {
+      const isAnalyzing = postsCache.isAnalyzing(post.shortcode);
       return (
         <TouchableOpacity
           key={post.shortcode}
-          style={[styles.largeCard, isSelected && styles.cardSelected]}
+          style={[styles.landscapeCard, isSelected && styles.cardSelected]}
           onPress={() => {
-            if (post.processing) {
-              setToast({ visible: true, message: 'Post is still being analyzed', type: 'warning' });
+            if (isAnalyzing || post.processing) {
+              setToast({ visible: true, message: '✨ Post is being analyzed...', type: 'warning' });
               return;
             }
             if (selectionMode) {
@@ -307,37 +337,47 @@ const HomeScreen = () => {
             }
           }}
           onLongPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            setSelectionMode(true);
-            togglePostSelection(post.shortcode);
+            if (!isAnalyzing && !post.processing) {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              setSelectionMode(true);
+              togglePostSelection(post.shortcode);
+            }
           }}
           activeOpacity={0.9}
         >
           <Image
-            source={{ uri: getInstagramImageUrl(post) }}
-            style={styles.largeCardImage}
+            source={{ uri: getPostImageUrl(post) }}
+            style={styles.landscapeCardImage}
             resizeMode="cover"
           />
+          {/* no play overlay */}
           <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.9)']}
-            style={styles.largeCardGradient}
+            colors={['transparent', 'rgba(0,0,0,0.88)']}
+            style={styles.landscapeCardGradient}
           >
-            {post.category ? (
-              <View style={[styles.categoryBadge, { backgroundColor: categoryColor }]}>
-                <Text style={styles.categoryBadgeText}>{post.category.toUpperCase()}</Text>
-              </View>
-            ) : null}
-            <Text style={styles.largeCardTitle} numberOfLines={2}>
+            <View style={styles.landscapeCardRow}>
+              {post.category ? (
+                <View style={[styles.categoryBadge, { backgroundColor: categoryColor }]}>
+                  <Text style={styles.categoryBadgeText}>{post.category.toUpperCase()}</Text>
+                </View>
+              ) : null}
+            </View>
+            <Text style={styles.landscapeCardTitle} numberOfLines={2}>
               {post.title || 'Untitled'}
             </Text>
             <View style={styles.cardFooter}>
-              <Text style={styles.username}>@{post.username || 'unknown'}</Text>
+              <Text style={styles.username}>{getContentTypeIcon(post)} {post.username || 'unknown'}</Text>
               {post.likes && post.likes > 0 ? (
                 <Text style={styles.likes}>{post.likes} likes</Text>
               ) : null}
             </View>
           </LinearGradient>
-          {post.processing ? (
+          {isAnalyzing ? (
+            <View style={styles.analyzingOverlay}>
+              <ActivityIndicator size="large" color="#fff" />
+              <Text style={styles.analyzingText}>✨ Analyzing...</Text>
+            </View>
+          ) : post.processing ? (
             <View style={styles.processingOverlay}>
               <ActivityIndicator size="large" color="#fff" />
               <Text style={styles.processingText}>Processing...</Text>
@@ -381,7 +421,7 @@ const HomeScreen = () => {
         activeOpacity={0.9}
       >
         <Image
-          source={{ uri: getInstagramImageUrl(post) }}
+          source={{ uri: getPostImageUrl(post) }}
           style={styles.compactCardImage}
           resizeMode="cover"
         />
@@ -397,7 +437,7 @@ const HomeScreen = () => {
           <Text style={styles.compactCardTitle} numberOfLines={2}>
             {post.title || 'Untitled'}
           </Text>
-          <Text style={styles.compactUsername} numberOfLines={1}>@{post.username || 'unknown'}</Text>
+          <Text style={styles.compactUsername} numberOfLines={1}>{getContentTypeIcon(post)} {post.username || 'unknown'}</Text>
         </LinearGradient>
         {isAnalyzing ? (
           <View style={styles.analyzingOverlay}>
@@ -419,6 +459,39 @@ const HomeScreen = () => {
         ) : null}
       </TouchableOpacity>
     );
+  };
+
+  // Build grid: YT/web = full-width landscape, instagram = paired compact rows
+  const buildGridRows = (posts: Post[]) => {
+    const elements: JSX.Element[] = [];
+    let i = 0;
+    while (i < posts.length) {
+      const post = posts[i];
+      if (post.content_type === 'youtube' || post.content_type === 'webpage') {
+        elements.push(renderPost(post, i));
+        i++;
+      } else {
+        const next = i + 1 < posts.length ? posts[i + 1] : null;
+        if (next && next.content_type !== 'youtube' && next.content_type !== 'webpage') {
+          elements.push(
+            <View key={`row-${i}`} style={styles.compactRow}>
+              {renderPost(post, i)}
+              {renderPost(next, i + 1)}
+            </View>
+          );
+          i += 2;
+        } else {
+          // Lone card — fills full row width via flex: 1
+          elements.push(
+            <View key={`row-${i}`} style={styles.compactRow}>
+              {renderPost(post, i)}
+            </View>
+          );
+          i++;
+        }
+      }
+    }
+    return elements;
   };
 
   return (
@@ -531,6 +604,18 @@ const HomeScreen = () => {
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading posts...</Text>
         </View>
+      ) : !isConfigured ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyIcon}>⚙️</Text>
+          <Text style={styles.emptyTitle}>Setup Required</Text>
+          <Text style={styles.emptyText}>Configure your server URL and API token to get started.</Text>
+          <TouchableOpacity
+            style={styles.setupButton}
+            onPress={() => navigation.navigate('Settings')}
+          >
+            <Text style={styles.setupButtonText}>Go to Settings →</Text>
+          </TouchableOpacity>
+        </View>
       ) : filteredPosts.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyIcon}>📭</Text>
@@ -553,7 +638,7 @@ const HomeScreen = () => {
           }
         >
           <View style={styles.postsGrid}>
-            {filteredPosts.map((post, index) => renderPost(post, index))}
+            {buildGridRows(filteredPosts)}
           </View>
         </ScrollView>
       )}
@@ -820,6 +905,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
+  setupButton: {
+    marginTop: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+    backgroundColor: colors.primary,
+  },
+  setupButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+  },
   postsContainer: {
     flex: 1,
   },
@@ -827,10 +924,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 100,
   },
-  postsGrid: {
+  postsGrid: {},
+  compactRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 16,
   },
   largeCard: {
     width: '100%',
@@ -884,10 +982,64 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
   },
-  compactCard: {
-    width: CARD_WIDTH,
-    height: 220,
+  landscapeCard: {
+    width: '100%',
+    height: Math.round((width - 40) * 9 / 16),
     marginBottom: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: colors.backgroundCard,
+  },
+  landscapeCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  landscapeCardGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 14,
+    paddingTop: 32,
+    justifyContent: 'flex-end',
+  },
+  landscapeCardRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  landscapeCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 6,
+  },
+  playOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  playButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.8)',
+  },
+  playIcon: {
+    fontSize: 20,
+    color: '#fff',
+    marginLeft: 4,
+  },
+  compactCard: {
+    flex: 1,
+    height: 220,
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: colors.backgroundCard,

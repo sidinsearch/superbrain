@@ -7,7 +7,9 @@ export interface Post {
   tags: string[];
   music: string;
   category: string;
-  thumbnail_url?: string;
+  content_type?: 'instagram' | 'youtube' | 'webpage';
+  thumbnail?: string;      // raw field from backend
+  thumbnail_url?: string;  // normalized alias used by UI
   likes?: number;
   post_date?: string;
   analyzed_at?: string;
@@ -27,8 +29,19 @@ export interface QueueStatus {
   processing_count: number;
   queue: Array<{shortcode: string; position: number}>;
   queue_count: number;
+  retry_queue: RetryQueueItem[];
+  retry_count: number;
   max_concurrent: number;
   available_slots: number;
+}
+
+export interface RetryQueueItem {
+  shortcode: string;
+  url: string;
+  content_type: string;
+  reason: string;
+  retry_after: string;
+  attempts: number;
 }
 
 export interface SearchFilters {

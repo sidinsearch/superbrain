@@ -21,6 +21,7 @@ import { colors } from '../theme/colors';
 import collectionsService from '../services/collections';
 import postsCache from '../services/postsCache';
 import CustomToast from '../components/CustomToast';
+import { cancelPostWatchLaterNotification } from '../services/notificationService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CollectionDetail'>;
 
@@ -83,8 +84,13 @@ const CollectionDetailScreen = ({ route, navigation }: Props) => {
   const handleRemoveSelected = async () => {
     try {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const isWatchLater = collection.id === 'default_watch_later';
       for (const shortcode of Array.from(selectedPosts)) {
         await collectionsService.removePostFromCollection(collection.id, shortcode);
+        // Cancel daily reminder when removed from Watch Later
+        if (isWatchLater) {
+          cancelPostWatchLaterNotification(shortcode).catch(() => {});
+        }
       }
       // Update collection postIds
       collection.postIds = collection.postIds.filter(id => !selectedPosts.has(id));
@@ -101,30 +107,26 @@ const CollectionDetailScreen = ({ route, navigation }: Props) => {
     }
   };
 
-  const handleOpenInstagram = async (shortcode: string) => {
-    const instagramAppUrl = `instagram://media?id=${shortcode}`;
-    const instagramWebUrl = `https://www.instagram.com/p/${shortcode}/`;
-    
+  const handleOpenPost = async (post: Post) => {
+    const url = post.url || `https://www.instagram.com/p/${post.shortcode}/`;
     try {
-      const canOpenApp = await Linking.canOpenURL(instagramAppUrl);
-      if (canOpenApp) {
-        await Linking.openURL(instagramAppUrl);
-      } else {
-        const canOpenWeb = await Linking.canOpenURL(instagramWebUrl);
-        if (canOpenWeb) {
-          await Linking.openURL(instagramWebUrl);
-        } else {
-          setToast({ visible: true, message: 'Cannot open Instagram', type: 'error' });
-        }
-      }
+      await Linking.openURL(url);
     } catch (error) {
-      console.error('Error opening Instagram:', error);
-      try {
-        await Linking.openURL(instagramWebUrl);
-      } catch (webError) {
-        setToast({ visible: true, message: 'Failed to open link', type: 'error' });
-      }
+      console.error('Error opening URL:', error);
     }
+  };
+
+  const getPostImageUrl = (post: Post): string => {
+    if (post.thumbnail_url) return post.thumbnail_url;
+    if (post.thumbnail) return post.thumbnail;
+    if (post.content_type === 'youtube') {
+      const ytMatch = (post.url || '').match(
+        /(?:youtu\.be\/|youtube\.com\/(?:.*v=|.*\/embed\/|.*\/shorts\/))([\w-]{11})/
+      );
+      if (ytMatch) return `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`;
+    }
+    if (post.content_type === 'webpage') return '';
+    return `https://www.instagram.com/p/${post.shortcode}/media/?size=l`;
   };
 
   const getCategoryColor = (category: string) => {
@@ -180,7 +182,7 @@ const CollectionDetailScreen = ({ route, navigation }: Props) => {
         activeOpacity={0.9}
       >
         <Image
-          source={{ uri: getInstagramImageUrl(post.shortcode) }}
+          source={{ uri: getPostImageUrl(post) }}
           style={styles.postImage}
           resizeMode="cover"
         />
@@ -196,7 +198,10 @@ const CollectionDetailScreen = ({ route, navigation }: Props) => {
           <Text style={styles.postTitle} numberOfLines={2}>
             {post.title || 'Untitled'}
           </Text>
-          <Text style={styles.postUsername} numberOfLines={1}>@{post.username || 'unknown'}</Text>
+          <Text style={styles.postUsername} numberOfLines={1}>
+            {post.content_type === 'youtube' ? '▶ ' : post.content_type === 'webpage' ? '🌐 ' : '@'}
+            {post.username || 'unknown'}
+          </Text>
         </LinearGradient>
         {selectionMode && (
           <View style={styles.selectionOverlay}>
@@ -209,7 +214,7 @@ const CollectionDetailScreen = ({ route, navigation }: Props) => {
           style={styles.instagramButton}
           onPress={(e) => {
             e.stopPropagation();
-            handleOpenInstagram(post.shortcode);
+            handleOpenPost(post);
           }}
         >
           <Text style={styles.instagramIcon}>🔗</Text>
