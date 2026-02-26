@@ -9,7 +9,15 @@ httpx>=0.27.0
 
 # ── AI Providers ──────────────────────────────────────────────────────────────
 groq>=0.9.0
-google-generativeai>=0.7.0
+google-genai>=0.8.0
+
+# ── Web Page Fetching & Parsing ───────────────────────────────────────────────
+beautifulsoup4>=4.12.0
+trafilatura>=1.12.0
+newspaper4k>=0.9.0
+lxml>=5.0.0
+lxml_html_clean>=0.1.0
+htmldate>=1.9.0
 
 # ── Audio Transcription ───────────────────────────────────────────────────────
 openai-whisper>=20231117

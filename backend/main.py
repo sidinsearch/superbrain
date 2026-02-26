@@ -630,11 +630,17 @@ def main():
         result = run_youtube_analysis(instagram_url, shortcode, db)
         if result == RETRY_SENTINEL:
             sys.exit(2)
+        if result is None:
+            # Analysis failed — exit non-zero so api.py returns a proper error
+            sys.exit(1)
         return
     elif content_type == 'webpage':
         result = run_webpage_analysis(instagram_url, shortcode, db)
         if result == RETRY_SENTINEL:
             sys.exit(2)
+        if result is None:
+            # Analysis failed — exit non-zero so api.py returns a proper error
+            sys.exit(1)
         return
     # Instagram falls through to the existing pipeline below
 

@@ -518,10 +518,14 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
             )
         
         if returncode != 0:
-            logger.error(f"❌ [{shortcode}] Analysis failed!")
+            # Extract last meaningful error line from stdout for the error message
+            error_lines = [l.strip() for l in stdout.splitlines() if l.strip() and ('❌' in l or 'Error' in l or 'failed' in l.lower())]
+            error_detail = error_lines[-1] if error_lines else (stderr.strip()[:200] or "Analysis failed")
+            logger.error(f"❌ [{shortcode}] Analysis failed: {error_detail}")
+            logger.debug(f"[{shortcode}] stdout tail:\n{stdout[-800:]}")
             raise HTTPException(
                 status_code=400,
-                detail=f"Analysis failed: {stderr[:200]}"
+                detail=error_detail
             )
         
         logger.info(f"✅ [{shortcode}] Analysis complete! Fetching from database...")
