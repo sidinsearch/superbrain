@@ -322,10 +322,10 @@ MODELS: List[Dict[str, Any]] = [
     {
         "key": "local_qwen3",
         "provider": "ollama",
-        "model_id": "qwen3:latest",
+        "model_id": "qwen3-vl:4b",
         "type": "text",
         "base_priority": 100,
-        "desc": "Local Ollama Qwen3 — LAST RESORT (requires Ollama running)",
+        "desc": "Local Ollama Qwen3-VL 4B — LAST RESORT (requires Ollama running)",
     },
 
     # ── VISION ───────────────────────────────────────────────────────────────
@@ -469,10 +469,10 @@ MODELS: List[Dict[str, Any]] = [
     {
         "key": "local_qwen3_vl",
         "provider": "ollama",
-        "model_id": "qwen3-vl:latest",
+        "model_id": "qwen3-vl:4b",
         "type": "vision",
         "base_priority": 100,
-        "desc": "Local Ollama Qwen3-VL — LAST RESORT (requires Ollama running)",
+        "desc": "Local Ollama Qwen3-VL 4B — LAST RESORT (requires Ollama running)",
     },
 ]
 
@@ -993,7 +993,7 @@ class ModelRouter:
         ranked = self._ranked_models("text")
         if not ranked:
             raise RuntimeError(
-                "No text models available. Add API keys to backend/.api_keys"
+                "No text models available. Add API keys to backend/config/.api_keys"
             )
 
         for key in ranked:
@@ -1037,7 +1037,7 @@ class ModelRouter:
         ranked = self._ranked_models("vision")
         if not ranked:
             raise RuntimeError(
-                "No vision models available. Add API keys to backend/.api_keys"
+                "No vision models available. Add API keys to backend/config/.api_keys"
             )
 
         for key in ranked:
