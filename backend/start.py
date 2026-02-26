@@ -571,9 +571,7 @@ def setup_ngrok():
         NGROK_CONFIG.write_text(token)
         ok("ngrok authtoken saved")
         nl()
-        info("To start ngrok tunnel on port 5000, run in a separate terminal:")
-        info("  ngrok http 5000")
-        info("Copy the https://xxxxx.ngrok-free.app URL into the mobile app → Settings.")
+        info("ngrok will be started automatically every time you run start.py.")
     except subprocess.CalledProcessError:
         err("Failed to configure ngrok token.")
         warn("Run manually:  ngrok config add-authtoken <YOUR_TOKEN>")
@@ -626,6 +624,41 @@ def _get_ngrok_url(port: int = 5000) -> str | None:
                 return t["public_url"]
     except Exception:
         pass
+    return None
+
+def _start_ngrok(port: int, timeout: int = 12) -> str | None:
+    """Start ngrok http <port> in the background and wait for the tunnel URL."""
+    import time as _time
+
+    # Already running?
+    url = _get_ngrok_url(port)
+    if url:
+        return url
+
+    if not shutil.which("ngrok"):
+        return None
+
+    info("Starting ngrok tunnel in background …")
+    try:
+        # Detach so the process survives os.execv replacing this Python process
+        kwargs = {"start_new_session": True,
+                  "stdout": subprocess.DEVNULL,
+                  "stderr": subprocess.DEVNULL}
+        subprocess.Popen(["ngrok", "http", str(port)], **kwargs)
+    except Exception as e:
+        warn(f"Could not start ngrok: {e}")
+        return None
+
+    # Poll until the local API is up
+    deadline = _time.time() + timeout
+    while _time.time() < deadline:
+        _time.sleep(1)
+        url = _get_ngrok_url(port)
+        if url:
+            ok(f"ngrok tunnel active  →  {GREEN}{BOLD}{url}{RESET}")
+            return url
+
+    warn("ngrok started but URL not available yet — check ngrok status manually.")
     return None
 
 def _check_port(port: int) -> int | None:
@@ -716,15 +749,21 @@ def launch_backend():
     except Exception:
         local_ip = "127.0.0.1"
 
-    ngrok_url = _get_ngrok_url(PORT)
     ngrok_configured = NGROK_CONFIG.exists() and NGROK_CONFIG.read_text().strip()
+
+    # Auto-start ngrok if token is configured
+    ngrok_url: str | None = None
+    if ngrok_configured:
+        ngrok_url = _start_ngrok(PORT)
+    else:
+        ngrok_url = _get_ngrok_url(PORT)  # maybe user started it manually
 
     if ngrok_url:
         ngrok_line = f"  ngrok URL    →  {GREEN}{BOLD}{ngrok_url}{RESET}  {DIM}(live){RESET}"
         ngrok_hint = f"         · ngrok      →  {GREEN}{ngrok_url}{RESET}"
     elif ngrok_configured:
-        ngrok_line = f"  ngrok URL    →  {YELLOW}(ngrok not running — start with: ngrok http {PORT}){RESET}"
-        ngrok_hint = f"         · ngrok      →  start ngrok first:  {DIM}ngrok http {PORT}{RESET}"
+        ngrok_line = f"  ngrok URL    →  {YELLOW}(failed to start — run manually: ngrok http {PORT}){RESET}"
+        ngrok_hint = f"         · ngrok      →  run:  {DIM}ngrok http {PORT}{RESET}  then copy the URL"
     else:
         ngrok_line = ""
         ngrok_hint = f"         · ngrok      →  https://<your-subdomain>.ngrok-free.app"
