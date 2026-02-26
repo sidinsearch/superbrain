@@ -237,7 +237,7 @@ def _validate_gemini(key: str):
         import urllib.request as _r, json as _j
         req = _r.Request(
             f"https://generativelanguage.googleapis.com/v1beta/models?key={key}",
-            headers={"Accept": "application/json"})
+            headers={"Accept": "application/json", "User-Agent": "Mozilla/5.0"})
         with _r.urlopen(req, timeout=8) as resp:
             data = _j.loads(resp.read())
             count = len(data.get("models", []))
@@ -254,13 +254,12 @@ def _validate_gemini(key: str):
 def _validate_groq(key: str):
     """
     Test with a minimal chat completion (max_tokens=1).
-    This is the most reliable signal — models endpoint sometimes returns 403
-    for valid keys due to scope/region restrictions.
+    Must include User-Agent to pass Cloudflare (error 1010 without it).
     """
     try:
         import urllib.request as _r, urllib.error as _e, json as _j
         body = _j.dumps({
-            "model": "llama-3.1-8b-instant",
+            "model": "llama-3.3-70b-versatile",
             "messages": [{"role": "user", "content": "hi"}],
             "max_tokens": 1,
         }).encode()
@@ -269,7 +268,8 @@ def _validate_groq(key: str):
             data=body,
             headers={"Authorization": f"Bearer {key}",
                      "Content-Type": "application/json",
-                     "Accept": "application/json"},
+                     "Accept": "application/json",
+                     "User-Agent": "Mozilla/5.0"},
             method="POST",
         )
         with _r.urlopen(req, timeout=10) as resp:
@@ -287,7 +287,8 @@ def _validate_openrouter(key: str):
         import urllib.request as _r, urllib.error as _e, json as _j
         req = _r.Request("https://openrouter.ai/api/v1/auth/key",
                          headers={"Authorization": f"Bearer {key}",
-                                  "Accept": "application/json"})
+                                  "Accept": "application/json",
+                                  "User-Agent": "Mozilla/5.0"})
         with _r.urlopen(req, timeout=8) as resp:
             data = _j.loads(resp.read())
             label = data.get("data", {}).get("label", "")
