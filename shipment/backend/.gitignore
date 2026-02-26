@@ -1,0 +1,8 @@
+.setup_done
+token.txt
+superbrain.db*
+config/.api_keys
+config/ngrok_token.txt
+__pycache__/
+.venv/
+temp/
