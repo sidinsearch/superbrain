@@ -511,6 +511,7 @@ def run_youtube_analysis(url: str, shortcode: str, db):
     )
     print(f"✓ YouTube analysis saved ({shortcode})")
     print_header("✅ Done — YouTube Analysis Complete")
+    return True
 
 
 def run_webpage_analysis(url: str, shortcode: str, db):
@@ -563,6 +564,7 @@ def run_webpage_analysis(url: str, shortcode: str, db):
     )
     print(f"✓ Web page analysis saved ({shortcode})")
     print_header("✅ Done — Web Page Analysis Complete")
+    return True
 
 
 # ─────────────────────────────────────────────────────────────────────────────
