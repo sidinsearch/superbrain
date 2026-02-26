@@ -609,6 +609,25 @@ def setup_token_and_db():
 # ══════════════════════════════════════════════════════════════════════════════
 # Launch Backend
 # ══════════════════════════════════════════════════════════════════════════════
+def _get_ngrok_url(port: int = 5000) -> str | None:
+    """Return the live ngrok public HTTPS URL for `port`, or None."""
+    try:
+        import urllib.request as _req, json as _json
+        with _req.urlopen("http://127.0.0.1:4040/api/tunnels", timeout=1) as r:
+            data = _json.loads(r.read())
+        for t in data.get("tunnels", []):
+            if t.get("proto") == "https":
+                addr = t.get("config", {}).get("addr", "")
+                if str(port) in addr:
+                    return t["public_url"]
+        # Fallback: return first https tunnel if port match fails
+        for t in data.get("tunnels", []):
+            if t.get("proto") == "https":
+                return t["public_url"]
+    except Exception:
+        pass
+    return None
+
 def _check_port(port: int) -> int | None:
     """Return the PID occupying `port`, or None if free."""
     import socket as _socket
@@ -697,12 +716,25 @@ def launch_backend():
     except Exception:
         local_ip = "127.0.0.1"
 
+    ngrok_url = _get_ngrok_url(PORT)
+    ngrok_configured = NGROK_CONFIG.exists() and NGROK_CONFIG.read_text().strip()
+
+    if ngrok_url:
+        ngrok_line = f"  ngrok URL    →  {GREEN}{BOLD}{ngrok_url}{RESET}  {DIM}(live){RESET}"
+        ngrok_hint = f"         · ngrok      →  {GREEN}{ngrok_url}{RESET}"
+    elif ngrok_configured:
+        ngrok_line = f"  ngrok URL    →  {YELLOW}(ngrok not running — start with: ngrok http {PORT}){RESET}"
+        ngrok_hint = f"         · ngrok      →  start ngrok first:  {DIM}ngrok http {PORT}{RESET}"
+    else:
+        ngrok_line = ""
+        ngrok_hint = f"         · ngrok      →  https://<your-subdomain>.ngrok-free.app"
+
     print(f"""
   {GREEN}{BOLD}Backend is starting up!{RESET}
 
   Local URL    →  {CYAN}http://127.0.0.1:{PORT}{RESET}
   Network URL  →  {CYAN}http://{local_ip}:{PORT}{RESET}
-  API docs     →  {CYAN}http://127.0.0.1:{PORT}/docs{RESET}
+{(ngrok_line + chr(10)) if ngrok_line else ''}  API docs     →  {CYAN}http://127.0.0.1:{PORT}/docs{RESET}
   API Token    →  {BOLD}{token}{RESET}
 
   {DIM}Keep this terminal open. Press Ctrl+C to stop the server.{RESET}
@@ -712,7 +744,7 @@ def launch_backend():
     2. Open the app → tap the ⚙ settings icon.
     3. Set {BOLD}Server URL{RESET} to:
          · Same WiFi  →  http://{local_ip}:{PORT}
-         · ngrok      →  https://<your-subdomain>.ngrok-free.app
+{ngrok_hint}
          · Port fwd   →  http://<your-public-ip>:{PORT}
     4. Set {BOLD}API Token{RESET} to: {BOLD}{token}{RESET}
     5. Tap {BOLD}Save{RESET} — you're good to go!
