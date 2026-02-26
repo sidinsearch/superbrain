@@ -2,7 +2,7 @@
 """
 Audio Transcriber — Multi-language Support
 Primary:  Groq Whisper API  (whisper-large-v3-turbo → whisper-large-v3)
-Fallback: Local OpenAI Whisper (medium model, offline)
+Fallback: Local OpenAI Whisper (model from config/whisper_model.txt, default: base)
 """
 
 import os
@@ -11,11 +11,24 @@ from pathlib import Path
 
 # ── API key loader (mirrors model_router.py) ─────────────────────────────────
 
+_CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
+
+
+def _load_local_model() -> str:
+    """Return the Whisper model name saved by start.py, defaulting to 'base'."""
+    cfg = _CONFIG_DIR / "whisper_model.txt"
+    if cfg.exists():
+        model = cfg.read_text().strip()
+        if model:
+            return model
+    return "base"
+
+
 def _load_groq_key():
     key = os.environ.get("GROQ_API_KEY")
     if key:
         return key
-    keys_file = Path(__file__).resolve().parent.parent / "config" / ".api_keys"
+    keys_file = _CONFIG_DIR / ".api_keys"
     if keys_file.exists():
         for line in keys_file.read_text().splitlines():
             line = line.strip()
@@ -88,13 +101,15 @@ def _transcribe_groq(audio_path, api_key):
 
 def _transcribe_local(audio_path):
     """
-    Transcribe using local OpenAI Whisper (medium model).
+    Transcribe using local OpenAI Whisper.
+    Model is read from config/whisper_model.txt (set by start.py), default 'base'.
     Returns (text, language_code).
     """
     import whisper  # type: ignore
 
-    print("  💻 Loading local Whisper model (medium) …")
-    model = whisper.load_model("medium")
+    model_name = _load_local_model()
+    print(f"  💻 Loading local Whisper model ({model_name}) …")
+    model = whisper.load_model(model_name)
     print("  ✓  Local model loaded")
 
     result = model.transcribe(
@@ -153,7 +168,7 @@ def transcribe_audio(audio_path):
     if not text:
         try:
             text, lang_code = _transcribe_local(path)
-            backend_used = "Local Whisper (medium)"
+            backend_used = f"Local Whisper ({_load_local_model()})"
         except Exception as e:
             print(f"❌ Local Whisper also failed: {e}")
             import traceback
