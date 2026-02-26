@@ -208,7 +208,7 @@ const HomeScreen = () => {
         }
       } else if (!cachedPosts || cachedPosts.length === 0) {
         console.log('HomeScreen - No posts found on server');
-        showToast('No posts found. Share some Instagram posts to get started!', 'info');
+        showToast('No posts yet — share something to get started!', 'info');
       }
     } catch (error: any) {
       console.error('Error loading posts:', error);
@@ -665,10 +665,10 @@ const HomeScreen = () => {
         </View>
       ) : filteredPosts.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>📭</Text>
-          <Text style={styles.emptyTitle}>No Posts Found</Text>
+          <Text style={styles.emptyIcon}>🧠</Text>
+          <Text style={styles.emptyTitle}>No Posts Yet</Text>
           <Text style={styles.emptyText}>
-            {searchQuery ? 'Try a different search term' : 'Start analyzing Instagram posts to build your library'}
+            {searchQuery ? 'Try a different search term' : 'Share something to get started'}
           </Text>
         </View>
       ) : (
