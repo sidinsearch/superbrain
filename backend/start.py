@@ -616,6 +616,12 @@ def setup_whisper():
         warn(f"Unknown model '{model}' — defaulting to 'base'.")
         model = "base"
 
+    # ── Save model choice to config ─────────────────────────────────────────
+    whisper_cfg = BASE_DIR / "config" / "whisper_model.txt"
+    (BASE_DIR / "config").mkdir(exist_ok=True)
+    whisper_cfg.write_text(model)
+    ok(f"Whisper model set to '{model}' (saved to config/whisper_model.txt)")
+
     h2(f"Pre-downloading Whisper '{model}' model …")
     print(f"  {DIM}(Whisper's own progress bar will appear below){RESET}\n")
     try:
