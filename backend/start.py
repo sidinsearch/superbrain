@@ -226,7 +226,12 @@ def install_deps():
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ── API key validators ────────────────────────────────────────────────────────
-def _validate_gemini(key: str) -> tuple[bool, str]:
+# Return values:
+#   (True,  detail)  — key is definitely valid
+#   (False, detail)  — key is definitely INVALID  (401 / explicit auth error)
+#   (None,  detail)  — could not verify (network, 403 scope, timeout, etc.)
+
+def _validate_gemini(key: str):
     """Hit the Gemini models list endpoint — any valid key returns 200."""
     try:
         import urllib.request as _r, json as _j
@@ -239,57 +244,76 @@ def _validate_gemini(key: str) -> tuple[bool, str]:
             return True, f"{count} models accessible"
     except Exception as e:
         msg = str(e)
-        if "403" in msg or "400" in msg:
-            return False, "invalid key (403/400)"
+        if "400" in msg:
+            return False, "invalid key (400 Bad Request)"
         if "401" in msg:
             return False, "invalid key (401 Unauthorized)"
-        return False, f"could not verify ({msg[:60]})"
+        # 403, timeouts, etc. — cannot determine validity
+        return None, f"could not verify ({msg[:70]})"
 
-def _validate_groq(key: str) -> tuple[bool, str]:
+def _validate_groq(key: str):
+    """
+    Test with a minimal chat completion (max_tokens=1).
+    This is the most reliable signal — models endpoint sometimes returns 403
+    for valid keys due to scope/region restrictions.
+    """
     try:
-        import urllib.request as _r, json as _j
-        req = _r.Request("https://api.groq.com/openai/v1/models",
-                         headers={"Authorization": f"Bearer {key}",
-                                  "Accept": "application/json"})
-        with _r.urlopen(req, timeout=8) as resp:
-            data = _j.loads(resp.read())
-            count = len(data.get("data", []))
-            return True, f"{count} models accessible"
+        import urllib.request as _r, urllib.error as _e, json as _j
+        body = _j.dumps({
+            "model": "llama-3.1-8b-instant",
+            "messages": [{"role": "user", "content": "hi"}],
+            "max_tokens": 1,
+        }).encode()
+        req = _r.Request(
+            "https://api.groq.com/openai/v1/chat/completions",
+            data=body,
+            headers={"Authorization": f"Bearer {key}",
+                     "Content-Type": "application/json",
+                     "Accept": "application/json"},
+            method="POST",
+        )
+        with _r.urlopen(req, timeout=10) as resp:
+            return True, "key valid"
+    except _e.HTTPError as e:
+        if e.code in (401, 400):
+            return False, f"invalid key ({e.code} {e.reason})"
+        # 403, 429, 503, etc. — key may be fine
+        return None, f"could not verify ({e.code} {e.reason})"
     except Exception as e:
-        msg = str(e)
-        if "401" in msg or "400" in msg:
-            return False, "invalid key (401 Unauthorized)"
-        return False, f"could not verify ({msg[:60]})"
+        return None, f"could not verify ({str(e)[:70]})"
 
-def _validate_openrouter(key: str) -> tuple[bool, str]:
+def _validate_openrouter(key: str):
     try:
-        import urllib.request as _r, json as _j
+        import urllib.request as _r, urllib.error as _e, json as _j
         req = _r.Request("https://openrouter.ai/api/v1/auth/key",
                          headers={"Authorization": f"Bearer {key}",
                                   "Accept": "application/json"})
         with _r.urlopen(req, timeout=8) as resp:
             data = _j.loads(resp.read())
             label = data.get("data", {}).get("label", "")
-            limit = data.get("data", {}).get("rate_limit", {})
-            detail = label or "key valid"
-            return True, detail
+            return True, label or "key valid"
+    except _e.HTTPError as e:
+        if e.code in (401, 400):
+            return False, f"invalid key ({e.code})"
+        return None, f"could not verify ({e.code} {e.reason})"
     except Exception as e:
-        msg = str(e)
-        if "401" in msg or "403" in msg or "400" in msg:
-            return False, "invalid key"
-        return False, f"could not verify ({msg[:60]})"
+        return None, f"could not verify ({str(e)[:70]})"
 
 def _check_and_report(name: str, key: str, validator) -> str:
     """Validate `key`, print result inline, return the key unchanged."""
     if not key:
         return key
     print(f"  {DIM}Checking {name} key …{RESET}", end="", flush=True)
-    ok_flag, detail = validator(key)
-    if ok_flag:
-        print(f"\r  {GREEN}✓{RESET}  {name}: {detail}                       ")
+    result, detail = validator(key)
+    if result is True:
+        print(f"\r  {GREEN}✓{RESET}  {name}: {detail}                            ")
+    elif result is False:
+        print(f"\r  {RED}✗{RESET}  {name}: {detail}                            ")
+        warn(f"That key looks invalid — double-check at the provider dashboard.")
     else:
-        print(f"\r  {YELLOW}⚠{RESET}  {name}: {detail}                       ")
-        warn(f"The key may be wrong — double-check at the provider dashboard.")
+        # None — ambiguous, don't cry wolf
+        print(f"\r  {YELLOW}~{RESET}  {name}: {detail}                            ")
+        info("Could not reach the API right now — key saved, will be tested on first use.")
     return key
 
 # Step 3 — API Keys
