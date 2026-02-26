@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SuperBrain Library</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#3B82F6",
+                        "charcoal": "#121212",
+                        "card-grey": "#1E1E1E",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "1.5rem",
+                        "xl": "2rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        body {
+            background-color: #121212;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-display bg-charcoal text-white min-h-screen">
+<header class="sticky top-0 z-50 bg-charcoal/80 backdrop-blur-md">
+<div class="flex items-center p-4 pb-2 justify-between">
+<div class="flex items-center gap-2">
+<span class="text-2xl">🧠</span>
+<span class="font-bold text-lg tracking-tight">SuperBrain</span>
+</div>
+<div class="flex w-12 items-center justify-end">
+<button class="flex items-center justify-center rounded-full h-10 w-10 bg-white/10 text-white">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+</div>
+</div>
+<div class="px-4 py-2">
+<h1 class="text-3xl font-bold leading-tight tracking-tight">Library</h1>
+</div>
+</header>
+<main class="max-w-md mx-auto pb-32">
+<div class="px-4 py-3">
+<label class="flex flex-col h-12 w-full">
+<div class="flex w-full flex-1 items-stretch rounded-2xl h-full bg-card-grey">
+<div class="text-slate-400 flex items-center justify-center pl-4">
+<span class="material-symbols-outlined text-xl">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 border-none bg-transparent text-white focus:outline-0 focus:ring-0 h-full placeholder:text-slate-500 px-4 pl-2 text-base font-normal" placeholder="Search collections"/>
+</div>
+</label>
+</div>
+<div class="flex gap-3 px-4 py-2 overflow-x-auto no-scrollbar">
+<div class="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-primary px-5">
+<p class="text-white text-sm font-semibold">Everything</p>
+</div>
+<div class="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-card-grey px-5 border border-white/5">
+<p class="text-slate-400 text-sm font-medium">Favorites</p>
+</div>
+<div class="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-card-grey px-5 border border-white/5">
+<p class="text-slate-400 text-sm font-medium">Shared</p>
+</div>
+<div class="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-card-grey px-5 border border-white/5">
+<p class="text-slate-400 text-sm font-medium">Archived</p>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4 p-4 mt-2">
+<div class="flex flex-col gap-4 p-5 bg-card-grey rounded-lg border border-white/5 transition-transform active:scale-95">
+<div class="w-12 h-12 flex items-center justify-center bg-charcoal rounded-xl text-3xl shadow-inner">
+<span>✈️</span>
+</div>
+<div>
+<p class="text-white text-base font-bold leading-tight">Paris Trip</p>
+<p class="text-slate-400 text-xs font-medium mt-1">12 items</p>
+</div>
+</div>
+<div class="flex flex-col gap-4 p-5 bg-card-grey rounded-lg border border-white/5 transition-transform active:scale-95">
+<div class="w-12 h-12 flex items-center justify-center bg-charcoal rounded-xl text-3xl shadow-inner">
+<span>🎬</span>
+</div>
+<div>
+<p class="text-white text-base font-bold leading-tight">Movies</p>
+<p class="text-slate-400 text-xs font-medium mt-1">45 items</p>
+</div>
+</div>
+<div class="flex flex-col gap-4 p-5 bg-card-grey rounded-lg border border-white/5 transition-transform active:scale-95">
+<div class="w-12 h-12 flex items-center justify-center bg-charcoal rounded-xl text-3xl shadow-inner">
+<span>📚</span>
+</div>
+<div>
+<p class="text-white text-base font-bold leading-tight">Reading List</p>
+<p class="text-slate-400 text-xs font-medium mt-1">8 items</p>
+</div>
+</div>
+<div class="flex flex-col gap-4 p-5 bg-card-grey rounded-lg border border-white/5 transition-transform active:scale-95">
+<div class="w-12 h-12 flex items-center justify-center bg-charcoal rounded-xl text-3xl shadow-inner">
+<span>🎁</span>
+</div>
+<div>
+<p class="text-white text-base font-bold leading-tight">Gift Ideas</p>
+<p class="text-slate-400 text-xs font-medium mt-1">5 items</p>
+</div>
+</div>
+<div class="flex flex-col gap-4 p-5 bg-card-grey rounded-lg border border-white/5 transition-transform active:scale-95">
+<div class="w-12 h-12 flex items-center justify-center bg-charcoal rounded-xl text-3xl shadow-inner">
+<span>🏡</span>
+</div>
+<div>
+<p class="text-white text-base font-bold leading-tight">Home Decor</p>
+<p class="text-slate-400 text-xs font-medium mt-1">22 items</p>
+</div>
+</div>
+<div class="flex flex-col gap-4 p-5 bg-card-grey rounded-lg border border-white/5 transition-transform active:scale-95">
+<div class="w-12 h-12 flex items-center justify-center bg-charcoal rounded-xl text-3xl shadow-inner">
+<span>🥗</span>
+</div>
+<div>
+<p class="text-white text-base font-bold leading-tight">Recipes</p>
+<p class="text-slate-400 text-xs font-medium mt-1">31 items</p>
+</div>
+</div>
+</div>
+</main>
+<div class="fixed bottom-24 right-6 z-50">
+<button class="flex items-center justify-center rounded-full h-14 w-14 bg-primary text-white shadow-lg shadow-primary/20 hover:scale-105 transition-all active:scale-90">
+<span class="material-symbols-outlined text-2xl font-bold">add</span>
+</button>
+</div>
+<nav class="fixed bottom-0 left-0 right-0 bg-charcoal/95 backdrop-blur-xl border-t border-white/5 pb-8 pt-3 px-8 flex justify-between items-center z-40">
+<div class="flex flex-col items-center gap-1 text-slate-500">
+<span class="material-symbols-outlined text-[26px]">grid_view</span>
+<span class="text-[10px] font-medium">All Posts</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-primary">
+<span class="material-symbols-outlined text-[26px]" style="font-variation-settings: 'FILL' 1;">folder</span>
+<span class="text-[10px] font-bold">Library</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-slate-500">
+<span class="material-symbols-outlined text-[26px]">settings</span>
+<span class="text-[10px] font-medium">Settings</span>
+</div>
+</nav>
+
+</body></html>

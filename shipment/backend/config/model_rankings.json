@@ -1,0 +1,712 @@
+{
+  "groq_gpt_oss_20b": {
+    "key": "groq_gpt_oss_20b",
+    "avg_response_s": 1.1330823550656264,
+    "success_count": 21,
+    "fail_count": 1,
+    "down_until": null,
+    "last_used": "2026-02-24T10:14:58.746268",
+    "last_error": null,
+    "base_priority": 0.5
+  },
+  "groq_llama33_70b": {
+    "key": "groq_llama33_70b",
+    "avg_response_s": 1.423364281654358,
+    "success_count": 2,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": "2026-02-24T07:53:30.927446",
+    "last_error": null,
+    "base_priority": 1
+  },
+  "groq_llama4_scout": {
+    "key": "groq_llama4_scout",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 1.5
+  },
+  "groq_llama31_8b": {
+    "key": "groq_llama31_8b",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 2
+  },
+  "groq_qwen3_32b": {
+    "key": "groq_qwen3_32b",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 2.5
+  },
+  "groq_gpt_oss_120b": {
+    "key": "groq_gpt_oss_120b",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 3
+  },
+  "groq_gemma2_9b": {
+    "key": "groq_gemma2_9b",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 3.5
+  },
+  "groq_deepseek_r1_32b": {
+    "key": "groq_deepseek_r1_32b",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 3.8
+  },
+  "gemini_25_flash": {
+    "key": "gemini_25_flash",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 4
+  },
+  "gemini_25_flash_lite": {
+    "key": "gemini_25_flash_lite",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 4.5
+  },
+  "gemini_25_pro": {
+    "key": "gemini_25_pro",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 5
+  },
+  "gemini_3_flash": {
+    "key": "gemini_3_flash",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 5.5
+  },
+  "gemini_3_pro": {
+    "key": "gemini_3_pro",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 6
+  },
+  "gemini_31_pro": {
+    "key": "gemini_31_pro",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 6.5
+  },
+  "gemini_20_flash": {
+    "key": "gemini_20_flash",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 7
+  },
+  "gemini_20_flash_lite": {
+    "key": "gemini_20_flash_lite",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 7.5
+  },
+  "gemini_15_flash": {
+    "key": "gemini_15_flash",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 8
+  },
+  "openrouter_llama33_70b": {
+    "key": "openrouter_llama33_70b",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 7
+  },
+  "openrouter_deepseek_r1_0528": {
+    "key": "openrouter_deepseek_r1_0528",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 7.5
+  },
+  "openrouter_qwen3_235b": {
+    "key": "openrouter_qwen3_235b",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 8
+  },
+  "openrouter_hermes3_405b": {
+    "key": "openrouter_hermes3_405b",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 8.5
+  },
+  "openrouter_gpt_oss_120b": {
+    "key": "openrouter_gpt_oss_120b",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 9
+  },
+  "openrouter_gpt_oss_20b": {
+    "key": "openrouter_gpt_oss_20b",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 9.5
+  },
+  "openrouter_stepfun_flash": {
+    "key": "openrouter_stepfun_flash",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 10
+  },
+  "openrouter_nemotron_30b": {
+    "key": "openrouter_nemotron_30b",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 10.5
+  },
+  "openrouter_qwen3_next_80b": {
+    "key": "openrouter_qwen3_next_80b",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 11
+  },
+  "openrouter_gemma3_27b": {
+    "key": "openrouter_gemma3_27b",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 11.5
+  },
+  "openrouter_mistral_small31": {
+    "key": "openrouter_mistral_small31",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 12
+  },
+  "openrouter_glm45_air": {
+    "key": "openrouter_glm45_air",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 12.5
+  },
+  "openrouter_dolphin_venice": {
+    "key": "openrouter_dolphin_venice",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 13
+  },
+  "local_qwen3": {
+    "key": "local_qwen3",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 100
+  },
+  "gemini_25_flash_vision": {
+    "key": "gemini_25_flash_vision",
+    "avg_response_s": 15.284299373626709,
+    "success_count": 1,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": "2026-02-24T06:25:56.490384",
+    "last_error": null,
+    "base_priority": 1
+  },
+  "gemini_25_flash_lite_vision": {
+    "key": "gemini_25_flash_lite_vision",
+    "avg_response_s": 6.709401964075168,
+    "success_count": 14,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": "2026-02-24T09:45:09.831171",
+    "last_error": null,
+    "base_priority": 1.5
+  },
+  "gemini_25_pro_vision": {
+    "key": "gemini_25_pro_vision",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 3,
+    "down_until": "2026-02-24T10:14:55.289465",
+    "last_used": null,
+    "last_error": "429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current",
+    "base_priority": 2
+  },
+  "gemini_3_flash_vision": {
+    "key": "gemini_3_flash_vision",
+    "avg_response_s": 22.28640604019165,
+    "success_count": 1,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": "2026-02-24T07:50:22.906246",
+    "last_error": null,
+    "base_priority": 2.5
+  },
+  "gemini_3_pro_vision": {
+    "key": "gemini_3_pro_vision",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 2,
+    "down_until": "2026-02-24T10:14:55.937573",
+    "last_used": null,
+    "last_error": "429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current",
+    "base_priority": 3
+  },
+  "gemini_31_pro_vision": {
+    "key": "gemini_31_pro_vision",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 1,
+    "down_until": "2026-02-24T08:23:08.716442",
+    "last_used": null,
+    "last_error": "429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current",
+    "base_priority": 3.5
+  },
+  "gemini_20_flash_vision": {
+    "key": "gemini_20_flash_vision",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 4
+  },
+  "gemini_20_flash_lite_vision": {
+    "key": "gemini_20_flash_lite_vision",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 4.5
+  },
+  "gemini_15_flash_vision": {
+    "key": "gemini_15_flash_vision",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 4.8
+  },
+  "groq_llama4_scout_vision": {
+    "key": "groq_llama4_scout_vision",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 5
+  },
+  "groq_vision_11b": {
+    "key": "groq_vision_11b",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 5.5
+  },
+  "groq_vision_90b": {
+    "key": "groq_vision_90b",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 6
+  },
+  "openrouter_qwen3_vl_235b": {
+    "key": "openrouter_qwen3_vl_235b",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 7
+  },
+  "openrouter_qwen3_vl_30b": {
+    "key": "openrouter_qwen3_vl_30b",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 7.5
+  },
+  "openrouter_nvidia_vl": {
+    "key": "openrouter_nvidia_vl",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 8
+  },
+  "openrouter_gemma3_vision": {
+    "key": "openrouter_gemma3_vision",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 8.5
+  },
+  "openrouter_mistral_vision": {
+    "key": "openrouter_mistral_vision",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 9
+  },
+  "local_qwen3_vl": {
+    "key": "local_qwen3_vl",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 100
+  },
+  "dyn_openrouter_free": {
+    "key": "dyn_openrouter_free",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 20
+  },
+  "dyn_v_openrouter_free": {
+    "key": "dyn_v_openrouter_free",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 20
+  },
+  "dyn_qwen_qwen3-vl-30b-a3b-thinking": {
+    "key": "dyn_qwen_qwen3-vl-30b-a3b-thinking",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 24
+  },
+  "dyn_v_qwen_qwen3-vl-30b-a3b-thinking": {
+    "key": "dyn_v_qwen_qwen3-vl-30b-a3b-thinking",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 24
+  },
+  "dyn_arcee-ai_trinity-mini_free": {
+    "key": "dyn_arcee-ai_trinity-mini_free",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 25
+  },
+  "dyn_qwen_qwen3-vl-235b-a22b-thinking": {
+    "key": "dyn_qwen_qwen3-vl-235b-a22b-thinking",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 26
+  },
+  "dyn_v_qwen_qwen3-vl-235b-a22b-thinking": {
+    "key": "dyn_v_qwen_qwen3-vl-235b-a22b-thinking",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 26
+  },
+  "dyn_nvidia_nemotron-nano-9b-v2_free": {
+    "key": "dyn_nvidia_nemotron-nano-9b-v2_free",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 27
+  },
+  "dyn_qwen_qwen3-coder_free": {
+    "key": "dyn_qwen_qwen3-coder_free",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 28
+  },
+  "dyn_liquid_lfm-2_5-1_2b-thinking_free": {
+    "key": "dyn_liquid_lfm-2_5-1_2b-thinking_free",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 29
+  },
+  "dyn_liquid_lfm-2_5-1_2b-instruct_free": {
+    "key": "dyn_liquid_lfm-2_5-1_2b-instruct_free",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 30
+  },
+  "dyn_qwen_qwen3-235b-a22b-thinking-2507": {
+    "key": "dyn_qwen_qwen3-235b-a22b-thinking-2507",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 33
+  },
+  "dyn_upstage_solar-pro-3_free": {
+    "key": "dyn_upstage_solar-pro-3_free",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 34
+  },
+  "dyn_arcee-ai_trinity-large-preview_free": {
+    "key": "dyn_arcee-ai_trinity-large-preview_free",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 35
+  },
+  "dyn_google_gemma-3n-e2b-it_free": {
+    "key": "dyn_google_gemma-3n-e2b-it_free",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 38
+  },
+  "dyn_qwen_qwen3-4b_free": {
+    "key": "dyn_qwen_qwen3-4b_free",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 40
+  },
+  "dyn_google_gemma-3n-e4b-it_free": {
+    "key": "dyn_google_gemma-3n-e4b-it_free",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 41
+  },
+  "dyn_meta-llama_llama-3_2-3b-instruct_free": {
+    "key": "dyn_meta-llama_llama-3_2-3b-instruct_free",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 45
+  },
+  "dyn_google_gemma-3-4b-it_free": {
+    "key": "dyn_google_gemma-3-4b-it_free",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 47
+  },
+  "dyn_v_google_gemma-3-4b-it_free": {
+    "key": "dyn_v_google_gemma-3-4b-it_free",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 47
+  },
+  "dyn_google_gemma-3-12b-it_free": {
+    "key": "dyn_google_gemma-3-12b-it_free",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 48
+  },
+  "dyn_v_google_gemma-3-12b-it_free": {
+    "key": "dyn_v_google_gemma-3-12b-it_free",
+    "avg_response_s": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "down_until": null,
+    "last_used": null,
+    "last_error": null,
+    "base_priority": 48
+  }
+}
