@@ -243,7 +243,7 @@ def setup_api_keys():
     OpenRouter  →  {CYAN}https://openrouter.ai/keys{RESET}
 
   Press {BOLD}Enter{RESET} to skip any key you don't have yet.
-  {DIM}Keys will be visible as you paste — that's intentional.{RESET}
+  {DIM}Keys and passwords are visible as you paste — don't run setup in a screen share.{RESET}
 """)
 
     # Load existing values if re-running
@@ -270,10 +270,20 @@ def setup_api_keys():
   Used for downloading private/public Instagram posts.
   {YELLOW}Use a secondary / burner account — NOT your main account.{RESET}
   The session is cached after first login so you won't be asked again.
-  Press {BOLD}Enter{RESET} to skip (YouTube and Websites will still work).
+
+  {DIM}Without credentials:{RESET}
+    SuperBrain can still save and analyse {BOLD}YouTube videos{RESET} and {BOLD}Websites{RESET}
+    without any Instagram account. However, Instagram posts will be limited:
+    • Only {BOLD}public posts{RESET} that are accessible without login may work.
+    • You {BOLD}cannot process multiple Instagram posts back-to-back{RESET} —
+      Instagram enforces a rate-limit cool-down between unauthenticated
+      requests. You may need to wait several minutes between saves.
+    Adding credentials removes these restrictions entirely.
+
+  Press {BOLD}Enter{RESET} to skip.
 """)
     ig_user = ask("Instagram username", default=existing.get("INSTAGRAM_USERNAME")) or ""
-    ig_pass = ask("Instagram password", default=existing.get("INSTAGRAM_PASSWORD"), secret=True) or ""
+    ig_pass = ask("Instagram password", default=existing.get("INSTAGRAM_PASSWORD"), paste=True) or ""
 
     # Write .api_keys
     API_KEYS.parent.mkdir(parents=True, exist_ok=True)
