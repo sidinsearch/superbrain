@@ -559,14 +559,45 @@ def setup_whisper():
         if not ask_yn("Continue setup anyway?", default=True):
             sys.exit(0)
 
-    # ── Whisper package check ─────────────────────────────────────────────────
+    # ── Whisper package check / install ──────────────────────────────────────
     try:
         result = run_q([str(VENV_PYTHON), "-c", "import whisper; print(whisper.__version__)"])
         ok(f"openai-whisper installed (version {result.stdout.strip()})")
     except Exception:
-        warn("openai-whisper not found in the virtual environment.")
-        warn("Run  python start.py --reset  to reinstall dependencies.")
-        return
+        warn("openai-whisper not found — installing now …")
+        nl()
+        try:
+            cmd = [str(VENV_PIP), "install", "--progress-bar", "off", "openai-whisper"]
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                    text=True, bufsize=1)
+            for raw in proc.stdout:  # type: ignore[union-attr]
+                line = raw.rstrip()
+                if not line:
+                    continue
+                if line.startswith("Collecting "):
+                    print(f"  {CYAN}↓{RESET}  {BOLD}{line.split()[1]}{RESET}")
+                elif "Downloading" in line and (".whl" in line or ".tar.gz" in line):
+                    parts = line.strip().split()
+                    if len(parts) >= 2:
+                        print(f"       {DIM}↓ {parts[1]}  {' '.join(parts[2:]).strip('()')}{RESET}")
+                elif line.startswith("Successfully installed"):
+                    print(f"  {GREEN}✓  {line}{RESET}")
+                elif "error" in line.lower() or "ERROR" in line:
+                    print(f"  {RED}{line}{RESET}")
+            proc.wait()
+            if proc.returncode == 0:
+                result = run_q([str(VENV_PYTHON), "-c", "import whisper; print(whisper.__version__)"])
+                ok(f"openai-whisper installed (version {result.stdout.strip()})")
+            else:
+                err("openai-whisper install failed — offline transcription will not work.")
+                if not ask_yn("Continue setup anyway?", default=True):
+                    sys.exit(0)
+                return
+        except Exception as e:
+            err(f"openai-whisper install failed: {e}")
+            if not ask_yn("Continue setup anyway?", default=True):
+                sys.exit(0)
+            return
 
     # ── Model pre-download ────────────────────────────────────────────────────
     nl()
