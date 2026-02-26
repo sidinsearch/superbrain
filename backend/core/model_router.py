@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 
-CONFIG_DIR    = Path(__file__).parent.parent / "config"
+CONFIG_DIR    = Path(__file__).resolve().parent.parent / "config"
 RANKINGS_FILE = CONFIG_DIR / "model_rankings.json"
 API_KEYS_FILE = CONFIG_DIR / ".api_keys"
 

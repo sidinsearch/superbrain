@@ -15,7 +15,7 @@ def _load_groq_key():
     key = os.environ.get("GROQ_API_KEY")
     if key:
         return key
-    keys_file = Path(__file__).parent.parent / "config" / ".api_keys"
+    keys_file = Path(__file__).resolve().parent.parent / "config" / ".api_keys"
     if keys_file.exists():
         for line in keys_file.read_text().splitlines():
             line = line.strip()

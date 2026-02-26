@@ -14,7 +14,7 @@ import re
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
-API_KEYS_FILE = Path(__file__).parent.parent / "config" / ".api_keys"
+API_KEYS_FILE = Path(__file__).resolve().parent.parent / "config" / ".api_keys"
 
 # ── Prompt ────────────────────────────────────────────────────────────────────
 
