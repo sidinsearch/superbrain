@@ -284,7 +284,7 @@ async def get_caption(url: str, token: str = Depends(verify_token)):
             print(f"[API] Using Python: {python_exe}")
             
             result = subprocess.run(
-                [python_exe, 'caption.py', url],
+                [python_exe, 'analyzers/caption.py', url],
                 capture_output=True,
                 text=True,
                 encoding='utf-8',
