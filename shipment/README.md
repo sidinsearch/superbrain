@@ -32,7 +32,8 @@ The interactive wizard will:
 - Install all dependencies automatically
 - Ask for your AI API keys (Gemini, Groq, OpenRouter)
 - Ask for Instagram credentials (optional — needed only for Instagram posts)
-- Set up Ollama for offline/local AI models (optional but recommended)
+- Set up Ollama for offline/local AI models (`qwen3-vl:4b`, optional but recommended)
+- Set up Whisper for offline audio transcription (+ ffmpeg check)
 - Configure ngrok for remote access (optional)
 - Generate your API token
 - Start the server on **port 5000**

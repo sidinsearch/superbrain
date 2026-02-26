@@ -41,17 +41,33 @@ RESET  = _ansi(0);  BOLD   = _ansi(1)
 RED    = _ansi(31); GREEN  = _ansi(32); YELLOW = _ansi(33)
 BLUE   = _ansi(34); CYAN   = _ansi(36); WHITE  = _ansi(37)
 DIM    = _ansi(2)
+MAG    = _ansi(35)
+
+def link(url: str, text: str | None = None) -> str:
+    """OSC 8 terminal hyperlink — clickable in most modern terminals."""
+    label = text or url
+    return f"\033]8;;{url}\033\\{label}\033]8;;\033\\"
 
 def banner():
-    print(f"""{CYAN}{BOLD}
- ____                       ____            _
-/ ___| _   _ _ __  ___ _ __| __ ) _ __ __ _(_)_ __
-\\___ \\| | | | '_ \\/ _ \\ '__|  _ \\| '__/ _` | | '_ \\
- ___) | |_| | |_) |  __/ |  | |_) | | | (_| | | | | |
-|____/ \\__,_| .__/ \\___|_|  |____/|_|  \\__,_|_|_| |_|
-            |_|
-{RESET}{DIM}  Your personal second-brain backend  ·  v1.0{RESET}
-""")
+    art = f"""{CYAN}{BOLD}
+  ███████╗██╗   ██╗██████╗ ███████╗██████╗
+  ██╔════╝██║   ██║██╔══██╗██╔════╝██╔══██╗
+  ███████╗██║   ██║██████╔╝█████╗  ██████╔╝
+  ╚════██║██║   ██║██╔═══╝ ██╔══╝  ██╔══██╗
+  ███████║╚██████╔╝██║     ███████╗██║  ██║
+  ╚══════╝ ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═╝
+
+  ██████╗ ██████╗  █████╗ ██╗███╗   ██╗
+  ██╔══██╗██╔══██╗██╔══██╗██║████╗  ██║
+  ██████╔╝██████╔╝███████║██║██╔██╗ ██║
+  ██╔══██╗██╔══██╗██╔══██║██║██║╚██╗██║
+  ██████╔╝██║  ██║██║  ██║██║██║ ╚████║
+  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝
+{RESET}"""
+    credit = (f"  {DIM}made with {RESET}{MAG}❤{RESET}{DIM} by "
+              f"{link('https://github.com/sidinsearch', f'{BOLD}sidinsearch{RESET}{DIM}')}"
+              f"{RESET}\n")
+    print(art + credit)
 
 def h1(msg):  print(f"\n{BOLD}{CYAN}{'━'*64}{RESET}\n{BOLD}  {msg}{RESET}\n{BOLD}{CYAN}{'━'*64}{RESET}")
 def h2(msg):  print(f"\n{BOLD}{BLUE}  ▶  {msg}{RESET}")
@@ -116,13 +132,6 @@ def install_deps():
     h2("Installing packages from requirements.txt (this may take a few minutes) …")
     run([str(VENV_PIP), "install", "--quiet", "-r", str(req)])
     ok("All dependencies installed")
-
-    # Whisper needs ffmpeg on host — just warn, don't block
-    if not shutil.which("ffmpeg"):
-        warn("ffmpeg not found. Audio transcription will not work.")
-        warn("Install it:  sudo apt install ffmpeg   (Linux / WSL)")
-        warn("             brew install ffmpeg        (macOS)")
-        warn("             winget install ffmpeg      (Windows)")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Step 3 — API Keys
@@ -190,18 +199,19 @@ def setup_api_keys():
 # ══════════════════════════════════════════════════════════════════════════════
 # Step 4 — Ollama / Offline Model
 # ══════════════════════════════════════════════════════════════════════════════
-OLLAMA_MODEL = "llama3.2:3b"   # fast, fits ~4 GB RAM
+OLLAMA_MODEL = "qwen3-vl:4b"   # vision-language model, fits ~6 GB VRAM / ~8 GB RAM
 
 def setup_ollama():
-    h1("Step 4 of 6 — Offline AI Model (Ollama)")
+    h1("Step 4 of 7 — Offline AI Model (Ollama)")
 
     print(f"""
   Ollama runs AI models {BOLD}locally on your machine{RESET} — no internet or API
   key required. SuperBrain uses it as a last-resort fallback if all
   cloud providers fail or run out of quota.
 
-  Recommended model: {BOLD}{OLLAMA_MODEL}{RESET}  (~2 GB download, needs ~4 GB RAM)
-  Other options: phi3:mini (1 GB), mistral:7b (4 GB), gemma2:2b (1.5 GB)
+  Recommended model: {BOLD}{OLLAMA_MODEL}{RESET}  (~3 GB download, needs ~8 GB RAM)
+    → Vision-language model: understands both text AND images.
+  Other options: llama3.2:3b (2 GB / 4 GB RAM), gemma2:2b (1.5 GB / 4 GB RAM)
 """)
 
     if not ask_yn("Set up Ollama offline model?", default=True):
@@ -238,7 +248,7 @@ def setup_ollama():
     custom = ask(f"Model to pull", default=OLLAMA_MODEL)
     model  = custom or OLLAMA_MODEL
 
-    h2(f"Pulling {model} (this downloads ~2 GB — grab a coffee ☕) …")
+    h2(f"Pulling {model} (downloads ~3 GB — grab a coffee ☕) …")
     try:
         run(["ollama", "pull", model])
         ok(f"Model {model} ready")
@@ -247,12 +257,87 @@ def setup_ollama():
         warn(f"Run manually later:  ollama pull {model}")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Step 5 — ngrok / Port Forwarding
+# Step 5 — Whisper / Offline Transcription
+# ══════════════════════════════════════════════════════════════════════════════
+WHISPER_MODELS = {
+    "tiny":   (" ~74 MB", "fastest, lower accuracy"),
+    "base":   ("~142 MB", "good balance  ⭐ recommended"),
+    "small":  ("~461 MB", "higher accuracy"),
+    "medium": ("~1.5 GB", "high accuracy, slower"),
+    "large":  ("~2.9 GB", "best accuracy, needs 10 GB RAM"),
+}
+
+def setup_whisper():
+    h1("Step 5 of 7 — Offline Audio Transcription (Whisper)")
+
+    print(f"""
+  OpenAI Whisper transcribes audio and video {BOLD}entirely on your machine{RESET}.
+  SuperBrain uses it to extract speech from Instagram Reels, YouTube
+  videos, and any other saved media — no API key needed.
+
+  Whisper requires {BOLD}ffmpeg{RESET} to be installed on your system.
+  It also pre-downloads a speech model the first time it runs.
+""")
+
+    # ── ffmpeg check ──────────────────────────────────────────────────────────
+    if shutil.which("ffmpeg"):
+        ok("ffmpeg is installed")
+    else:
+        warn("ffmpeg is NOT installed — Whisper cannot run without it.")
+        print(f"""
+  Install ffmpeg:
+    Linux / WSL  →  {CYAN}sudo apt install ffmpeg{RESET}
+    macOS        →  {CYAN}brew install ffmpeg{RESET}
+    Windows      →  {CYAN}winget install ffmpeg{RESET}
+                    or download from {CYAN}https://ffmpeg.org/download.html{RESET}
+
+  After installing ffmpeg, re-run {BOLD}python start.py --reset{RESET} or just
+  restart — Whisper will work automatically once ffmpeg is present.
+""")
+        if not ask_yn("Continue setup anyway?", default=True):
+            sys.exit(0)
+
+    # ── Whisper package check ─────────────────────────────────────────────────
+    try:
+        result = run_q([str(VENV_PYTHON), "-c", "import whisper; print(whisper.__version__)"])
+        ok(f"openai-whisper installed (version {result.stdout.strip()})")
+    except Exception:
+        warn("openai-whisper not found in the virtual environment.")
+        warn("Run  python start.py --reset  to reinstall dependencies.")
+        return
+
+    # ── Model pre-download ────────────────────────────────────────────────────
+    nl()
+    print(f"  {BOLD}Whisper model pre-download{RESET}")
+    print(f"  Pre-downloading a model now avoids a delay on first use.\n")
+
+    rows = ""
+    for name, (size, note) in WHISPER_MODELS.items():
+        star = f"  {YELLOW}← default if skipped{RESET}" if name == "base" else ""
+        rows += f"    {BOLD}{name:<8}{RESET} {size}  {DIM}{note}{RESET}{star}\n"
+    print(rows)
+
+    choice = ask("Model to pre-download", default="base")
+    model  = choice.strip().lower() if choice else "base"
+    if model not in WHISPER_MODELS:
+        warn(f"Unknown model '{model}' — defaulting to 'base'.")
+        model = "base"
+
+    h2(f"Pre-downloading Whisper '{model}' model …")
+    try:
+        run([str(VENV_PYTHON), "-c",
+             f"import whisper; whisper.load_model('{model}')"])
+        ok(f"Whisper '{model}' model downloaded and cached")
+    except subprocess.CalledProcessError:
+        err(f"Pre-download failed — Whisper will download '{model}' automatically on first use.")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Step 6 — ngrok / Port Forwarding
 # ══════════════════════════════════════════════════════════════════════════════
 NGROK_CONFIG = BASE_DIR / "config" / "ngrok_token.txt"
 
 def setup_ngrok():
-    h1("Step 5 of 6 — Remote Access (ngrok / Port Forwarding)")
+    h1("Step 6 of 7 — Remote Access (ngrok / Port Forwarding)")
 
     print(f"""
   The SuperBrain backend runs on {BOLD}port 5000{RESET} on your machine.
@@ -327,7 +412,7 @@ def setup_ngrok():
 # Step 6 — API Token & Database
 # ══════════════════════════════════════════════════════════════════════════════
 def setup_token_and_db():
-    h1("Step 6 of 6 — API Token & Database")
+    h1("Step 7 of 7 — API Token & Database")
 
     # Token
     if TOKEN_FILE.exists():
@@ -411,9 +496,10 @@ def main():
     1 · Create Python virtual environment
     2 · Install all required packages
     3 · Configure AI API keys + Instagram credentials
-    4 · Set up an offline AI model via Ollama
-    5 · Configure remote access (ngrok or port forwarding)
-    6 · Generate API token & initialise database
+    4 · Set up an offline AI model via Ollama  (qwen3-vl:4b)
+    5 · Set up offline audio transcription     (Whisper + ffmpeg)
+    6 · Configure remote access (ngrok or port forwarding)
+    7 · Generate API token & initialise database
 
   Press {BOLD}Enter{RESET} to accept defaults shown in [{DIM}brackets{RESET}].
   You can re-run this wizard any time with:  {BOLD}python start.py --reset{RESET}
@@ -425,6 +511,7 @@ def main():
         install_deps()
         setup_api_keys()
         setup_ollama()
+        setup_whisper()
         setup_ngrok()
         setup_token_and_db()
     except KeyboardInterrupt:
