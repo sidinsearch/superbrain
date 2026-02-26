@@ -103,6 +103,25 @@ def run_q(cmd, **kwargs):
     """Run a command silently, capture output."""
     return subprocess.run(cmd, check=True, capture_output=True, text=True, **kwargs)
 
+# ── Helpers for live output displays ───────────────────────────────────────────────
+BAR_WIDTH = 36
+
+def _ascii_bar(completed: int, total: int, width: int = BAR_WIDTH) -> str:
+    """Return a coloured ASCII progress bar string."""
+    if total <= 0:
+        return ""
+    pct  = min(completed / total, 1.0)
+    fill = int(width * pct)
+    bar  = f"{GREEN}{'█' * fill}{DIM}{'░' * (width - fill)}{RESET}"
+    mb_d = completed / 1_048_576
+    mb_t = total    / 1_048_576
+    return f"[{bar}] {mb_d:6.1f} / {mb_t:.1f} MB  {pct*100:5.1f}%"
+
+def _overwrite(line: str):
+    """Overwrite the current terminal line in-place."""
+    sys.stdout.write(f"\r  {line}")
+    sys.stdout.flush()
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Step 1 — Virtual Environment
 # ══════════════════════════════════════════════════════════════════════════════
@@ -119,7 +138,7 @@ def setup_venv():
 # Step 2 — Install Dependencies
 # ══════════════════════════════════════════════════════════════════════════════
 def install_deps():
-    h1("Step 2 of 6 — Installing Python Dependencies")
+    h1("Step 2 of 7 — Installing Python Dependencies")
     req = BASE_DIR / "requirements.txt"
     if not req.exists():
         err("requirements.txt not found — cannot install dependencies.")
@@ -129,9 +148,69 @@ def install_deps():
     run([str(VENV_PYTHON), "-m", "pip", "install", "--quiet", "--upgrade", "pip"])
     ok("pip up to date")
 
-    h2("Installing packages from requirements.txt (this may take a few minutes) …")
-    run([str(VENV_PIP), "install", "--quiet", "-r", str(req)])
-    ok("All dependencies installed")
+    h2("Installing packages from requirements.txt …")
+    nl()
+
+    # ── stream pip output and display each package live ────────────────────────
+    cmd = [str(VENV_PIP), "install", "--progress-bar", "off", "-r", str(req)]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            text=True, bufsize=1)
+
+    collecting: list[str] = []
+    n_cached   = 0
+    n_download = 0
+    n_install  = 0
+    current_pkg = ""
+
+    for raw in proc.stdout:  # type: ignore[union-attr]
+        line = raw.rstrip()
+        if not line:
+            continue
+
+        if line.startswith("Collecting "):
+            pkg = line.split()[1]
+            current_pkg = pkg
+            collecting.append(pkg)
+            idx = len(collecting)
+            print(f"  {CYAN}↓{RESET}  [{idx:>3}] {BOLD}{pkg}{RESET}")
+
+        elif "Downloading" in line and ".whl" in line or ".tar.gz" in line:
+            # e.g. "  Downloading fastapi-0.111.0-py3..whl (92 kB)"
+            parts = line.strip().split()
+            if len(parts) >= 2:
+                filename = parts[1]
+                size_str = " ".join(parts[2:]).strip("()")
+                print(f"       {DIM}↓ {filename}  {size_str}{RESET}")
+            n_download += 1
+
+        elif line.strip().startswith("Requirement already satisfied"):
+            n_cached += 1
+
+        elif line.startswith("Installing collected packages:"):
+            pkgs = line.split(":", 1)[1].strip()
+            n_install = len(pkgs.split(","))
+            nl()
+            print(f"  {BLUE}{BOLD}  ▶  Linking {n_install} package(s) into virtual environment …{RESET}")
+
+        elif line.startswith("Successfully installed"):
+            tail = line.replace("Successfully installed", "").strip()
+            count = len(tail.split())
+            nl()
+            ok(f"{count} package(s) installed successfully")
+            if n_cached:
+                info(f"{n_cached} package(s) already satisfied (cached)")
+
+        elif line.upper().startswith("WARNING") or line.upper().startswith("DEPRECATION"):
+            pass   # suppress pip noise
+
+        else:
+            # Any other line (build output, etc.) show dimmed
+            if line.strip():
+                print(f"       {DIM}{line.strip()}{RESET}")
+
+    proc.wait()
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, cmd)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Step 3 — API Keys
@@ -248,13 +327,78 @@ def setup_ollama():
     custom = ask(f"Model to pull", default=OLLAMA_MODEL)
     model  = custom or OLLAMA_MODEL
 
-    h2(f"Pulling {model} (downloads ~3 GB — grab a coffee ☕) …")
+    h2(f"Pulling {model} — this downloads ~3 GB, grab a coffee ☕")
+    nl()
     try:
-        run(["ollama", "pull", model])
-        ok(f"Model {model} ready")
+        _ollama_pull_with_progress(model)
     except subprocess.CalledProcessError:
         err(f"Failed to pull {model}.")
         warn(f"Run manually later:  ollama pull {model}")
+
+def _ollama_pull_with_progress(model: str):
+    """Run `ollama pull` and render a live per-layer progress bar."""
+    import json as _json
+
+    cmd = ["ollama", "pull", model]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            text=True, bufsize=1)
+
+    # digest → (total_bytes, completed_bytes, short_label)
+    layers: dict[str, tuple[int, int, str]] = {}
+    last_status = ""
+    active_digest = ""
+    render_line   = False   # True while a progress bar is being overwritten
+
+    for raw in proc.stdout:  # type: ignore[union-attr]
+        raw = raw.strip()
+        if not raw:
+            continue
+
+        # Ollama outputs plain-text lines (not JSON) when not a TTY — accept both
+        try:
+            data = _json.loads(raw)
+        except _json.JSONDecodeError:
+            # plain text line from older Ollama or piped output
+            if render_line:
+                sys.stdout.write("\n"); render_line = False
+            if raw != last_status:
+                last_status = raw
+                print(f"  {CYAN}→{RESET}  {raw}")
+            continue
+
+        status   = data.get("status",    "")
+        digest   = data.get("digest",    "")
+        total    = int(data.get("total",    0))
+        completed= int(data.get("completed",0))
+
+        if digest and total > 0:
+            short = (digest.split(":")[-1])[:12]  # e.g. "a1b2c3d4e5f6"
+            layers[digest] = (total, completed, short)
+            active_digest  = digest
+            bar = _ascii_bar(completed, total)
+            _overwrite(f"{DIM}{short}{RESET}  {bar}")
+            render_line = True
+
+        elif status and status != last_status:
+            if render_line:
+                sys.stdout.write("\n"); render_line = False
+            last_status = status
+            # Show a checkmark when a layer finishes
+            done_statuses = ("verifying sha256 digest", "writing manifest",
+                             "removing any unused layers", "success")
+            if any(s in status.lower() for s in done_statuses):
+                print(f"  {GREEN}✓{RESET}  {status}")
+            else:
+                print(f"  {CYAN}→{RESET}  {status}")
+
+    if render_line:
+        sys.stdout.write("\n"); render_line = False
+
+    proc.wait()
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, cmd)
+
+    ok(f"Model {model} ready")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Step 5 — Whisper / Offline Transcription
@@ -324,9 +468,12 @@ def setup_whisper():
         model = "base"
 
     h2(f"Pre-downloading Whisper '{model}' model …")
+    print(f"  {DIM}(Whisper's own progress bar will appear below){RESET}\n")
     try:
+        # Don't capture: let tqdm's download progress bars stream to the terminal
         run([str(VENV_PYTHON), "-c",
-             f"import whisper; whisper.load_model('{model}')"])
+             f"import whisper; print('Loading model …'); whisper.load_model('{model}'); print('Done.')"])
+        nl()
         ok(f"Whisper '{model}' model downloaded and cached")
     except subprocess.CalledProcessError:
         err(f"Pre-download failed — Whisper will download '{model}' automatically on first use.")
