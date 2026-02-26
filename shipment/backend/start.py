@@ -609,8 +609,86 @@ def setup_token_and_db():
 # ══════════════════════════════════════════════════════════════════════════════
 # Launch Backend
 # ══════════════════════════════════════════════════════════════════════════════
+def _check_port(port: int) -> int | None:
+    """Return the PID occupying `port`, or None if free."""
+    import socket as _socket
+    with _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM) as s:
+        s.settimeout(0.5)
+        if s.connect_ex(("127.0.0.1", port)) != 0:
+            return None   # port is free
+
+    # Port is busy — try to find the PID
+    try:
+        if IS_WINDOWS:
+            out = run_q(["netstat", "-ano"]).stdout
+            for line in out.splitlines():
+                if f":{port}" in line and "LISTENING" in line:
+                    return int(line.strip().split()[-1])
+        else:
+            out = run_q(["lsof", "-ti", f"TCP:{port}", "-sTCP:LISTEN"]).stdout.strip()
+            if out:
+                return int(out.splitlines()[0])
+    except Exception:
+        pass
+    return -1   # busy but PID unknown
+
 def launch_backend():
     h1("Launching SuperBrain Backend")
+
+    # ── Port conflict check ───────────────────────────────────────────────────
+    PORT = 5000
+    pid = _check_port(PORT)
+    if pid is not None:
+        if pid > 0:
+            warn(f"Port {PORT} is already in use by PID {BOLD}{pid}{RESET}.")
+        else:
+            warn(f"Port {PORT} is already in use (PID unknown).")
+
+        nl()
+        print(f"  This is usually a previous SuperBrain server that wasn't stopped.")
+        print(f"  Options:")
+        print(f"    {BOLD}1{RESET}  Kill the existing process and start fresh  {DIM}(recommended){RESET}")
+        print(f"    {BOLD}2{RESET}  Exit — I'll stop it manually then re-run start.py")
+        nl()
+        choice = input(f"  {BOLD}Choose [1/2]{RESET}: ").strip()
+
+        if choice != "1":
+            nl()
+            if pid and pid > 0:
+                info(f"Stop it with:  kill {pid}")
+            else:
+                info(f"Find what's on port {PORT}:  lsof -i :{PORT}   (Linux/macOS)")
+                info(f"                              netstat -ano | findstr :{PORT}   (Windows)")
+            info("Then re-run:  python start.py")
+            sys.exit(0)
+
+        # Kill it
+        try:
+            if pid and pid > 0:
+                if IS_WINDOWS:
+                    run(["taskkill", "/PID", str(pid), "/F"])
+                else:
+                    import signal as _sig
+                    os.kill(pid, _sig.SIGTERM)
+                time.sleep(1)
+                # If still alive, SIGKILL
+                try:
+                    os.kill(pid, 0)   # check if process exists
+                    os.kill(pid, _sig.SIGKILL)
+                    time.sleep(0.5)
+                except ProcessLookupError:
+                    pass
+                ok(f"Process {pid} stopped")
+            else:
+                # Unknown PID — ask user to do it
+                err("Cannot determine PID automatically.")
+                info(f"Run:  lsof -ti TCP:{PORT} -sTCP:LISTEN | xargs kill -9")
+                info("Then re-run:  python start.py")
+                sys.exit(1)
+        except Exception as e:
+            err(f"Failed to kill process: {e}")
+            info(f"Try manually:  kill -9 {pid}")
+            sys.exit(1)
 
     token = TOKEN_FILE.read_text().strip() if TOKEN_FILE.exists() else "—"
     try:
@@ -622,9 +700,9 @@ def launch_backend():
     print(f"""
   {GREEN}{BOLD}Backend is starting up!{RESET}
 
-  Local URL    →  {CYAN}http://127.0.0.1:5000{RESET}
-  Network URL  →  {CYAN}http://{local_ip}:5000{RESET}
-  API docs     →  {CYAN}http://127.0.0.1:5000/docs{RESET}
+  Local URL    →  {CYAN}http://127.0.0.1:{PORT}{RESET}
+  Network URL  →  {CYAN}http://{local_ip}:{PORT}{RESET}
+  API docs     →  {CYAN}http://127.0.0.1:{PORT}/docs{RESET}
   API Token    →  {BOLD}{token}{RESET}
 
   {DIM}Keep this terminal open. Press Ctrl+C to stop the server.{RESET}
@@ -633,16 +711,16 @@ def launch_backend():
     1. Build / install the SuperBrain APK on your Android device.
     2. Open the app → tap the ⚙ settings icon.
     3. Set {BOLD}Server URL{RESET} to:
-         · Same WiFi  →  http://{local_ip}:5000
+         · Same WiFi  →  http://{local_ip}:{PORT}
          · ngrok      →  https://<your-subdomain>.ngrok-free.app
-         · Port fwd   →  http://<your-public-ip>:5000
+         · Port fwd   →  http://<your-public-ip>:{PORT}
     4. Set {BOLD}API Token{RESET} to: {BOLD}{token}{RESET}
     5. Tap {BOLD}Save{RESET} — you're good to go!
 """)
 
     os.chdir(BASE_DIR)
     os.execv(str(VENV_PYTHON), [str(VENV_PYTHON), "-m", "uvicorn", "api:app",
-                                 "--host", "0.0.0.0", "--port", "5000", "--reload"])
+                                 "--host", "0.0.0.0", "--port", str(PORT), "--reload"])
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Main
