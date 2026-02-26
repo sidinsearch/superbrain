@@ -101,12 +101,34 @@ def _remove_dir(path: Path, label: str):
 # ── Reset actions ─────────────────────────────────────────────────────────────
 def reset_api_keys():
     h1("Reset — API Keys")
-    warn("This removes your Gemini / Groq / OpenRouter keys and Instagram credentials.")
+    warn("This removes ALL keys: Gemini / Groq / OpenRouter / AudD and Instagram credentials.")
     if not ask_yn("Continue?", default=False):
         info("Skipped.")
         return
     _remove_file(API_KEYS, "API keys file (config/.api_keys)")
     ok("Run  python start.py --reset  to re-enter keys.")
+
+def reset_audd_key():
+    h1("Reset — AudD Music Recognition Key")
+    info("Clears only the AudD key. The free 'test' token (~10/day) will be used.")
+    info("Get a free 300/day key at  https://dashboard.audd.io")
+    if not ask_yn("Continue?", default=False):
+        info("Skipped.")
+        return
+    if not API_KEYS.exists():
+        warn("config/.api_keys not found — nothing to clear.")
+        return
+    lines = API_KEYS.read_text().splitlines(keepends=True)
+    new_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("AUDD_API_KEY="):
+            new_lines.append("AUDD_API_KEY=\n")
+        else:
+            new_lines.append(line)
+    API_KEYS.write_text("".join(new_lines))
+    ok("AudD key cleared. SuperBrain will use the free 'test' token.")
+    ok("Run  python start.py --reset  to set a new key without losing other settings.")
 
 def reset_ngrok():
     h1("Reset — ngrok Token")
@@ -171,7 +193,7 @@ def full_reset():
     h1("Full Reset — Wipe Everything")
     nl()
     print(f"  This will delete:")
-    print(f"    {RED}·{RESET}  API keys  (config/.api_keys)")
+    print(f"    {RED}·{RESET}  API keys  (config/.api_keys)  — includes AudD key")
     print(f"    {RED}·{RESET}  ngrok token  (config/ngrok_token.txt)")
     print(f"    {RED}·{RESET}  API token  (token.txt)")
     print(f"    {RED}·{RESET}  Database  (superbrain.db)")
@@ -208,26 +230,28 @@ def full_reset():
 
 # ── Interactive menu ──────────────────────────────────────────────────────────
 MENU_ITEMS = [
-    ("1", "API Keys          (config/.api_keys)"),
-    ("2", "ngrok Token        (config/ngrok_token.txt)"),
-    ("3", "API Token          (token.txt)"),
-    ("4", "Database           (superbrain.db)  ⚠ all posts & collections"),
-    ("5", "Temporary Files    (temp/)"),
-    ("6", "Instagram Session  (force fresh login)"),
-    ("7", "Virtual Environment (.venv/)  ⚠ must reinstall packages"),
-    ("8", f"{RED}{BOLD}Full Reset{RESET}          — wipe everything listed above"),
+    ("1", "API Keys          (config/.api_keys)  — all keys + Instagram"),
+    ("2", "AudD Key           (music recognition only)"),
+    ("3", "ngrok Token        (config/ngrok_token.txt)"),
+    ("4", "API Token          (token.txt)"),
+    ("5", "Database           (superbrain.db)  ⚠ all posts & collections"),
+    ("6", "Temporary Files    (temp/)"),
+    ("7", "Instagram Session  (force fresh login)"),
+    ("8", "Virtual Environment (.venv/)  ⚠ must reinstall packages"),
+    ("9", f"{RED}{BOLD}Full Reset{RESET}          — wipe everything listed above"),
     ("q", "Quit"),
 ]
 
 ACTIONS = {
     "1": reset_api_keys,
-    "2": reset_ngrok,
-    "3": reset_api_token,
-    "4": reset_database,
-    "5": reset_temp,
-    "6": reset_instagram_session,
-    "7": reset_venv,
-    "8": full_reset,
+    "2": reset_audd_key,
+    "3": reset_ngrok,
+    "4": reset_api_token,
+    "5": reset_database,
+    "6": reset_temp,
+    "7": reset_instagram_session,
+    "8": reset_venv,
+    "9": full_reset,
 }
 
 def menu():
