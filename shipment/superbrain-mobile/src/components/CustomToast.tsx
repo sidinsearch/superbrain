@@ -74,7 +74,7 @@ const CustomToast: React.FC<CustomToastProps> = ({
       case 'warning':
         return { backgroundColor: colors.warning, icon: '⚠' };
       default:
-        return { backgroundColor: colors.info, icon: 'ℹ' };
+        return { backgroundColor: colors.info, icon: '🧠' };
     }
   };
 

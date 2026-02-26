@@ -665,10 +665,10 @@ const HomeScreen = () => {
         </View>
       ) : filteredPosts.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>🧠</Text>
-          <Text style={styles.emptyTitle}>No Posts Yet</Text>
+          <Text style={styles.emptyIcon}>📭</Text>
+          <Text style={styles.emptyTitle}>No Posts Found</Text>
           <Text style={styles.emptyText}>
-            {searchQuery ? 'Try a different search term' : 'Share something to get started'}
+            {searchQuery ? 'Try a different search term' : 'Start analyzing share content to build your library'}
           </Text>
         </View>
       ) : (
