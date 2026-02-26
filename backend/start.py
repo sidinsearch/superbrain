@@ -225,10 +225,77 @@ def install_deps():
         raise subprocess.CalledProcessError(proc.returncode, cmd)
 
 # ══════════════════════════════════════════════════════════════════════════════
+# ── API key validators ────────────────────────────────────────────────────────
+def _validate_gemini(key: str) -> tuple[bool, str]:
+    """Hit the Gemini models list endpoint — any valid key returns 200."""
+    try:
+        import urllib.request as _r, json as _j
+        req = _r.Request(
+            f"https://generativelanguage.googleapis.com/v1beta/models?key={key}",
+            headers={"Accept": "application/json"})
+        with _r.urlopen(req, timeout=8) as resp:
+            data = _j.loads(resp.read())
+            count = len(data.get("models", []))
+            return True, f"{count} models accessible"
+    except Exception as e:
+        msg = str(e)
+        if "403" in msg or "400" in msg:
+            return False, "invalid key (403/400)"
+        if "401" in msg:
+            return False, "invalid key (401 Unauthorized)"
+        return False, f"could not verify ({msg[:60]})"
+
+def _validate_groq(key: str) -> tuple[bool, str]:
+    try:
+        import urllib.request as _r, json as _j
+        req = _r.Request("https://api.groq.com/openai/v1/models",
+                         headers={"Authorization": f"Bearer {key}",
+                                  "Accept": "application/json"})
+        with _r.urlopen(req, timeout=8) as resp:
+            data = _j.loads(resp.read())
+            count = len(data.get("data", []))
+            return True, f"{count} models accessible"
+    except Exception as e:
+        msg = str(e)
+        if "401" in msg or "400" in msg:
+            return False, "invalid key (401 Unauthorized)"
+        return False, f"could not verify ({msg[:60]})"
+
+def _validate_openrouter(key: str) -> tuple[bool, str]:
+    try:
+        import urllib.request as _r, json as _j
+        req = _r.Request("https://openrouter.ai/api/v1/auth/key",
+                         headers={"Authorization": f"Bearer {key}",
+                                  "Accept": "application/json"})
+        with _r.urlopen(req, timeout=8) as resp:
+            data = _j.loads(resp.read())
+            label = data.get("data", {}).get("label", "")
+            limit = data.get("data", {}).get("rate_limit", {})
+            detail = label or "key valid"
+            return True, detail
+    except Exception as e:
+        msg = str(e)
+        if "401" in msg or "403" in msg or "400" in msg:
+            return False, "invalid key"
+        return False, f"could not verify ({msg[:60]})"
+
+def _check_and_report(name: str, key: str, validator) -> str:
+    """Validate `key`, print result inline, return the key unchanged."""
+    if not key:
+        return key
+    print(f"  {DIM}Checking {name} key …{RESET}", end="", flush=True)
+    ok_flag, detail = validator(key)
+    if ok_flag:
+        print(f"\r  {GREEN}✓{RESET}  {name}: {detail}                       ")
+    else:
+        print(f"\r  {YELLOW}⚠{RESET}  {name}: {detail}                       ")
+        warn(f"The key may be wrong — double-check at the provider dashboard.")
+    return key
+
 # Step 3 — API Keys
 # ══════════════════════════════════════════════════════════════════════════════
 def setup_api_keys():
-    h1("Step 3 of 6 — AI Provider API Keys")
+    h1("Step 3 of 7 — AI Provider API Keys")
 
     print(f"""
   SuperBrain uses AI providers to analyse your saved content.
@@ -256,8 +323,11 @@ def setup_api_keys():
                 existing[k.strip()] = v.strip()
 
     gemini   = ask("Gemini API key",      default=existing.get("GEMINI_API_KEY"),      paste=True) or ""
+    gemini   = _check_and_report("Gemini",      gemini, _validate_gemini)
     groq_k   = ask("Groq API key",        default=existing.get("GROQ_API_KEY"),        paste=True) or ""
+    groq_k   = _check_and_report("Groq",        groq_k, _validate_groq)
     openr    = ask("OpenRouter API key",  default=existing.get("OPENROUTER_API_KEY"),  paste=True) or ""
+    openr    = _check_and_report("OpenRouter",  openr,  _validate_openrouter)
 
     if not any([gemini, groq_k, openr]):
         warn("No AI keys entered. SuperBrain will still work but can only use")
