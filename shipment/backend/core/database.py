@@ -12,7 +12,7 @@ from pathlib import Path
 from datetime import datetime
 
 # Database file lives at the backend root
-DB_PATH = Path(__file__).parent.parent / 'superbrain.db'
+DB_PATH = Path(__file__).resolve().parent.parent / 'superbrain.db'
 
 
 class Database:
