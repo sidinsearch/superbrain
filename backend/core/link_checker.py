@@ -18,7 +18,68 @@ Returns a unified dict with:
 
 import re
 import hashlib
+import requests
 from urllib.parse import urlparse, parse_qs
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Short-URL resolver
+# ─────────────────────────────────────────────────────────────────────────────
+
+_SHORT_URL_DOMAINS = {
+    "share.google",
+    "goo.gl",
+    "bit.ly",
+    "t.co",
+    "tinyurl.com",
+    "ow.ly",
+    "buff.ly",
+    "short.gy",
+    "rb.gy",
+    "shorturl.at",
+    "is.gd",
+    "v.gd",
+    "cutt.ly",
+}
+
+
+def _is_short_url(netloc: str) -> bool:
+    """Return True if the domain is a known URL shortener."""
+    netloc = netloc.lower().lstrip("www.")
+    return any(netloc == d or netloc.endswith("." + d) for d in _SHORT_URL_DOMAINS)
+
+
+_MOBILE_UA = (
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/122.0.0.0 Mobile Safari/537.36"
+)
+
+
+def _resolve_url(url: str) -> str:
+    """Follow redirects and return the final URL. Returns original on failure."""
+    headers = {"User-Agent": _MOBILE_UA}
+    try:
+        # GET with stream so we don't download the body, just follow redirects
+        resp = requests.get(
+            url, allow_redirects=True, timeout=10, stream=True,
+            headers=headers,
+        )
+        resp.close()
+        return resp.url
+    except Exception:
+        return url
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Text → URL extractor
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Matches any bare http/https URL in free text (e.g. "Title - Site https://...")
+_URL_IN_TEXT_RE = re.compile(
+    r'https?://[^\s"<>]+',
+    re.IGNORECASE,
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -146,6 +207,11 @@ def validate_link(url: str) -> dict:
     """
     Validate any URL and detect its content type.
 
+    Handles:
+    - Plain URLs:        https://example.com/article
+    - Short URLs:        share.google/xxx, bit.ly/xxx  → resolved to final URL
+    - Title + URL text: "Some Title https://example.com" → URL extracted
+
     Returns:
         {
             'valid'        : bool,
@@ -165,6 +231,14 @@ def validate_link(url: str) -> dict:
 
     url = url.strip()
 
+    # ── Step 1: If input is "Title https://url" style text, extract the URL ──
+    # Only attempt extraction when the full string doesn't parse as a URL
+    _quick = urlparse(url)
+    if _quick.scheme not in ("http", "https"):
+        matches = _URL_IN_TEXT_RE.findall(url)
+        if matches:
+            url = matches[0].rstrip(".,);")
+
     try:
         parsed = urlparse(url)
     except Exception as e:
@@ -173,6 +247,16 @@ def validate_link(url: str) -> dict:
             "shortcode": None, "video_id": None,
             "error": f"Invalid URL format: {e}", "url": url,
         }
+
+    # ── Step 2: Resolve short / redirect URLs before further validation ──
+    if _is_short_url(parsed.netloc):
+        resolved = _resolve_url(url)
+        if resolved != url:
+            url = resolved
+            try:
+                parsed = urlparse(url)
+            except Exception:
+                pass
 
     result = _validate_instagram(url, parsed)
     if result is not None:
