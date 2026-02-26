@@ -77,10 +77,22 @@ def err(msg): print(f"  {RED}✗{RESET}  {msg}")
 def info(msg):print(f"  {DIM}{msg}{RESET}")
 def nl():     print()
 
-def ask(prompt, default=None, secret=False):
-    """Prompt user for input, supporting optional default + secret mode."""
-    display_default = f" [{DIM}{'••••' if secret and default else default}{RESET}]" if default else ""
+def ask(prompt, default=None, secret=False, paste=False):
+    """
+    Prompt for input.
+      secret=True  — uses getpass (hidden, no echo) — good for passwords typed char-by-char.
+      paste=True   — uses plain input (visible) so Ctrl+V / right-click paste works;
+                     existing value is shown as ●●●● to indicate something is already set.
+    """
+    if paste and default:
+        display_default = f" [{DIM}●●●● (already set — paste to replace){RESET}]"
+    elif default:
+        display_default = f" [{DIM}{default}{RESET}]"
+    else:
+        display_default = ""
+
     full_prompt = f"\n  {BOLD}{prompt}{RESET}{display_default}: "
+
     if secret:
         import getpass
         val = getpass.getpass(full_prompt)
@@ -231,6 +243,7 @@ def setup_api_keys():
     OpenRouter  →  {CYAN}https://openrouter.ai/keys{RESET}
 
   Press {BOLD}Enter{RESET} to skip any key you don't have yet.
+  {DIM}Keys will be visible as you paste — that's intentional.{RESET}
 """)
 
     # Load existing values if re-running
@@ -242,9 +255,9 @@ def setup_api_keys():
                 k, _, v = line.partition("=")
                 existing[k.strip()] = v.strip()
 
-    gemini   = ask("Gemini API key",      default=existing.get("GEMINI_API_KEY"),      secret=True) or ""
-    groq_k   = ask("Groq API key",        default=existing.get("GROQ_API_KEY"),        secret=True) or ""
-    openr    = ask("OpenRouter API key",  default=existing.get("OPENROUTER_API_KEY"),  secret=True) or ""
+    gemini   = ask("Gemini API key",      default=existing.get("GEMINI_API_KEY"),      paste=True) or ""
+    groq_k   = ask("Groq API key",        default=existing.get("GROQ_API_KEY"),        paste=True) or ""
+    openr    = ask("OpenRouter API key",  default=existing.get("OPENROUTER_API_KEY"),  paste=True) or ""
 
     if not any([gemini, groq_k, openr]):
         warn("No AI keys entered. SuperBrain will still work but can only use")
@@ -537,7 +550,7 @@ def setup_ngrok():
         return
 
     ok("ngrok binary found")
-    token = ask("ngrok authtoken (from dashboard.ngrok.com/get-started/your-authtoken)", secret=True)
+    token = ask("ngrok authtoken (from dashboard.ngrok.com/get-started/your-authtoken)", paste=True)
     if not token:
         warn("No token entered — skipping ngrok configuration.")
         return
