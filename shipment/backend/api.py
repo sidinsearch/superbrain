@@ -7,6 +7,7 @@ With request queuing, live progress logging, and API key authentication
 
 from fastapi import FastAPI, HTTPException, Query, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, HttpUrl
 from typing import Optional, List
 import subprocess
@@ -95,6 +96,16 @@ app.add_middleware(
 
 # Request queue management (persistent)
 max_concurrent = 1  # Process one post at a time - queue others sequentially
+
+_STATIC_DIR = Path(__file__).parent / "static"
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    ico = _STATIC_DIR / "favicon.ico"
+    if ico.exists():
+        return FileResponse(str(ico), media_type="image/x-icon")
+    from fastapi.responses import Response
+    return Response(status_code=204)
 
 # Shared Instaloader instance for caption fetching (reuse session to avoid rate limits)
 caption_loader = None
