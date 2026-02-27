@@ -96,7 +96,7 @@ const HomeScreen = () => {
         await AsyncStorage.setItem('@superbrain_onboarded', '1');
         return;
       }
-      setShowOnboarding(true);
+      setTimeout(() => setShowOnboarding(true), 1700);
     } catch { /* ignore */ }
   };
 
@@ -373,22 +373,20 @@ const HomeScreen = () => {
           key={post.shortcode}
           style={[styles.landscapeCard, isSelected && styles.cardSelected]}
           onPress={() => {
+            if (selectionMode) {
+              togglePostSelection(post.shortcode);
+              return;
+            }
             if (isAnalyzing || post.processing) {
               setToast({ visible: true, message: '✨ Post is being analyzed...', type: 'warning' });
               return;
             }
-            if (selectionMode) {
-              togglePostSelection(post.shortcode);
-            } else {
-              navigation.navigate('PostDetail', { post });
-            }
+            navigation.navigate('PostDetail', { post });
           }}
           onLongPress={() => {
-            if (!isAnalyzing && !post.processing) {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              setSelectionMode(true);
-              togglePostSelection(post.shortcode);
-            }
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            setSelectionMode(true);
+            togglePostSelection(post.shortcode);
           }}
           activeOpacity={0.9}
         >
@@ -448,22 +446,20 @@ const HomeScreen = () => {
         key={post.shortcode}
         style={[styles.compactCard, isSelected && styles.cardSelected]}
         onPress={() => {
+          if (selectionMode) {
+            togglePostSelection(post.shortcode);
+            return;
+          }
           if (isAnalyzing || post.processing) {
             setToast({ visible: true, message: '✨ Post is being analyzed...', type: 'warning' });
             return;
           }
-          if (selectionMode) {
-            togglePostSelection(post.shortcode);
-          } else {
-            navigation.navigate('PostDetail', { post });
-          }
+          navigation.navigate('PostDetail', { post });
         }}
         onLongPress={() => {
-          if (!isAnalyzing && !post.processing) {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            setSelectionMode(true);
-            togglePostSelection(post.shortcode);
-          }
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          setSelectionMode(true);
+          togglePostSelection(post.shortcode);
         }}
         activeOpacity={0.9}
       >
@@ -665,10 +661,10 @@ const HomeScreen = () => {
         </View>
       ) : filteredPosts.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>🧠</Text>
-          <Text style={styles.emptyTitle}>No Posts Yet</Text>
+          <Text style={styles.emptyIcon}>📭</Text>
+          <Text style={styles.emptyTitle}>No Posts Found</Text>
           <Text style={styles.emptyText}>
-            {searchQuery ? 'Try a different search term' : 'Share something to get started'}
+            {searchQuery ? 'Try a different search term' : 'Start analyzing share content to build your library'}
           </Text>
         </View>
       ) : (
