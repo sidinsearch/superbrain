@@ -62,6 +62,7 @@ const HomeScreen = () => {
   const [isConfigured, setIsConfigured] = useState(true);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const loadPostsRef = useRef<(forceRefresh?: boolean) => Promise<void>>();
+  const prevProcessingRef = useRef<number>(0); // tracks backend processing_count across poll ticks
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
 
@@ -187,8 +188,8 @@ const HomeScreen = () => {
       const fetchedPosts = await apiService.getRecentPosts(50);
       console.log('HomeScreen - Fetched', fetchedPosts.length, 'posts from server');
       
-      if (fetchedPosts.length > 0) {
-        // Clear analyzing state for any posts that are now done on the server
+      if (fetchedPosts.length > 0 || postsCache.getAnalyzingPosts().length > 0) {
+        // Clear analyzing state for posts that are now done on the server
         const prevAnalyzing = postsCache.getAnalyzingPosts();
         for (const shortcode of prevAnalyzing) {
           const serverPost = fetchedPosts.find(p => p.shortcode === shortcode);
@@ -198,22 +199,61 @@ const HomeScreen = () => {
           }
         }
 
-        setPosts(fetchedPosts);
-        await postsCache.savePosts(fetchedPosts);
+        // After clearing completed ones, get the remaining still-analyzing shortcodes
+        const stillAnalyzing = postsCache.getAnalyzingPosts();
 
-        // Re-check after clearing completed analyzing states
-        const hasAnalyzing = fetchedPosts.some(post =>
-          postsCache.isAnalyzing(post.shortcode) || post.processing
+        // Preserve analyzing placeholders that haven't appeared on the server yet.
+        // Without this, setPosts(fetchedPosts) would wipe the "Analyzing..." card
+        // because the backend only returns posts that are fully saved to the DB.
+        const analyzingPlaceholders = (cachedPosts || []).filter(
+          p => stillAnalyzing.includes(p.shortcode) && !fetchedPosts.find(fp => fp.shortcode === p.shortcode)
         );
 
+        // Merge: placeholders first (at top), then server posts (de-duped)
+        const mergedPosts = [
+          ...analyzingPlaceholders,
+          ...fetchedPosts.filter(p => !stillAnalyzing.includes(p.shortcode)),
+        ];
+
+        setPosts(mergedPosts);
+        await postsCache.savePosts(mergedPosts);
+
+        // hasAnalyzing is true as long as ANY shortcode is still in the analyzing set
+        const hasAnalyzing = stillAnalyzing.length > 0;
+
         if (hasAnalyzing && !pollIntervalRef.current) {
-          console.log('HomeScreen - Starting polling for analyzing posts');
-          pollIntervalRef.current = setInterval(() => {
-            console.log('HomeScreen - Polling for updates...');
-            loadPostsRef.current?.(true); // always calls the latest loadPosts, never stale
-          }, 3000);
+          // Start a lightweight /queue-status poller instead of calling /recent every tick.
+          // Only fires a full loadPosts when backend signals it just finished processing.
+          console.log('HomeScreen - Starting queue-status watcher');
+          // Seed the counter so first tick has a baseline to detect transition
+          apiService.getQueueStatus().then(s => {
+            prevProcessingRef.current = s ? s.processing_count + s.queue_count : 1;
+          }).catch(() => { prevProcessingRef.current = 1; });
+
+          pollIntervalRef.current = setInterval(async () => {
+            try {
+              const status = await apiService.getQueueStatus();
+              if (!status) return;
+              const total = status.processing_count + status.queue_count;
+              const wasActive = prevProcessingRef.current > 0;
+              const nowIdle = total === 0;
+              prevProcessingRef.current = total;
+
+              if (wasActive && nowIdle) {
+                // Backend just finished — fetch the completed post now
+                console.log('HomeScreen - Backend finished processing, refreshing...');
+                loadPostsRef.current?.(true);
+              } else if (nowIdle && postsCache.getAnalyzingPosts().length === 0) {
+                // Nothing left to track — stop watching
+                console.log('HomeScreen - Nothing analyzing, stopping watcher');
+                clearInterval(pollIntervalRef.current!);
+                pollIntervalRef.current = null;
+              }
+            } catch { /* network hiccup — keep polling */ }
+          }, 2000);
+
         } else if (!hasAnalyzing && pollIntervalRef.current) {
-          console.log('HomeScreen - Stopping polling, all posts analyzed');
+          console.log('HomeScreen - Stopping watcher, all posts analyzed');
           clearInterval(pollIntervalRef.current);
           pollIntervalRef.current = null;
         }
@@ -436,9 +476,9 @@ const HomeScreen = () => {
               <Text style={styles.analyzingText}>✨ Analyzing...</Text>
             </View>
           ) : post.processing ? (
-            <View style={styles.processingOverlay}>
+            <View style={styles.analyzingOverlay}>
               <ActivityIndicator size="large" color="#fff" />
-              <Text style={styles.processingText}>Processing...</Text>
+              <Text style={styles.analyzingText}>✨ Analyzing...</Text>
             </View>
           ) : null}
           {selectionMode ? (
@@ -501,9 +541,9 @@ const HomeScreen = () => {
             <Text style={styles.analyzingText}>✨ Analyzing...</Text>
           </View>
         ) : post.processing ? (
-          <View style={styles.processingOverlay}>
-            <ActivityIndicator size="small" color="#fff" />
-            <Text style={styles.processingTextSmall}>Processing...</Text>
+          <View style={styles.analyzingOverlay}>
+            <ActivityIndicator size="large" color="#fff" />
+            <Text style={styles.analyzingText}>✨ Analyzing...</Text>
           </View>
         ) : null}
         {selectionMode ? (
