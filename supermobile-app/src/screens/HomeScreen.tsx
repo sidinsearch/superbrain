@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -60,7 +60,7 @@ const HomeScreen = () => {
   const [toast, setToast] = useState({ visible: false, message: '', type: 'info' as 'success' | 'error' | 'warning' | 'info' });
   const [isInitialized, setIsInitialized] = useState(false);
   const [isConfigured, setIsConfigured] = useState(true);
-  const [pollInterval, setPollInterval] = useState<NodeJS.Timeout | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
 
@@ -68,8 +68,9 @@ const HomeScreen = () => {
     initializeAndLoad();
     checkFirstLaunch();
     return () => {
-      if (pollInterval) {
-        clearInterval(pollInterval);
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
       }
     };
   }, []);
@@ -204,17 +205,16 @@ const HomeScreen = () => {
           postsCache.isAnalyzing(post.shortcode) || post.processing
         );
 
-        if (hasAnalyzing && !pollInterval) {
+        if (hasAnalyzing && !pollIntervalRef.current) {
           console.log('HomeScreen - Starting polling for analyzing posts');
-          const interval = setInterval(() => {
+          pollIntervalRef.current = setInterval(() => {
             console.log('HomeScreen - Polling for updates...');
             loadPosts(true);
-          }, 3000); // Poll every 3 seconds for near-instant update
-          setPollInterval(interval);
-        } else if (!hasAnalyzing && pollInterval) {
-          console.log('HomeScreen - Stopping polling, no analyzing posts');
-          clearInterval(pollInterval);
-          setPollInterval(null);
+          }, 3000); // Poll every 3 seconds, fires loadPosts which always reads fresh ref
+        } else if (!hasAnalyzing && pollIntervalRef.current) {
+          console.log('HomeScreen - Stopping polling, all posts analyzed');
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
         }
       } else if (!cachedPosts || cachedPosts.length === 0) {
         console.log('HomeScreen - No posts found on server');
