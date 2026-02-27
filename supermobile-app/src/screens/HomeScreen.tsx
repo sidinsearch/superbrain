@@ -181,10 +181,12 @@ const HomeScreen = () => {
         setPosts(cachedPosts);
         setLoading(false); // Clear loading immediately when we have cache
         
-        // If cache is valid and not forcing refresh, we're done
+        // If cache is valid and not forcing refresh, we're done —
+        // BUT only skip the server fetch if there are NO analyzing posts.
+        // When posts are in-flight we must reach the watcher startup logic below.
         if (!forceRefresh) {
           const isValid = await postsCache.isCacheValid();
-          if (isValid) {
+          if (isValid && postsCache.getAnalyzingPosts().length === 0) {
             return;
           }
         }
@@ -242,7 +244,17 @@ const HomeScreen = () => {
           // the wasActive && nowIdle transition if the backend finishes quickly.
           prevProcessingRef.current = 1;
           apiService.getQueueStatus().then(s => {
-            if (s) prevProcessingRef.current = s.processing_count + s.queue_count || 1;
+            const total = s ? s.processing_count + s.queue_count : 0;
+            if (total === 0) {
+              // Backend already finished by the time we seeded — kick a refresh immediately
+              // and stop the watcher so we don't loop endlessly.
+              console.log('HomeScreen - Backend already idle on seed, refreshing now');
+              clearInterval(pollIntervalRef.current!);
+              pollIntervalRef.current = null;
+              loadPostsRef.current?.(true);
+            } else {
+              prevProcessingRef.current = total;
+            }
           }).catch(() => {});
 
           pollIntervalRef.current = setInterval(async () => {
