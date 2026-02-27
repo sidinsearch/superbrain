@@ -97,6 +97,10 @@ app.add_middleware(
 # Request queue management (persistent)
 max_concurrent = 1  # Process one post at a time - queue others sequentially
 
+# Track active analysis subprocesses so they can be killed on delete
+_active_processes: dict = {}        # shortcode -> subprocess.Popen
+_active_processes_lock = threading.Lock()
+
 _STATIC_DIR = Path(__file__).parent / "static"
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -185,11 +189,22 @@ def queue_worker():
                             text=True,
                             bufsize=1
                         )
-                        
+
+                        # Register so delete_post can kill it
+                        with _active_processes_lock:
+                            _active_processes[shortcode] = process
+
                         # Wait for completion
                         process.wait()
-                        
-                        if process.returncode == 0:
+
+                        with _active_processes_lock:
+                            _active_processes.pop(shortcode, None)
+
+                        # If the post was deleted while processing, skip queue cleanup
+                        # (delete_post already called remove_from_queue)
+                        if process.returncode == -9 or process.returncode == -15:
+                            logger.info(f"🛑 [{shortcode}] Analysis killed (post was deleted)")
+                        elif process.returncode == 0:
                             logger.info(f"✅ Queue item completed: {shortcode}")
                             db.remove_from_queue(shortcode)
                         elif process.returncode == 2:
@@ -199,8 +214,10 @@ def queue_worker():
                         else:
                             logger.error(f"❌ Queue item failed (rc={process.returncode}): {shortcode}")
                             db.remove_from_queue(shortcode)
-                        
+
                     except Exception as e:
+                        with _active_processes_lock:
+                            _active_processes.pop(shortcode, None)
                         logger.error(f"❌ Error processing queue item {shortcode}: {e}")
                         db.remove_from_queue(shortcode)
             
@@ -483,6 +500,8 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
                 cwd=str(Path(__file__).parent),
                 bufsize=1
             )
+            with _active_processes_lock:
+                _active_processes[shortcode] = proc
             lines = []
             for line in proc.stdout:
                 lines.append(line)
@@ -500,6 +519,8 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
                 elif "Cleaned up temp folder" in lc:
                     logger.info(f"🗑️ [{shortcode}] Phase 7: Cleanup complete")
             proc.wait()
+            with _active_processes_lock:
+                _active_processes.pop(shortcode, None)
             return proc.returncode, ''.join(lines), proc.stderr.read()
 
         returncode, stdout, stderr = await asyncio.to_thread(_run_subprocess)
@@ -859,11 +880,26 @@ async def queue_status(token: str = Depends(verify_token)):
 
 @app.delete("/post/{shortcode}")
 async def delete_post(shortcode: str, token: str = Depends(verify_token)):
-    """Delete a post by shortcode"""
+    """Delete a post by shortcode, killing any active analysis subprocess"""
     try:
         db = get_db()
+
+        # Kill active analysis subprocess if this post is currently being processed
+        with _active_processes_lock:
+            proc = _active_processes.pop(shortcode, None)
+        if proc and proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+            logger.info(f"🛑 Killed active analysis for: {shortcode}")
+
+        # Remove from queue (handles both 'queued' and 'processing' states)
+        db.remove_from_queue(shortcode)
+
         result = db.delete_post(shortcode)
-        
+
         if result:
             logger.info(f"✅ Deleted post: {shortcode}")
             return {
@@ -873,7 +909,7 @@ async def delete_post(shortcode: str, token: str = Depends(verify_token)):
             }
         else:
             raise HTTPException(status_code=404, detail="Post not found")
-            
+
     except HTTPException:
         raise
     except Exception as e:
