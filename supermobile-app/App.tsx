@@ -43,11 +43,17 @@ export default function App() {
     initializeApp();
 
     // Handle notification action buttons (e.g. "Mark as Watched")
+    // Fires when app is in foreground or background
     const notifSub = Notifications.addNotificationResponseReceivedListener(async response => {
       const { actionIdentifier, notification } = response;
       const shortcode = notification.request.content.data?.shortcode as string | undefined;
       if (actionIdentifier === 'mark_watched' && shortcode) {
         await handleMarkAsWatched(shortcode);
+      } else if (actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER) {
+        // User tapped the notification itself — navigate to Home so they see the post
+        if (navigationRef.current) {
+          navigationRef.current.navigate('Home');
+        }
       }
     });
     
@@ -96,6 +102,23 @@ export default function App() {
       
       // Initialize API service
       await apiService.initialize();
+
+      // Handle notification tap when app was fully killed
+      // addNotificationResponseReceivedListener doesn't fire in killed state,
+      // so we check getLastNotificationResponseAsync on every cold start
+      const lastResponse = await Notifications.getLastNotificationResponseAsync();
+      if (lastResponse) {
+        const { actionIdentifier, notification } = lastResponse;
+        const shortcode = notification.request.content.data?.shortcode as string | undefined;
+        if (actionIdentifier === 'mark_watched' && shortcode) {
+          await handleMarkAsWatched(shortcode);
+        } else if (actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER) {
+          // Tapped notification body — navigate to Home after app loads
+          setTimeout(() => {
+            if (navigationRef.current) navigationRef.current.navigate('Home');
+          }, 500);
+        }
+      }
 
       // Schedule Watch Later notifications in background
       scheduleWatchLaterNotification().catch(() => {});

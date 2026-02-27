@@ -172,6 +172,20 @@ const SettingsScreen = () => {
               {testing ? 'Testing...' : 'Test Connection'}
             </Text>
           </TouchableOpacity>
+
+          {/* Live processing/queue status */}
+          {queueStatus !== null && (queueStatus.processing_count > 0 || queueStatus.queue_count > 0) && (
+            <View style={{ marginTop: 12, padding: 10, backgroundColor: colors.warning + '18', borderRadius: 8 }}>
+              <Text style={{ color: colors.warning, fontSize: 13, fontWeight: '600' }}>
+                {queueStatus.processing_count > 0
+                  ? `⚙️ Analyzing ${queueStatus.processing_count} post${queueStatus.processing_count > 1 ? 's' : ''}…`
+                  : ''}
+                {queueStatus.queue_count > 0
+                  ? `${queueStatus.processing_count > 0 ? '  ' : ''}⏳ ${queueStatus.queue_count} post${queueStatus.queue_count > 1 ? 's' : ''} waiting in queue`
+                  : ''}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* API Configuration */}
@@ -223,17 +237,17 @@ const SettingsScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Queue */}
-        {queueStatus !== null && (
+        {/* Retry Queue — only shown when there are stuck items */}
+        {queueStatus !== null && (queueStatus.retry_count ?? 0) > 0 && (
           <View style={styles.retryCard}>
             <View style={styles.retryHeader}>
-              <Text style={styles.sectionTitle}>⏰ Queue</Text>
+              <Text style={styles.sectionTitle}>⏰ Retry Queue</Text>
               <View style={styles.retryBadge}>
-                <Text style={styles.retryBadgeText}>{queueStatus.retry_count ?? 0} pending</Text>
+                <Text style={styles.retryBadgeText}>{queueStatus.retry_count} pending</Text>
               </View>
             </View>
             <Text style={styles.retryInfo}>
-              Items here were quota-limited and will be auto-retried when ready.
+              These posts hit an API quota limit and will auto-retry. Tap below to retry immediately.
             </Text>
             <TouchableOpacity
               style={[styles.testButton, flushingRetry && { opacity: 0.6 }]}
