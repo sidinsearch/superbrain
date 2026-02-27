@@ -1,24 +1,44 @@
-# Virtual environment
+# ── Python ───────────────────────────────────────────────────────────────────
 venv/
 .venv/
-
-# Python cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
 
-# Environment variables
+# ── Environment & secrets ────────────────────────────────────────────────────
 .env
+*.env
+backend/config/.api_keys
+backend/.api_keys
+backend/.mongodb_config
+backend/.instagram_session.json
+backend/.instaloader_session
+backend/token.txt
 
-# IDE / OS
+# ── Database ─────────────────────────────────────────────────────────────────
+backend/superbrain.db
+backend/superbrain.db-shm
+backend/superbrain.db-wal
+
+# ── Backend temp / generated ─────────────────────────────────────────────────
+backend/temp/
+backend/static/
+
+# ── Mobile app ───────────────────────────────────────────────────────────────
+supermobile-app/node_modules/
+supermobile-app/.expo/
+supermobile-app/android/build/
+supermobile-app/android/app/build/
+supermobile-app/android/.gradle/
+supermobile-app/.env
+
+# ── IDE / OS ─────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 .DS_Store
-# SuperBrain secrets & generated files
-backend/.api_keys
-backend/.mongodb_config
-backend/model_rankings.json
-backend/openrouter_free_models.json
-backend/.instagram_session.json
-backend/.instaloader_session
-backend/superbrain.db
-backend/token.txt
+desktop.ini
+*.log

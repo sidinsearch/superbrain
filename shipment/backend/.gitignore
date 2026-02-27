@@ -1,9 +1,0 @@
-.setup_done
-token.txt
-superbrain.db*
-config/.api_keys
-config/ngrok_token.txt
-config/whisper_model.txt
-__pycache__/
-.venv/
-temp/
