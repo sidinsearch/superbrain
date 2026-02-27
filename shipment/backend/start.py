@@ -300,34 +300,6 @@ def _validate_openrouter(key: str):
     except Exception as e:
         return None, f"could not verify ({str(e)[:70]})"
 
-def _validate_audiotag(key: str):
-    """POST a dummy request to AudioTag to verify the API key."""
-    try:
-        import urllib.request as _r, urllib.error as _e, json as _j
-        body = f"action=identify&apikey={key}".encode()
-        req = _r.Request(
-            "https://audiotag.info/api",
-            data=body,
-            headers={"Content-Type": "application/x-www-form-urlencoded",
-                     "User-Agent": "Mozilla/5.0"},
-            method="POST",
-        )
-        with _r.urlopen(req, timeout=8) as resp:
-            data = _j.loads(resp.read())
-        if data.get("success") or data.get("token"):
-            return True, "key accepted"
-        err = data.get("error", "") or ""
-        if "invalid" in str(err).lower() or "key" in str(err).lower():
-            return False, f"invalid key — {err}"
-        # No file sent, but key was recognised (non-invalid error = key OK)
-        return True, "key accepted"
-    except _e.HTTPError as e:
-        if e.code in (401, 403):
-            return False, f"invalid key ({e.code})"
-        return None, f"could not verify ({e.code} {e.reason})"
-    except Exception as e:
-        return None, f"could not verify ({str(e)[:70]})"
-
 def _check_and_report(name: str, key: str, validator) -> str:
     """Validate `key`, print result inline, return the key unchanged."""
     if not key:
@@ -361,7 +333,6 @@ def setup_api_keys():
     Gemini      →  {CYAN}https://aistudio.google.com/apikey{RESET}
     Groq        →  {CYAN}https://console.groq.com/keys{RESET}
     OpenRouter  →  {CYAN}https://openrouter.ai/keys{RESET}
-    AudioTag    →  {CYAN}https://audiotag.info/aap{RESET}      (music ID · free tier available)
 
   Press {BOLD}Enter{RESET} to skip any key you don't have yet.
   {DIM}Keys and passwords are visible as you paste — don't run setup in a screen share.{RESET}
@@ -386,20 +357,6 @@ def setup_api_keys():
     if not any([gemini, groq_k, openr]):
         warn("No AI keys entered. SuperBrain will still work but can only use")
         warn("local Ollama models (configured in the next step).")
-
-    # AudioTag music recognition key (optional)
-    nl()
-    print(f"  {BOLD}AudioTag Music Recognition{RESET} {DIM}(optional){RESET}")
-    print(f"""
-  AudioTag identifies songs in Instagram reels. It has a large global
-  database including Indian and regional music, and complements Shazam.
-  Register free at {CYAN}https://audiotag.info/aap{RESET} to get an API key.
-
-  Press {BOLD}Enter{RESET} to keep existing key or skip.
-""")
-    audiotag_k = ask("AudioTag API key", default=existing.get("AUDIOTAG_API_KEY"), paste=True) or ""
-    if audiotag_k:
-        audiotag_k = _check_and_report("AudioTag", audiotag_k, _validate_audiotag)
 
     # Instagram credentials
     nl()
@@ -430,10 +387,6 @@ def setup_api_keys():
         f"GEMINI_API_KEY={gemini}\n",
         f"GROQ_API_KEY={groq_k}\n",
         f"OPENROUTER_API_KEY={openr}\n",
-        "\n",
-        "# AudioTag music recognition (optional)\n",
-        "# Register free at https://audiotag.info/aap to get an API key\n",
-        f"AUDIOTAG_API_KEY={audiotag_k}\n",
         "\n",
         f"INSTAGRAM_USERNAME={ig_user}\n",
         f"INSTAGRAM_PASSWORD={ig_pass}\n",
