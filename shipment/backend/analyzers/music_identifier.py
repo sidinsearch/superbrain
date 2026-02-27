@@ -250,26 +250,26 @@ def _format_shazam(result: dict) -> dict:
 def _print_result(info: dict) -> None:
     print()
     print("=" * 70)
-    print(f"MUSIC IDENTIFIED  [{info['source']}]")
+    print(f"\u2705 MUSIC IDENTIFIED  [{info['source']}]")
     print("=" * 70)
     print()
-    print(f"Song: {info['title']}")
-    print(f"Artist: {info['artist']}")
+    print(f"\U0001f3b5 Song: {info['title']}")
+    print(f"\U0001f464 Artist: {info['artist']}")
     if info["album"]:
-        print(f"Album: {info['album']}")
+        print(f"\U0001f4bf Album: {info['album']}")
     if info["released"]:
-        print(f"Released: {info['released']}")
+        print(f"\U0001f4c5 Released: {info['released']}")
     if info["label"]:
-        print(f"Label: {info['label']}")
+        print(f"\U0001f3f7\ufe0f  Label: {info['label']}")
     if info["genre"]:
-        print(f"Genre: {info['genre']}")
+        print(f"\U0001f3b8 Genre: {info['genre']}")
     if info["shazam_count"]:
         c   = info["shazam_count"]
         fmt = (f"{c / 1_000_000:.1f}M" if c >= 1_000_000
                else (f"{c / 1_000:.1f}K" if c >= 1_000 else str(c)))
-        print(f"Shazams: {fmt}")
+        print(f"\U0001f525 Shazams: {fmt}")
     print()
-    print("LINKS:")
+    print("\U0001f517 LINKS:")
     if info["spotify"]:
         print(f"   Spotify: {info['spotify']}")
     if info["apple"]:
