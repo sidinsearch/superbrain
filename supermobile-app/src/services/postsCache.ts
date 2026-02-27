@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Post } from '../types';
+import { Post, FailedPost } from '../types';
 
 const POSTS_CACHE_KEY = '@superbrain_posts_cache';
 const CACHE_TIMESTAMP_KEY = '@superbrain_posts_timestamp';
 const ANALYZING_POSTS_KEY = '@superbrain_analyzing_posts';
+const FAILED_POSTS_KEY = '@superbrain_failed_posts';
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 class PostsCacheService {
@@ -162,6 +163,53 @@ class PostsCacheService {
       await this.savePosts(filtered);
     } catch (error) {
       console.error('Error removing post from cache:', error);
+    }
+  }
+
+  // ─── Failed posts ────────────────────────────────────────────────────────────
+
+  async getFailedPosts(): Promise<FailedPost[]> {
+    try {
+      const stored = await AsyncStorage.getItem(FAILED_POSTS_KEY);
+      if (!stored) return [];
+      return JSON.parse(stored) as FailedPost[];
+    } catch {
+      return [];
+    }
+  }
+
+  async markAsFailed(
+    shortcode: string,
+    url: string,
+    title: string,
+    thumbnail_url?: string,
+    content_type?: string,
+  ): Promise<void> {
+    try {
+      const existing = await this.getFailedPosts();
+      const entry: FailedPost = {
+        shortcode,
+        url,
+        title: title || url,
+        thumbnail_url,
+        content_type,
+        failedAt: new Date().toISOString(),
+      };
+      // Replace existing entry for same shortcode, prepend new one
+      const updated = [entry, ...existing.filter(p => p.shortcode !== shortcode)];
+      await AsyncStorage.setItem(FAILED_POSTS_KEY, JSON.stringify(updated));
+    } catch (error) {
+      console.error('Error marking post as failed:', error);
+    }
+  }
+
+  async removeFailed(shortcode: string): Promise<void> {
+    try {
+      const existing = await this.getFailedPosts();
+      const updated = existing.filter(p => p.shortcode !== shortcode);
+      await AsyncStorage.setItem(FAILED_POSTS_KEY, JSON.stringify(updated));
+    } catch (error) {
+      console.error('Error removing failed post:', error);
     }
   }
 }

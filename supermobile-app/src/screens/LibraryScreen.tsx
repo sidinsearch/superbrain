@@ -13,6 +13,7 @@ import {
   Platform,
   InteractionManager,
   Keyboard,
+  Image,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -22,7 +23,9 @@ import { colors } from '../theme/colors';
 import { rescheduleWatchLaterNotification } from '../services/notificationService';
 import { RootStackParamList } from '../../App';
 import collectionsService from '../services/collections';
-import { Collection } from '../types';
+import postsCache from '../services/postsCache';
+import apiService from '../services/api';
+import { Collection, FailedPost, Post } from '../types';
 import CustomToast from '../components/CustomToast';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -49,6 +52,9 @@ const LibraryScreen = () => {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedCollections, setSelectedCollections] = useState<Set<string>>(new Set());
   const [showLibraryTips, setShowLibraryTips] = useState(false);
+  const [failedPosts, setFailedPosts] = useState<FailedPost[]>([]);
+  const [showFailedModal, setShowFailedModal] = useState(false);
+  const [reanalyzingPosts, setReanalyzingPosts] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadCollections();
@@ -119,11 +125,65 @@ const LibraryScreen = () => {
       if (watchLater && watchLater.postIds.length > 0) {
         rescheduleWatchLaterNotification().catch(() => {});
       }
+      // Load failed posts
+      const failed = await postsCache.getFailedPosts();
+      setFailedPosts(failed);
     } catch (error) {
       console.error('Error loading collections:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDeleteFailed = async (shortcode: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await postsCache.removeFailed(shortcode);
+    await postsCache.removePostFromCache(shortcode);
+    const updated = failedPosts.filter(p => p.shortcode !== shortcode);
+    setFailedPosts(updated);
+    if (updated.length === 0) setShowFailedModal(false);
+  };
+
+  const handleReanalyze = async (fp: FailedPost) => {
+    setReanalyzingPosts(prev => new Set(prev).add(fp.shortcode));
+    // Optimistically remove from failed list and show as processing in feed
+    await postsCache.removeFailed(fp.shortcode);
+    postsCache.markAsAnalyzing(fp.shortcode);
+    const placeholder: Post = {
+      shortcode: fp.shortcode,
+      url: fp.url,
+      title: fp.title || fp.url,
+      username: '',
+      summary: '',
+      tags: [],
+      music: '',
+      category: 'other',
+      content_type: fp.content_type as any,
+      thumbnail_url: fp.thumbnail_url,
+      processing: true,
+    };
+    const cached = await postsCache.getCachedPosts() || [];
+    await postsCache.savePosts([placeholder, ...cached.filter(p => p.shortcode !== fp.shortcode)]);
+    const updated = failedPosts.filter(p => p.shortcode !== fp.shortcode);
+    setFailedPosts(updated);
+    if (updated.length === 0) setShowFailedModal(false);
+    // Fire re-analysis in background
+    apiService.reanalyzePost(fp.url)
+      .then(async () => {
+        const freshPosts = await apiService.getRecentPosts(50);
+        await postsCache.savePosts(freshPosts);
+        postsCache.markAnalysisComplete(fp.shortcode);
+      })
+      .catch(async () => {
+        // Failed again — put back in failed list
+        await postsCache.markAsFailed(fp.shortcode, fp.url, fp.title, fp.thumbnail_url, fp.content_type);
+        postsCache.markAnalysisComplete(fp.shortcode);
+        setFailedPosts(prev => [{ ...fp, failedAt: new Date().toISOString() }, ...prev.filter(p => p.shortcode !== fp.shortcode)]);
+        setToast({ visible: true, message: 'Re-analysis failed. Try again later.', type: 'error' });
+      })
+      .finally(() => {
+        setReanalyzingPosts(prev => { const s = new Set(prev); s.delete(fp.shortcode); return s; });
+      });
   };
 
   const handleCreateCollection = async () => {
@@ -288,6 +348,26 @@ const LibraryScreen = () => {
             </View>
           ) : (
             <View style={styles.collectionsGrid}>
+              {/* Failed Analysis collection — auto-appears when posts fail, auto-disappears when empty */}
+              {failedPosts.length > 0 && (
+                <View style={styles.collectionWrapper}>
+                  <TouchableOpacity
+                    style={[styles.collectionCard, styles.failedCollectionCard]}
+                    onPress={() => setShowFailedModal(true)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.collectionIconContainer}>
+                      <Text style={styles.collectionIcon}>⚠️</Text>
+                    </View>
+                    <Text style={[styles.collectionName, { color: colors.error }]} numberOfLines={1}>
+                      Failed Analysis
+                    </Text>
+                    <Text style={styles.collectionCount}>
+                      {failedPosts.length} {failedPosts.length === 1 ? 'post' : 'posts'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               {filteredCollections.map((collection) => {
                 const isSelected = selectedCollections.has(collection.id);
                 return (
@@ -384,6 +464,68 @@ const LibraryScreen = () => {
           <Text style={styles.navLabel}>Settings</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Failed Analysis Modal */}
+      <Modal
+        visible={showFailedModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowFailedModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '80%', paddingBottom: 0 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>⚠️ Failed Analysis</Text>
+              <TouchableOpacity onPress={() => setShowFailedModal(false)}>
+                <Text style={{ color: colors.textMuted, fontSize: 22, lineHeight: 24 }}>×</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.failedModalSubtitle}>
+              These posts couldn’t be analyzed. Tap Re-analyze to retry or delete them.
+            </Text>
+            <ScrollView style={{ marginTop: 8 }} contentContainerStyle={{ paddingBottom: 24 }}>
+              {failedPosts.map(fp => (
+                <View key={fp.shortcode} style={styles.failedPostRow}>
+                  {fp.thumbnail_url ? (
+                    <Image
+                      source={{ uri: fp.thumbnail_url }}
+                      style={styles.failedThumbnail}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={[styles.failedThumbnail, styles.failedThumbnailPlaceholder]}>
+                      <Text style={{ fontSize: 22 }}>
+                        {fp.content_type === 'youtube' ? '🎥' : fp.content_type === 'webpage' ? '🌐' : '📸'}
+                      </Text>
+                    </View>
+                  )}
+                  <Text style={styles.failedPostTitle} numberOfLines={2}>
+                    {fp.title || fp.url}
+                  </Text>
+                  <View style={styles.failedPostActions}>
+                    <TouchableOpacity
+                      style={styles.failedDeleteBtn}
+                      onPress={() => handleDeleteFailed(fp.shortcode)}
+                    >
+                      <Text style={styles.failedDeleteText}>🗑</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.failedReanalyzeBtn, reanalyzingPosts.has(fp.shortcode) && { opacity: 0.5 }]}
+                      onPress={() => !reanalyzingPosts.has(fp.shortcode) && handleReanalyze(fp)}
+                      disabled={reanalyzingPosts.has(fp.shortcode)}
+                    >
+                      {reanalyzingPosts.has(fp.shortcode)
+                        ? <ActivityIndicator size="small" color="#fff" />
+                        : <Text style={styles.failedReanalyzeText}>🔄 Re-analyze</Text>
+                      }
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* Create Collection Modal */}
       <Modal
@@ -1121,6 +1263,69 @@ const styles = StyleSheet.create({
   tipsDismissText: {
     fontSize: 15,
     fontWeight: '700',
+    color: '#fff',
+  },
+  // Failed Analysis collection card
+  failedCollectionCard: {
+    borderColor: colors.error + '55',
+    borderWidth: 1.5,
+  },
+  failedModalSubtitle: {
+    fontSize: 13,
+    color: colors.textMuted,
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  failedPostRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    gap: 10,
+  },
+  failedThumbnail: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
+    flexShrink: 0,
+  },
+  failedThumbnailPlaceholder: {
+    backgroundColor: colors.backgroundCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  failedPostTitle: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.text,
+    lineHeight: 18,
+  },
+  failedPostActions: {
+    flexDirection: 'column',
+    gap: 6,
+    flexShrink: 0,
+  },
+  failedDeleteBtn: {
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: colors.error + '18',
+    alignItems: 'center',
+  },
+  failedDeleteText: {
+    fontSize: 16,
+  },
+  failedReanalyzeBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    minWidth: 90,
+  },
+  failedReanalyzeText: {
+    fontSize: 12,
+    fontWeight: '600',
     color: '#fff',
   },
 });

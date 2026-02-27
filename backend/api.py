@@ -551,11 +551,21 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
         
         logger.info(f"✅ [{shortcode}] Analysis complete! Fetching from database...")
         
-        # Get result from database
-        analysis = db.check_cache(shortcode)
+        # Get result from database — retry up to 4 times in case the SQLite write
+        # hasn't flushed yet (race condition between subprocess write and our read).
+        analysis = None
+        for _attempt in range(4):
+            analysis = db.check_cache(shortcode)
+            if analysis:
+                if _attempt > 0:
+                    logger.info(f"🔄 [{shortcode}] Found in database on retry {_attempt}")
+                break
+            if _attempt < 3:
+                logger.warning(f"⏳ [{shortcode}] Not in DB yet (attempt {_attempt+1}/4), retrying in 1s…")
+                await asyncio.sleep(1)
         
         if not analysis:
-            logger.error(f"❌ [{shortcode}] Not found in database after processing!")
+            logger.error(f"❌ [{shortcode}] Not found in database after 4 attempts!")
             raise HTTPException(
                 status_code=500,
                 detail="Analysis completed but result not found in database"

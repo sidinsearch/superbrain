@@ -336,8 +336,14 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
             if (err?.isRetryQueued) {
               showToast('⏰ Queued — will retry automatically tomorrow', 'info');
             } else {
-              console.error('Background analysis error:', err);
-            }
+              console.error('Background analysis error:', err);              // Track in local failed list so user can re-analyze from Library
+              postsCache.markAsFailed(
+                shortcode,
+                url,
+                post?.title || '',
+                post?.thumbnail_url,
+                post?.content_type,
+              );            }
             postsCache.markAnalysisComplete(shortcode);
           });
         }
@@ -390,8 +396,15 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
           if (err?.isRetryQueued) {
             showToast('⏰ Quota full — queued for retry tomorrow', 'info');
           } else {
-            console.error('Background analysis error:', err);
-          }
+            console.error('Background analysis error:', err);            if (post?.shortcode) {
+              postsCache.markAsFailed(
+                post.shortcode,
+                url,
+                post?.title || '',
+                post?.thumbnail_url,
+                post?.content_type,
+              );
+            }          }
           if (post.shortcode) postsCache.markAnalysisComplete(post.shortcode);
         });
       }

@@ -65,3 +65,13 @@ export interface Collection {
   createdAt: string;
   updatedAt: string;
 }
+
+// Posts that failed analysis – stored locally so user can retry from Library
+export interface FailedPost {
+  shortcode: string;
+  url: string;
+  title: string;
+  thumbnail_url?: string;
+  content_type?: string;
+  failedAt: string;
+}
