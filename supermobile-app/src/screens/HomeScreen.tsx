@@ -155,6 +155,18 @@ const HomeScreen = () => {
 
   const loadPosts = async (forceRefresh: boolean = false) => {
     try {
+      // Reconcile: if a post was in the failed list AND still stuck in analyzing, clean it up.
+      // This prevents \"✨ Analyzing...\" overlay appearing permanently for posts that failed
+      // analysis while the app was in the background.
+      const failedList = await postsCache.getFailedPosts();
+      if (failedList.length > 0) {
+        for (const fp of failedList) {
+          if (postsCache.isAnalyzing(fp.shortcode)) {
+            postsCache.markAnalysisComplete(fp.shortcode);
+          }
+        }
+      }
+
       // Guard: never show any data if token is not configured
       const token = await apiService.getApiToken();
       if (!token) {
@@ -225,10 +237,13 @@ const HomeScreen = () => {
           // Start a lightweight /queue-status poller instead of calling /recent every tick.
           // Only fires a full loadPosts when backend signals it just finished processing.
           console.log('HomeScreen - Starting queue-status watcher');
-          // Seed the counter so first tick has a baseline to detect transition
+          // Pre-seed synchronously so the FIRST interval tick sees wasActive=true.
+          // Without this, prevProcessingRef starts at 0 and the first tick misses
+          // the wasActive && nowIdle transition if the backend finishes quickly.
+          prevProcessingRef.current = 1;
           apiService.getQueueStatus().then(s => {
-            prevProcessingRef.current = s ? s.processing_count + s.queue_count : 1;
-          }).catch(() => { prevProcessingRef.current = 1; });
+            if (s) prevProcessingRef.current = s.processing_count + s.queue_count || 1;
+          }).catch(() => {});
 
           pollIntervalRef.current = setInterval(async () => {
             try {

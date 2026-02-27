@@ -14,6 +14,7 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import PostDetailScreen from './src/screens/PostDetailScreen';
 import CollectionDetailScreen from './src/screens/CollectionDetailScreen';
 import ShareHandlerScreen from './src/screens/ShareHandlerScreen';
+import FailedAnalysisScreen from './src/screens/FailedAnalysisScreen';
 
 // API Service
 import apiService from './src/services/api';
@@ -29,6 +30,7 @@ export type RootStackParamList = {
   PostDetail: { post: Post };
   CollectionDetail: { collection: Collection };
   ShareHandler: { url?: string };
+  FailedAnalysis: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -197,6 +199,11 @@ export default function App() {
               animation: 'slide_from_bottom',
               headerShown: false,
             }}
+          />
+          <Stack.Screen
+            name="FailedAnalysis"
+            component={FailedAnalysisScreen}
+            options={{ animation: 'slide_from_right' }}
           />
         </Stack.Navigator>
       </NavigationContainer>
