@@ -14,6 +14,7 @@ import {
   InteractionManager,
   Keyboard,
   Image,
+  Linking,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -503,6 +504,12 @@ const LibraryScreen = () => {
                     {fp.title || fp.url}
                   </Text>
                   <View style={styles.failedPostActions}>
+                    <TouchableOpacity
+                      style={styles.failedViewBtn}
+                      onPress={() => Linking.openURL(fp.url).catch(() => {})}
+                    >
+                      <Text style={styles.failedViewText}>🔗 View</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.failedDeleteBtn}
                       onPress={() => handleDeleteFailed(fp.shortcode)}
@@ -1314,6 +1321,21 @@ const styles = StyleSheet.create({
   },
   failedDeleteText: {
     fontSize: 16,
+  },
+  failedViewBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: colors.backgroundCard,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    minWidth: 70,
+  },
+  failedViewText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
   },
   failedReanalyzeBtn: {
     paddingHorizontal: 8,
