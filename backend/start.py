@@ -300,14 +300,13 @@ def _validate_openrouter(key: str):
     except Exception as e:
         return None, f"could not verify ({str(e)[:70]})"
 
-def _validate_audd(key: str):
-    """POST a tiny silent MP3 to AudD to check the key is accepted."""
+def _validate_audiotag(key: str):
+    """POST a dummy request to AudioTag to verify the API key."""
     try:
         import urllib.request as _r, urllib.error as _e, json as _j
-        # AudD's status endpoint — no file needed, just key check
-        body = f"api_token={key}".encode()
+        body = f"action=identify&apikey={key}".encode()
         req = _r.Request(
-            "https://api.audd.io/getApiTokenInfo/",
+            "https://audiotag.info/api",
             data=body,
             headers={"Content-Type": "application/x-www-form-urlencoded",
                      "User-Agent": "Mozilla/5.0"},
@@ -315,15 +314,17 @@ def _validate_audd(key: str):
         )
         with _r.urlopen(req, timeout=8) as resp:
             data = _j.loads(resp.read())
-        if data.get("status") == "success":
-            result = data.get("result", {})
-            remaining = result.get("calls_left", "?")
-            plan = result.get("plan", "")
-            return True, f"{remaining} calls left  [{plan}]"
-        errmsg = data.get("error", {}).get("error_message", str(data))
-        if "token" in errmsg.lower() or "invalid" in errmsg.lower():
-            return False, f"invalid key — {errmsg}"
-        return None, f"could not verify ({errmsg[:70]})"
+        if data.get("success") or data.get("token"):
+            return True, "key accepted"
+        err = data.get("error", "") or ""
+        if "invalid" in str(err).lower() or "key" in str(err).lower():
+            return False, f"invalid key — {err}"
+        # No file sent, but key was recognised (non-invalid error = key OK)
+        return True, "key accepted"
+    except _e.HTTPError as e:
+        if e.code in (401, 403):
+            return False, f"invalid key ({e.code})"
+        return None, f"could not verify ({e.code} {e.reason})"
     except Exception as e:
         return None, f"could not verify ({str(e)[:70]})"
 
@@ -360,7 +361,7 @@ def setup_api_keys():
     Gemini      →  {CYAN}https://aistudio.google.com/apikey{RESET}
     Groq        →  {CYAN}https://console.groq.com/keys{RESET}
     OpenRouter  →  {CYAN}https://openrouter.ai/keys{RESET}
-    AudD        →  {CYAN}https://dashboard.audd.io{RESET}  (music ID · 300 free/day)
+    AudioTag    →  {CYAN}https://audiotag.info/aap{RESET}      (music ID · free tier available)
 
   Press {BOLD}Enter{RESET} to skip any key you don't have yet.
   {DIM}Keys and passwords are visible as you paste — don't run setup in a screen share.{RESET}
@@ -386,20 +387,19 @@ def setup_api_keys():
         warn("No AI keys entered. SuperBrain will still work but can only use")
         warn("local Ollama models (configured in the next step).")
 
-    # AudD music recognition key (optional)
+    # AudioTag music recognition key (optional)
     nl()
-    print(f"  {BOLD}AudD Music Recognition{RESET} {DIM}(optional){RESET}")
+    print(f"  {BOLD}AudioTag Music Recognition{RESET} {DIM}(optional){RESET}")
     print(f"""
-  AudD identifies songs in Instagram reels. It has better Bollywood /
-  regional-Indian coverage than Shazam.  Without a key the free 'test'
-  token is used ({YELLOW}~10 recognitions/day{RESET}).  Register free at
-  {CYAN}https://dashboard.audd.io{RESET} for {GREEN}300 per day{RESET}.
+  AudioTag identifies songs in Instagram reels. It has a large global
+  database including Indian and regional music, and complements Shazam.
+  Register free at {CYAN}https://audiotag.info/aap{RESET} to get an API key.
 
   Press {BOLD}Enter{RESET} to keep existing key or skip.
 """)
-    audd_k = ask("AudD API key", default=existing.get("AUDD_API_KEY"), paste=True) or ""
-    if audd_k:
-        audd_k = _check_and_report("AudD", audd_k, _validate_audd)
+    audiotag_k = ask("AudioTag API key", default=existing.get("AUDIOTAG_API_KEY"), paste=True) or ""
+    if audiotag_k:
+        audiotag_k = _check_and_report("AudioTag", audiotag_k, _validate_audiotag)
 
     # Instagram credentials
     nl()
@@ -431,9 +431,9 @@ def setup_api_keys():
         f"GROQ_API_KEY={groq_k}\n",
         f"OPENROUTER_API_KEY={openr}\n",
         "\n",
-        "# AudD music recognition (optional — free 'test' token used when empty)\n",
-        "# Free 300/day key: https://dashboard.audd.io\n",
-        f"AUDD_API_KEY={audd_k}\n",
+        "# AudioTag music recognition (optional)\n",
+        "# Register free at https://audiotag.info/aap to get an API key\n",
+        f"AUDIOTAG_API_KEY={audiotag_k}\n",
         "\n",
         f"INSTAGRAM_USERNAME={ig_user}\n",
         f"INSTAGRAM_PASSWORD={ig_pass}\n",

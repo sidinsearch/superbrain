@@ -5,9 +5,8 @@ Music Identifier – Multi-approach audio recognition
 Strategy (in priority order):
   1. Shazam multi-segment  — tries beginning, ~33 %, ~66 % of the audio so
                              songs that start after speech/ambient sound are caught
-  2. AudD                  — excellent Bollywood / regional-Indian / global DB;
-                             uses AUDD_API_KEY from config if present, else the
-                             free "test" token (≈ 10 req/day, no sign-up needed)
+  2. AudioTag              — large global DB including Indian/regional music;
+                             requires AUDIOTAG_API_KEY from config
 
 Output format is identical to the previous single-Shazam version so that
 main.py's parser requires no changes.
@@ -42,20 +41,20 @@ except ImportError:
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 
 
-def _load_audd_key() -> str:
-    """Return AudD API key from config, or 'test' as free-tier fallback."""
+def _load_audiotag_key() -> str | None:
+    """Return AudioTag API key from config, or None if not set."""
     try:
         keys_file = _CONFIG_DIR / ".api_keys"
         if keys_file.exists():
             for line in keys_file.read_text().splitlines():
                 line = line.strip()
-                if line.startswith("AUDD_API_KEY="):
+                if line.startswith("AUDIOTAG_API_KEY="):
                     val = line.split("=", 1)[1].strip()
                     if val:
                         return val
     except Exception:
         pass
-    return "test"
+    return None
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Audio helpers
@@ -154,30 +153,54 @@ async def _shazam_multi_segment(audio_path: str) -> dict | None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  Strategy 2 — AudD (audd.io)
+#  Strategy 2 — AudioTag (audiotag.info)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _audd_identify(audio_path: str) -> dict | None:
-    """POST the audio to AudD. Returns result dict or None."""
+def _audiotag_identify(audio_path: str) -> dict | None:
+    """Submit audio to AudioTag and poll for result. Returns result dict or None."""
     if not _HAS_REQUESTS:
         return None
-    api_token = _load_audd_key()
+    api_key = _load_audiotag_key()
+    if not api_key:
+        print("   ⚠️  [AudioTag] No AUDIOTAG_API_KEY set — skipping.")
+        return None
     try:
+        # Step 1: submit file, get polling token
         with open(audio_path, "rb") as f:
             resp = _requests.post(
-                "https://api.audd.io/",
-                data={"api_token": api_token, "return": "apple_music,spotify"},
+                "https://audiotag.info/api",
+                data={"action": "identify", "apikey": api_key},
                 files={"file": ("audio.mp3", f, "audio/mpeg")},
                 timeout=30,
             )
         data = resp.json()
-        if data.get("status") == "success" and data.get("result"):
-            return data["result"]
-        if data.get("status") == "error":
-            err = data.get("error", {})
-            print(f"   ⚠️  [AudD] API error: {err.get('error_message', data)}")
+        if not data.get("success"):
+            print(f"   ⚠️  [AudioTag] Identify error: {data.get('error', data)}")
+            return None
+        token = data.get("token")
+        if not token:
+            return None
+
+        # Step 2: poll until result is ready (max ~30 s)
+        import time as _time
+        for attempt in range(10):
+            _time.sleep(3)
+            poll = _requests.post(
+                "https://audiotag.info/api",
+                data={"action": "getState", "apikey": api_key, "token": token},
+                timeout=15,
+            ).json()
+            state = poll.get("result", "PROCESSING")
+            if state == "FOUND":
+                found = poll.get("found", [])
+                return found[0] if found else None
+            if state == "NOT_FOUND":
+                return None
+            # still PROCESSING — keep polling
+
+        print("   ⚠️  [AudioTag] Timed out waiting for result")
     except Exception as e:
-        print(f"   ⚠️  [AudD] Request failed: {e}")
+        print(f"   ⚠️  [AudioTag] Request failed: {e}")
     return None
 
 
@@ -228,21 +251,17 @@ def _format_shazam(result: dict) -> dict:
             "spotify": spotify, "apple": track.get("url", ""), "source": "Shazam"}
 
 
-def _format_audd(result: dict) -> dict:
-    spotify = ""
-    if result.get("spotify") and isinstance(result["spotify"], dict):
-        spotify = result["spotify"].get("external_urls", {}).get("spotify", "")
-    apple = result.get("song_link", "")
-    if not apple and isinstance(result.get("apple_music"), dict):
-        apple = result["apple_music"].get("url", "")
-    label = ""
-    if isinstance(result.get("apple_music"), dict):
-        label = result["apple_music"].get("recordLabel", "")
-    released = (result.get("release_date") or "")[:4]
-    return {"title": result.get("title", ""), "artist": result.get("artist", "Unknown"),
-            "album": result.get("album", ""), "released": released, "label": label,
-            "genre": "", "shazam_count": 0,
-            "spotify": spotify, "apple": apple, "source": "AudD"}
+def _format_audiotag(result: dict) -> dict:
+    artist = result.get("artist", "Unknown") or "Unknown"
+    # AudioTag may return a list of artists
+    if isinstance(artist, list):
+        artist = ", ".join(str(a) for a in artist if a)
+    return {"title": result.get("title", ""), "artist": artist,
+            "album": result.get("album", ""),
+            "released": str(result.get("year", "") or ""),
+            "label": "", "genre": result.get("genre", ""),
+            "shazam_count": 0,
+            "spotify": "", "apple": "", "source": "AudioTag"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -284,10 +303,10 @@ def _print_result(info: dict) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def identify_music(audio_path: str) -> None:
-    """Identify music from *audio_path* using Shazam (multi-segment) + AudD fallback."""
+    """Identify music from *audio_path* using Shazam (multi-segment) + AudioTag fallback."""
 
     print("=" * 70)
-    print("🎵 MUSIC IDENTIFIER  (Shazam → AudD multi-approach)")
+    print("🎵 MUSIC IDENTIFIER  (Shazam → AudioTag multi-approach)")
     print("=" * 70)
     print()
 
@@ -313,16 +332,17 @@ async def identify_music(audio_path: str) -> None:
     print("   ⚠️  Shazam: no match across all segments")
     print()
 
-    # ── Strategy 2: AudD ─────────────────────────────────────────────────────
-    print("🔍 Strategy 2: AudD…")
-    audd_result = _audd_identify(str(path))
-    if audd_result:
-        _print_result(_format_audd(audd_result))
+    # ── Strategy 2: AudioTag ─────────────────────────────────────────────────
+    print("🔍 Strategy 2: AudioTag…")
+    at_result = _audiotag_identify(str(path))
+    if at_result:
+        _print_result(_format_audiotag(at_result))
         return
-    print("   ⚠️  AudD: no match")
+    print("   ⚠️  AudioTag: no match")
     print()
 
     print("❌ No match found across all strategies. The audio might be:")
+
     print("   • Original / unreleased / user-created music")
     print("   • Too short or poor audio quality")
     print("   • In a niche regional catalogue not yet indexed")
@@ -337,7 +357,7 @@ def main() -> None:
         audio_path = sys.argv[1].strip("\"'").strip()
     else:
         print("=" * 70)
-        print("🎵 MUSIC IDENTIFIER  (Shazam → AudD multi-approach)")
+        print("🎵 MUSIC IDENTIFIER  (Shazam → AudioTag multi-approach)")
         print("=" * 70)
         print()
         audio_path = input("📂 Enter audio/video file path: ").strip()
