@@ -96,7 +96,7 @@ const HomeScreen = () => {
         await AsyncStorage.setItem('@superbrain_onboarded', '1');
         return;
       }
-      setTimeout(() => setShowOnboarding(true), 1700);
+      setTimeout(() => setShowOnboarding(true), 700);
     } catch { /* ignore */ }
   };
 
@@ -186,20 +186,30 @@ const HomeScreen = () => {
       console.log('HomeScreen - Fetched', fetchedPosts.length, 'posts from server');
       
       if (fetchedPosts.length > 0) {
+        // Clear analyzing state for any posts that are now done on the server
+        const prevAnalyzing = postsCache.getAnalyzingPosts();
+        for (const shortcode of prevAnalyzing) {
+          const serverPost = fetchedPosts.find(p => p.shortcode === shortcode);
+          if (serverPost && !serverPost.processing) {
+            await postsCache.markAnalysisComplete(shortcode);
+            console.log('HomeScreen - Analysis complete for:', shortcode);
+          }
+        }
+
         setPosts(fetchedPosts);
         await postsCache.savePosts(fetchedPosts);
-        
-        // Check if any posts are still analyzing
-        const hasAnalyzing = fetchedPosts.some(post => 
+
+        // Re-check after clearing completed analyzing states
+        const hasAnalyzing = fetchedPosts.some(post =>
           postsCache.isAnalyzing(post.shortcode) || post.processing
         );
-        
+
         if (hasAnalyzing && !pollInterval) {
           console.log('HomeScreen - Starting polling for analyzing posts');
           const interval = setInterval(() => {
             console.log('HomeScreen - Polling for updates...');
             loadPosts(true);
-          }, 10000); // Poll every 10 seconds
+          }, 3000); // Poll every 3 seconds for near-instant update
           setPollInterval(interval);
         } else if (!hasAnalyzing && pollInterval) {
           console.log('HomeScreen - Stopping polling, no analyzing posts');

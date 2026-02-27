@@ -396,9 +396,9 @@ def _jpg_to_thumbnail(jpg_path) -> str:
         from PIL import Image
         import io
         img = Image.open(jpg_path)
-        img.thumbnail((480, 480), Image.LANCZOS)
+        img.thumbnail((1080, 1080), Image.LANCZOS)
         buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=75)
+        img.save(buf, format="JPEG", quality=90)
         data = buf.getvalue()
     except Exception:
         # Pillow not available or failed — use raw bytes
