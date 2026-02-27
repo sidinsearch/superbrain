@@ -101,17 +101,17 @@ def _remove_dir(path: Path, label: str):
 # ── Reset actions ─────────────────────────────────────────────────────────────
 def reset_api_keys():
     h1("Reset — API Keys")
-    warn("This removes ALL keys: Gemini / Groq / OpenRouter / AudD and Instagram credentials.")
+    warn("This removes ALL keys: Gemini / Groq / OpenRouter / AudioTag and Instagram credentials.")
     if not ask_yn("Continue?", default=False):
         info("Skipped.")
         return
     _remove_file(API_KEYS, "API keys file (config/.api_keys)")
     ok("Run  python start.py --reset  to re-enter keys.")
 
-def reset_audd_key():
-    h1("Reset — AudD Music Recognition Key")
-    info("Clears only the AudD key. The free 'test' token (~10/day) will be used.")
-    info("Get a free 300/day key at  https://dashboard.audd.io")
+def reset_audiotag_key():
+    h1("Reset — AudioTag Music Recognition Key")
+    info("Clears only the AudioTag key. Music recognition via AudioTag will be skipped until a new key is set.")
+    info("Get a free API key at  https://audiotag.info/aap")
     if not ask_yn("Continue?", default=False):
         info("Skipped.")
         return
@@ -122,12 +122,12 @@ def reset_audd_key():
     new_lines = []
     for line in lines:
         stripped = line.strip()
-        if stripped.startswith("AUDD_API_KEY="):
-            new_lines.append("AUDD_API_KEY=\n")
+        if stripped.startswith("AUDIOTAG_API_KEY="):
+            new_lines.append("AUDIOTAG_API_KEY=\n")
         else:
             new_lines.append(line)
     API_KEYS.write_text("".join(new_lines))
-    ok("AudD key cleared. SuperBrain will use the free 'test' token.")
+    ok("AudioTag key cleared.")
     ok("Run  python start.py --reset  to set a new key without losing other settings.")
 
 def reset_ngrok():
@@ -193,7 +193,7 @@ def full_reset():
     h1("Full Reset — Wipe Everything")
     nl()
     print(f"  This will delete:")
-    print(f"    {RED}·{RESET}  API keys  (config/.api_keys)  — includes AudD key")
+    print(f"    {RED}·{RESET}  API keys  (config/.api_keys)  — includes AudioTag key")
     print(f"    {RED}·{RESET}  ngrok token  (config/ngrok_token.txt)")
     print(f"    {RED}·{RESET}  API token  (token.txt)")
     print(f"    {RED}·{RESET}  Database  (superbrain.db)")
@@ -231,7 +231,7 @@ def full_reset():
 # ── Interactive menu ──────────────────────────────────────────────────────────
 MENU_ITEMS = [
     ("1", "API Keys          (config/.api_keys)  — all keys + Instagram"),
-    ("2", "AudD Key           (music recognition only)"),
+    ("2", "AudioTag Key       (music recognition only)"),
     ("3", "ngrok Token        (config/ngrok_token.txt)"),
     ("4", "API Token          (token.txt)"),
     ("5", "Database           (superbrain.db)  ⚠ all posts & collections"),
@@ -244,7 +244,7 @@ MENU_ITEMS = [
 
 ACTIONS = {
     "1": reset_api_keys,
-    "2": reset_audd_key,
+    "2": reset_audiotag_key,
     "3": reset_ngrok,
     "4": reset_api_token,
     "5": reset_database,
