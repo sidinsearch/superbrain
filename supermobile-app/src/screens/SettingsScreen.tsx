@@ -155,7 +155,7 @@ const SettingsScreen = () => {
         {/* Connection Status Card */}
         <View style={styles.statusCard}>
           <View style={styles.statusHeader}>
-            <Text style={styles.sectionTitle}>Connection Status</Text>
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Connection Status</Text>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor() + '20' }]}>
               <Text style={[styles.statusText, { color: getStatusColor() }]}>
                 {getStatusText()}
