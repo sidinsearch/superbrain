@@ -61,6 +61,7 @@ const HomeScreen = () => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isConfigured, setIsConfigured] = useState(true);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const loadPostsRef = useRef<(forceRefresh?: boolean) => Promise<void>>();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
 
@@ -209,8 +210,8 @@ const HomeScreen = () => {
           console.log('HomeScreen - Starting polling for analyzing posts');
           pollIntervalRef.current = setInterval(() => {
             console.log('HomeScreen - Polling for updates...');
-            loadPosts(true);
-          }, 3000); // Poll every 3 seconds, fires loadPosts which always reads fresh ref
+            loadPostsRef.current?.(true); // always calls the latest loadPosts, never stale
+          }, 3000);
         } else if (!hasAnalyzing && pollIntervalRef.current) {
           console.log('HomeScreen - Stopping polling, all posts analyzed');
           clearInterval(pollIntervalRef.current);
@@ -235,6 +236,8 @@ const HomeScreen = () => {
       setLoading(false);
     }
   };
+  // Always keep ref pointing to latest loadPosts so setInterval never uses a stale closure
+  loadPostsRef.current = loadPosts;
 
   const onRefresh = async () => {
     setRefreshing(true);
