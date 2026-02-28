@@ -212,6 +212,9 @@ const HomeScreen = () => {
         }
       }
 
+      // Flush any post mutations (delete/update) that were queued while offline
+      postsCache.flushPendingPostMutations().catch(() => {});
+
       // Guard: never show any data if token is not configured
       const token = await apiService.getApiToken();
       if (!token) {
@@ -291,11 +294,32 @@ const HomeScreen = () => {
       }
 
       if (hasAnalyzing && !pollIntervalRef.current) {
-        // Poll /recent directly every 3 s. No queue-status indirection — we just
-        // check whether each analyzing post now has processing:false on the server.
+        // Poll /recent every 3s — check both analysis completion AND newly-failed posts.
         console.log('HomeScreen - Starting analyzing watcher');
         pollIntervalRef.current = setInterval(async () => {
           try {
+            // ── Remove newly-failed post placeholders immediately ─────────────
+            const failedInTick = await postsCache.getFailedPosts();
+            const failedCodes = new Set(failedInTick.map(fp => fp.shortcode));
+            if (failedInTick.length > 0) {
+              let clearedAny = false;
+              for (const fp of failedInTick) {
+                if (postsCache.isAnalyzing(fp.shortcode)) {
+                  await postsCache.markAnalysisComplete(fp.shortcode);
+                  clearedAny = true;
+                }
+              }
+              if (clearedAny) syncAnalyzingIds();
+              const cacheForClean = await postsCache.getCachedPosts();
+              if (cacheForClean) {
+                const cleaned = cacheForClean.filter(p => !failedCodes.has(p.shortcode));
+                if (cleaned.length !== cacheForClean.length) {
+                  await postsCache.savePosts(cleaned);
+                  setPosts(cleaned);
+                }
+              }
+            }
+            // ── Check for completed analysis ──────────────────────────────────
             const freshPosts = await apiService.getRecentPosts(50);
             const prevAnalyzing = postsCache.getAnalyzingPosts();
             let anyCompleted = false;
@@ -312,20 +336,19 @@ const HomeScreen = () => {
             const stillAnalyzing = postsCache.getAnalyzingPosts();
 
             if (freshPosts.length > 0) {
-              // Only merge+save when the server actually returned data — never wipe
-              // the cache with an empty response caused by a network hiccup.
               const cached = await postsCache.getCachedPosts() || [];
               const placeholders = cached.filter(
-                p => stillAnalyzing.includes(p.shortcode) && !freshPosts.find(fp => fp.shortcode === p.shortcode)
+                p => stillAnalyzing.includes(p.shortcode) &&
+                     !freshPosts.find(fp => fp.shortcode === p.shortcode) &&
+                     !failedCodes.has(p.shortcode)
               );
               const merged = [
                 ...placeholders,
-                ...freshPosts.filter(p => !stillAnalyzing.includes(p.shortcode)),
+                ...freshPosts.filter(p => !stillAnalyzing.includes(p.shortcode) && !failedCodes.has(p.shortcode)),
               ];
               setPosts(merged);
               await postsCache.savePosts(merged);
             }
-            // If freshPosts is empty (offline/server busy), leave posts+cache untouched.
 
             if (stillAnalyzing.length === 0) {
               console.log('HomeScreen [watcher] - All done, stopping');
@@ -472,9 +495,18 @@ const HomeScreen = () => {
     try {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const deleteCount = selectedPosts.size;
+      // Optimistically remove from local cache+UI immediately (works offline too)
       for (const shortcode of Array.from(selectedPosts)) {
-        await apiService.deletePost(shortcode);
         await postsCache.removePostFromCache(shortcode);
+        try {
+          await apiService.deletePost(shortcode);
+        } catch (apiErr: any) {
+          if (!apiErr?.response) {
+            // Network-level failure — queue for sync when back online
+            await postsCache.enqueuePendingMutation({ type: 'delete', shortcode });
+          }
+          // HTTP 4xx/5xx (already deleted etc.) — ignore, local delete is correct
+        }
       }
       setPosts(posts.filter(p => !selectedPosts.has(p.shortcode)));
       setSelectionMode(false);

@@ -1,31 +1,95 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Post, FailedPost } from '../types';
+import apiService from './api';
 
 const POSTS_CACHE_KEY = '@superbrain_posts_cache';
 const CACHE_TIMESTAMP_KEY = '@superbrain_posts_timestamp';
 const ANALYZING_POSTS_KEY = '@superbrain_analyzing_posts';
 const FAILED_POSTS_KEY = '@superbrain_failed_posts';
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const PENDING_MUTATIONS_KEY = '@superbrain_pending_post_mutations';
+
+type PendingPostMutation =
+  | { type: 'delete'; shortcode: string }
+  | { type: 'update'; shortcode: string; updates: Record<string, string> };
+// Keep cache for 30 minutes — background refresh happens anyway when
+// analyzing posts exist, so long TTL just prevents unnecessary server
+// round-trips when showing already-up-to-date data.
+const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
 class PostsCacheService {
   private analyzingPosts: Set<string> = new Set();
 
+  // ── In-memory hot cache ──────────────────────────────────────────────────
+  private posts: Post[] | null = null;
+  private cacheTimestamp: number = 0;
+  private failedPostsCache: FailedPost[] | null = null;
+  // Offline mutation queue — flushed next time online
+  private pendingMutationsList: PendingPostMutation[] = [];
+
   constructor() {
-    this.loadAnalyzingPosts();
+    this.preWarm();
   }
 
-  /**
-   * Load analyzing posts from storage
-   */
-  private async loadAnalyzingPosts(): Promise<void> {
+  private async preWarm(): Promise<void> {
     try {
-      const stored = await AsyncStorage.getItem(ANALYZING_POSTS_KEY);
-      if (stored) {
-        this.analyzingPosts = new Set(JSON.parse(stored));
-      }
-    } catch (error) {
-      console.error('Error loading analyzing posts:', error);
+      const [postsRaw, tsRaw, analyzingRaw, failedRaw, pendingRaw] = await Promise.all([
+        AsyncStorage.getItem(POSTS_CACHE_KEY),
+        AsyncStorage.getItem(CACHE_TIMESTAMP_KEY),
+        AsyncStorage.getItem(ANALYZING_POSTS_KEY),
+        AsyncStorage.getItem(FAILED_POSTS_KEY),
+        AsyncStorage.getItem(PENDING_MUTATIONS_KEY),
+      ]);
+      if (postsRaw) this.posts = JSON.parse(postsRaw);
+      if (tsRaw) this.cacheTimestamp = parseInt(tsRaw, 10);
+      if (analyzingRaw) this.analyzingPosts = new Set(JSON.parse(analyzingRaw));
+      if (failedRaw) this.failedPostsCache = JSON.parse(failedRaw);
+      if (pendingRaw) this.pendingMutationsList = JSON.parse(pendingRaw);
+    } catch (e) {
+      console.error('PostsCache preWarm error:', e);
     }
+  }
+
+  /** Queue a post delete/update to be flushed when online. */
+  async enqueuePendingMutation(m: PendingPostMutation): Promise<void> {
+    // De-duplicate: replace older entry with same type+shortcode
+    this.pendingMutationsList = this.pendingMutationsList.filter(
+      x => !(x.type === m.type && x.shortcode === m.shortcode)
+    );
+    this.pendingMutationsList.push(m);
+    try {
+      await AsyncStorage.setItem(PENDING_MUTATIONS_KEY, JSON.stringify(this.pendingMutationsList));
+    } catch { /* best effort */ }
+  }
+
+  /** Replay queued post mutations. Removes ones that succeed or get 4xx. Keeps network failures. */
+  async flushPendingPostMutations(): Promise<void> {
+    if (this.pendingMutationsList.length === 0) return;
+    console.log(`[PostsCache] flushing ${this.pendingMutationsList.length} pending mutation(s)`);
+    const remaining: PendingPostMutation[] = [];
+    for (const m of this.pendingMutationsList) {
+      try {
+        if (m.type === 'delete') {
+          await apiService.deletePost(m.shortcode);
+        } else if (m.type === 'update') {
+          await apiService.updatePost(m.shortcode, m.updates);
+        }
+      } catch (e: any) {
+        if (!e?.response) remaining.push(m); // network error — retry next time
+        // HTTP error (4xx/5xx) = discard
+      }
+    }
+    this.pendingMutationsList = remaining;
+    try {
+      if (remaining.length === 0) {
+        await AsyncStorage.removeItem(PENDING_MUTATIONS_KEY);
+      } else {
+        await AsyncStorage.setItem(PENDING_MUTATIONS_KEY, JSON.stringify(remaining));
+      }
+    } catch { /* best effort */ }
+  }
+
+  hasPendingMutations(): boolean {
+    return this.pendingMutationsList.length > 0;
   }
 
   /**
@@ -72,75 +136,81 @@ class PostsCacheService {
     return Array.from(this.analyzingPosts);
   }
   /**
-   * Save posts to local cache
+   * Save posts to local cache — updates memory first for instant reads,
+   * then persists to AsyncStorage.
    */
   async savePosts(posts: Post[]): Promise<void> {
+    this.posts = posts;
+    this.cacheTimestamp = Date.now();
     try {
-      await AsyncStorage.setItem(POSTS_CACHE_KEY, JSON.stringify(posts));
-      await AsyncStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+      await AsyncStorage.multiSet([
+        [POSTS_CACHE_KEY, JSON.stringify(posts)],
+        [CACHE_TIMESTAMP_KEY, this.cacheTimestamp.toString()],
+      ]);
     } catch (error) {
       console.error('Error saving posts to cache:', error);
     }
   }
 
   /**
-   * Get cached posts
+   * Get cached posts — served from memory (instant, no I/O).
    */
   async getCachedPosts(): Promise<Post[] | null> {
+    if (this.posts !== null) return this.posts;
+    // Fallback: preWarm may not have finished yet on very first call
     try {
       const cached = await AsyncStorage.getItem(POSTS_CACHE_KEY);
-      if (!cached) return null;
-      return JSON.parse(cached);
-    } catch (error) {
-      console.error('Error reading posts cache:', error);
-      return null;
-    }
+      if (cached) {
+        this.posts = JSON.parse(cached);
+        return this.posts;
+      }
+    } catch {}
+    return null;
   }
 
   /**
-   * Check if cache is still valid
+   * Check if cache is still valid — synchronous in-memory check, no I/O.
    */
-  async isCacheValid(): Promise<boolean> {
-    try {
-      const timestamp = await AsyncStorage.getItem(CACHE_TIMESTAMP_KEY);
-      if (!timestamp) return false;
-      
-      const cacheAge = Date.now() - parseInt(timestamp);
-      return cacheAge < CACHE_DURATION;
-    } catch (error) {
-      return false;
-    }
+  isCacheValid(): boolean {
+    if (!this.cacheTimestamp) return false;
+    return (Date.now() - this.cacheTimestamp) < CACHE_DURATION;
   }
 
   /**
-   * Get posts from cache if valid, otherwise return null
+   * @deprecated Use isCacheValid() (sync) instead.
+   */
+  async isCacheValidAsync(): Promise<boolean> {
+    return this.isCacheValid();
+  }
+
+  /**
+   * Get posts from cache if valid, otherwise return null.
    */
   async getValidCachedPosts(): Promise<Post[] | null> {
-    const isValid = await this.isCacheValid();
-    if (!isValid) return null;
+    if (!this.isCacheValid()) return null;
     return this.getCachedPosts();
   }
 
   /**
-   * Clear the cache
+   * Clear the cache (both memory and AsyncStorage).
    */
   async clearCache(): Promise<void> {
+    this.posts = null;
+    this.cacheTimestamp = 0;
     try {
-      await AsyncStorage.removeItem(POSTS_CACHE_KEY);
-      await AsyncStorage.removeItem(CACHE_TIMESTAMP_KEY);
+      await AsyncStorage.multiRemove([POSTS_CACHE_KEY, CACHE_TIMESTAMP_KEY]);
     } catch (error) {
       console.error('Error clearing posts cache:', error);
     }
   }
 
   /**
-   * Update a single post in cache
+   * Update a single post in cache.
    */
   async updatePostInCache(updatedPost: Post): Promise<void> {
     try {
       const posts = await this.getCachedPosts();
       if (!posts) return;
-
       const index = posts.findIndex(p => p.shortcode === updatedPost.shortcode);
       if (index !== -1) {
         posts[index] = updatedPost;
@@ -152,15 +222,13 @@ class PostsCacheService {
   }
 
   /**
-   * Remove a post from cache
+   * Remove a post from cache.
    */
   async removePostFromCache(shortcode: string): Promise<void> {
     try {
       const posts = await this.getCachedPosts();
       if (!posts) return;
-
-      const filtered = posts.filter(p => p.shortcode !== shortcode);
-      await this.savePosts(filtered);
+      await this.savePosts(posts.filter(p => p.shortcode !== shortcode));
     } catch (error) {
       console.error('Error removing post from cache:', error);
     }
@@ -168,11 +236,13 @@ class PostsCacheService {
 
   // ─── Failed posts ────────────────────────────────────────────────────────────
 
+  /** Returns failed posts from memory (instant) or AsyncStorage on first call. */
   async getFailedPosts(): Promise<FailedPost[]> {
+    if (this.failedPostsCache !== null) return this.failedPostsCache;
     try {
       const stored = await AsyncStorage.getItem(FAILED_POSTS_KEY);
-      if (!stored) return [];
-      return JSON.parse(stored) as FailedPost[];
+      this.failedPostsCache = stored ? (JSON.parse(stored) as FailedPost[]) : [];
+      return this.failedPostsCache;
     } catch {
       return [];
     }
@@ -187,17 +257,9 @@ class PostsCacheService {
   ): Promise<void> {
     try {
       const existing = await this.getFailedPosts();
-      const entry: FailedPost = {
-        shortcode,
-        url,
-        title: title || url,
-        thumbnail_url,
-        content_type,
-        failedAt: new Date().toISOString(),
-      };
-      // Replace existing entry for same shortcode, prepend new one
-      const updated = [entry, ...existing.filter(p => p.shortcode !== shortcode)];
-      await AsyncStorage.setItem(FAILED_POSTS_KEY, JSON.stringify(updated));
+      const entry: FailedPost = { shortcode, url, title: title || url, thumbnail_url, content_type, failedAt: new Date().toISOString() };
+      this.failedPostsCache = [entry, ...existing.filter(p => p.shortcode !== shortcode)];
+      await AsyncStorage.setItem(FAILED_POSTS_KEY, JSON.stringify(this.failedPostsCache));
     } catch (error) {
       console.error('Error marking post as failed:', error);
     }
@@ -206,8 +268,8 @@ class PostsCacheService {
   async removeFailed(shortcode: string): Promise<void> {
     try {
       const existing = await this.getFailedPosts();
-      const updated = existing.filter(p => p.shortcode !== shortcode);
-      await AsyncStorage.setItem(FAILED_POSTS_KEY, JSON.stringify(updated));
+      this.failedPostsCache = existing.filter(p => p.shortcode !== shortcode);
+      await AsyncStorage.setItem(FAILED_POSTS_KEY, JSON.stringify(this.failedPostsCache));
     } catch (error) {
       console.error('Error removing failed post:', error);
     }

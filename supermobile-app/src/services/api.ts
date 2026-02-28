@@ -195,7 +195,7 @@ class ApiService {
       const baseUrl = await this.getBaseUrl();
       const response = await axios.get<{ success: boolean; data: Post[] }>(
         `${baseUrl}/recent?limit=${limit}`,
-        { headers }
+        { headers, timeout: 8000 }
       );
       return (response.data.data || []).map(normalizePost);
     } catch (error: any) {
@@ -323,6 +323,20 @@ class ApiService {
     } catch (error) {
       console.error('Error flushing retry queue:', error);
       throw error;
+    }
+  }
+
+  /** Returns true if the backend is reachable (even a 4xx means it's up). */
+  async isReachable(): Promise<boolean> {
+    try {
+      const headers = await this.getHeaders();
+      const baseUrl = await this.getBaseUrl();
+      await axios.get(`${baseUrl}/queue-status`, { headers, timeout: 4000 });
+      return true;
+    } catch (e: any) {
+      // If we got an HTTP response (even an error), the server IS reachable.
+      // Only return false for network-level failures (no response at all).
+      return !!e?.response;
     }
   }
 

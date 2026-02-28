@@ -84,13 +84,24 @@ const FailedAnalysisScreen = ({ navigation }: Props) => {
 
   const handleReanalyze = async (fp: FailedPost) => {
     if (reanalyzingPosts.has(fp.shortcode)) return;
+
+    // Connectivity check — show toast immediately instead of letting user navigate
+    // away only to see the post appear back in failed list seconds later.
+    const reachable = await apiService.isReachable();
+    if (!reachable) {
+      showToast('📡 Not connected to backend — connect first and retry', 'warning');
+      return;
+    }
+
     setReanalyzingPosts(prev => new Set(prev).add(fp.shortcode));
 
     // Optimistically remove from failed list
     await postsCache.removeFailed(fp.shortcode);
-    // Mark as analyzing so HomeScreen shows the overlay
-    postsCache.markAsAnalyzing(fp.shortcode);
-    // Add placeholder to cache so it appears on HomeScreen
+    // Mark as analyzing BEFORE navigating — HomeScreen checks this on focus
+    // to decide whether to start the watcher. Not awaiting means the Set may
+    // not be persisted yet when loadPosts fires.
+    await postsCache.markAsAnalyzing(fp.shortcode);
+    // Add placeholder to cache so it appears on HomeScreen immediately
     const placeholder: Post = {
       shortcode: fp.shortcode,
       url: fp.url,
@@ -111,19 +122,19 @@ const FailedAnalysisScreen = ({ navigation }: Props) => {
     setFailedPosts(updated);
     setSelectedPost(null);
 
-    // Navigate to Home so user sees the analyzing overlay
+    // Navigate to Home — focus listener fires loadPosts which sees analyzingIds
+    // and starts the 3-second watcher automatically.
     navigation.navigate('Home');
 
     // Fire re-analysis in background (fire-and-forget after navigate)
     apiService.reanalyzePost(fp.url)
       .then(async () => {
-        const freshPosts = await apiService.getRecentPosts(50);
-        await postsCache.savePosts(freshPosts);
-        postsCache.markAnalysisComplete(fp.shortcode);
+        // Backend accepted the job — watcher on HomeScreen will detect completion
       })
       .catch(async () => {
+        // Re-analysis request itself failed — put back in failed list
         await postsCache.markAsFailed(fp.shortcode, fp.url, fp.title, fp.thumbnail_url, fp.content_type);
-        postsCache.markAnalysisComplete(fp.shortcode);
+        await postsCache.markAnalysisComplete(fp.shortcode);
       })
       .finally(() => {
         setReanalyzingPosts(prev => {
