@@ -68,7 +68,7 @@ const HomeScreen = () => {
   );
   const syncAnalyzingIds = () => setAnalyzingIds(new Set(postsCache.getAnalyzingPosts()));
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const loadPostsRef = useRef<(forceRefresh?: boolean) => Promise<void>>();
+  const loadPostsRef = useRef<((forceRefresh?: boolean) => Promise<void>) | undefined>(undefined);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
 
