@@ -74,7 +74,6 @@ const HomeScreen = () => {
 
   useEffect(() => {
     initializeAndLoad();
-    checkFirstLaunch();
     return () => {
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
@@ -82,6 +81,14 @@ const HomeScreen = () => {
       }
     };
   }, []);
+
+  // Show onboarding only after the app has fully initialized — avoids racing
+  // with initializeAndLoad state changes which can cause a flash/double-show.
+  useEffect(() => {
+    if (isInitialized) {
+      checkFirstLaunch();
+    }
+  }, [isInitialized]);
 
   // Refresh when screen comes into focus (but skip first time).
   // Deferred with InteractionManager so the navigation animation completes
@@ -108,7 +115,7 @@ const HomeScreen = () => {
         await AsyncStorage.setItem('@superbrain_onboarded', '1');
         return;
       }
-      setTimeout(() => setShowOnboarding(true), 700);
+      setTimeout(() => setShowOnboarding(true), 100);
     } catch { /* ignore */ }
   };
 
@@ -183,16 +190,26 @@ const HomeScreen = () => {
   const loadPosts = async (forceRefresh: boolean = false) => {
     try {
       // Reconcile: if a post was in the failed list AND still stuck in analyzing, clean it up.
-      // This prevents \"✨ Analyzing...\" overlay appearing permanently for posts that failed
-      // analysis while the app was in the background.
+      // Also remove failed placeholders from the posts list so the analyzing overlay
+      // doesn't get stuck — failed posts are tracked in Library → Failed Analysis instead.
       const failedList = await postsCache.getFailedPosts();
       if (failedList.length > 0) {
+        const failedShortcodes = new Set(failedList.map(fp => fp.shortcode));
         for (const fp of failedList) {
           if (postsCache.isAnalyzing(fp.shortcode)) {
-            postsCache.markAnalysisComplete(fp.shortcode);
+            await postsCache.markAnalysisComplete(fp.shortcode);
           }
         }
         syncAnalyzingIds();
+        // Remove failed placeholders from the visible posts list and cache
+        const currentCached = await postsCache.getCachedPosts();
+        if (currentCached) {
+          const cleaned = currentCached.filter(p => !failedShortcodes.has(p.shortcode));
+          if (cleaned.length !== currentCached.length) {
+            await postsCache.savePosts(cleaned);
+            setPosts(cleaned);
+          }
+        }
       }
 
       // Guard: never show any data if token is not configured
