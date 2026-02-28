@@ -23,7 +23,7 @@ import apiService from '../services/api';
 import postsCache from '../services/postsCache';
 import collectionsService from '../services/collections';
 import { scheduleAllWatchLaterNotifications } from '../services/notificationService';
-import { Post, Collection } from '../types';
+import { Post, Collection, FailedPost } from '../types';
 import { colors } from '../theme/colors';
 import { RootStackParamList } from '../../App';
 import CustomToast from '../components/CustomToast';
@@ -194,7 +194,7 @@ const HomeScreen = () => {
       // doesn't get stuck — failed posts are tracked in Library → Failed Analysis instead.
       const failedList = await postsCache.getFailedPosts();
       if (failedList.length > 0) {
-        const failedShortcodes = new Set(failedList.map(fp => fp.shortcode));
+        const failedShortcodes = new Set(failedList.map((fp: FailedPost) => fp.shortcode));
         for (const fp of failedList) {
           if (postsCache.isAnalyzing(fp.shortcode)) {
             await postsCache.markAnalysisComplete(fp.shortcode);
@@ -204,7 +204,7 @@ const HomeScreen = () => {
         // Remove failed placeholders from the visible posts list and cache
         const currentCached = await postsCache.getCachedPosts();
         if (currentCached) {
-          const cleaned = currentCached.filter(p => !failedShortcodes.has(p.shortcode));
+          const cleaned = currentCached.filter((p: Post) => !failedShortcodes.has(p.shortcode));
           if (cleaned.length !== currentCached.length) {
             await postsCache.savePosts(cleaned);
             setPosts(cleaned);
@@ -277,11 +277,11 @@ const HomeScreen = () => {
       if (fetchedPosts.length > 0) {
         // Server returned real data — safe to merge placeholders + save
         const analyzingPlaceholders = (cachedPosts || []).filter(
-          p => stillAnalyzing.includes(p.shortcode) && !fetchedPosts.find(fp => fp.shortcode === p.shortcode)
+          (p: Post) => stillAnalyzing.includes(p.shortcode) && !fetchedPosts.find((fp: Post) => fp.shortcode === p.shortcode)
         );
         const mergedPosts = [
           ...analyzingPlaceholders,
-          ...fetchedPosts.filter(p => !stillAnalyzing.includes(p.shortcode)),
+          ...fetchedPosts.filter((p: Post) => !stillAnalyzing.includes(p.shortcode)),
         ];
         setPosts(mergedPosts);
         await postsCache.savePosts(mergedPosts);
@@ -302,7 +302,7 @@ const HomeScreen = () => {
           try {
             // ── Remove newly-failed post placeholders immediately ─────────────
             const failedInTick = await postsCache.getFailedPosts();
-            const failedCodes = new Set(failedInTick.map(fp => fp.shortcode));
+            const failedCodes = new Set(failedInTick.map((fp: FailedPost) => fp.shortcode));
             if (failedInTick.length > 0) {
               let clearedAny = false;
               for (const fp of failedInTick) {
@@ -314,7 +314,7 @@ const HomeScreen = () => {
               if (clearedAny) syncAnalyzingIds();
               const cacheForClean = await postsCache.getCachedPosts();
               if (cacheForClean) {
-                const cleaned = cacheForClean.filter(p => !failedCodes.has(p.shortcode));
+                const cleaned = cacheForClean.filter((p: Post) => !failedCodes.has(p.shortcode));
                 if (cleaned.length !== cacheForClean.length) {
                   await postsCache.savePosts(cleaned);
                   setPosts(cleaned);

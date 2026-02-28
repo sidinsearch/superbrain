@@ -250,12 +250,12 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
       // For Instagram try to fetch a better title from backend
       if (urlType === 'instagram') {
         fetchInstagramCaption(shortcode).then(caption => {
-          setPost(prev => prev ? { ...prev, title: caption } : null);
+          setPost((prev: Post | null) => prev ? { ...prev, title: caption } : null);
         }).catch(() => {
-          setPost(prev => prev ? { ...prev, title: defaultTitle } : null);
+          setPost((prev: Post | null) => prev ? { ...prev, title: defaultTitle } : null);
         });
       } else {
-        setPost(prev => prev ? { ...prev, title: defaultTitle } : null);
+        setPost((prev: Post | null) => prev ? { ...prev, title: defaultTitle } : null);
       }
 
     } catch (err: any) {
@@ -276,7 +276,7 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
       console.log('ShareHandler - Raw collections data:', data);
       
       // Filter: only show collections with both name and id, and that are not "All Posts"
-      const userCollections = data.filter(c => 
+      const userCollections = data.filter((c: Collection) => 
         c.name && 
         c.id && 
         c.name !== 'All Posts' && 
@@ -321,7 +321,7 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
           
           // Add placeholder to cache so it appears in feed
           const cachedPosts = await postsCache.getCachedPosts() || [];
-          const updatedPosts = [placeholderPost, ...cachedPosts.filter(p => p.shortcode !== shortcode)];
+          const updatedPosts = [placeholderPost, ...cachedPosts.filter((p: Post) => p.shortcode !== shortcode)];
           await postsCache.savePosts(updatedPosts);
           
           await collectionsService.addPostToCollection(collectionId, shortcode);
@@ -331,10 +331,10 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
             // Merge fresh posts with any still-analyzing placeholders — don't wipe them
             const freshPosts = await apiService.getRecentPosts(50);
             if (freshPosts.length > 0) {
-              const stillAnalyzing = postsCache.getAnalyzingPosts().filter(s => s !== shortcode);
+              const stillAnalyzing = postsCache.getAnalyzingPosts().filter((s: string) => s !== shortcode);
               const cachedNow = await postsCache.getCachedPosts() || [];
               const placeholders = cachedNow.filter(
-                p => stillAnalyzing.includes(p.shortcode) && !freshPosts.find(fp => fp.shortcode === p.shortcode)
+                (p: Post) => stillAnalyzing.includes(p.shortcode) && !freshPosts.find((fp: Post) => fp.shortcode === p.shortcode)
               );
               await postsCache.savePosts([...placeholders, ...freshPosts]);
             }
@@ -405,7 +405,7 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
           
           // Add placeholder to cache so it appears in feed
           const cachedPosts = await postsCache.getCachedPosts() || [];
-          const updatedPosts = [placeholderPost, ...cachedPosts.filter(p => p.shortcode !== shortcode)];
+          const updatedPosts = [placeholderPost, ...cachedPosts.filter((p: Post) => p.shortcode !== shortcode)];
           await postsCache.savePosts(updatedPosts);
         }
         
@@ -415,10 +415,10 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
           const freshPosts = await apiService.getRecentPosts(50);
           const sc = post.shortcode;
           if (freshPosts.length > 0) {
-            const stillAnalyzing = postsCache.getAnalyzingPosts().filter(s => s !== sc);
+            const stillAnalyzing = postsCache.getAnalyzingPosts().filter((s: string) => s !== sc);
             const cachedNow = await postsCache.getCachedPosts() || [];
             const placeholders = cachedNow.filter(
-              p => stillAnalyzing.includes(p.shortcode) && !freshPosts.find(fp => fp.shortcode === p.shortcode)
+              (p: Post) => stillAnalyzing.includes(p.shortcode) && !freshPosts.find((fp: Post) => fp.shortcode === p.shortcode)
             );
             await postsCache.savePosts([...placeholders, ...freshPosts]);
           }
