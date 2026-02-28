@@ -1,0 +1,1409 @@
+{
+  "cached_at": "2026-02-24T06:15:59.101989",
+  "models": [
+    {
+      "id": "openrouter/free",
+      "canonical_slug": "openrouter/free",
+      "hugging_face_id": "",
+      "name": "Free Models Router",
+      "created": 1769917427,
+      "description": "The simplest way to get free inference. openrouter/free is a router that selects free models at random from the models available on OpenRouter. The router smartly filters for models that support features needed for your request such as image understanding, tool calling, structured outputs and more. ",
+      "context_length": 200000,
+      "architecture": {
+        "modality": "text+image->text",
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Router",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": null,
+        "max_completion_tokens": null,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "max_tokens",
+        "min_p",
+        "presence_penalty",
+        "reasoning",
+        "repetition_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_p"
+      ],
+      "default_parameters": {
+        "temperature": null,
+        "top_p": null,
+        "frequency_penalty": null
+      },
+      "expiration_date": null
+    },
+    {
+      "id": "nvidia/nemotron-3-nano-30b-a3b:free",
+      "canonical_slug": "nvidia/nemotron-3-nano-30b-a3b",
+      "hugging_face_id": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
+      "name": "NVIDIA: Nemotron 3 Nano 30B A3B (free)",
+      "created": 1765731275,
+      "description": "NVIDIA Nemotron 3 Nano 30B A3B is a small language MoE model with highest compute efficiency and accuracy for developers to build specialized agentic AI systems.\n\nThe model is fully open with open-weights, datasets and recipes so developers can easily\ncustomize, optimize, and deploy the model on their infrastructure for maximum privacy and\nsecurity.\n\nNote: For the free endpoint, all prompts and output are logged to improve the provider's model and its product and services. Please do not upload any personal, confidential, or otherwise sensitive information. This is a trial use only. Do not use for production or business-critical systems.",
+      "context_length": 256000,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 256000,
+        "max_completion_tokens": null,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "seed",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "default_parameters": {
+        "temperature": null,
+        "top_p": null,
+        "frequency_penalty": null
+      },
+      "expiration_date": null
+    },
+    {
+      "id": "qwen/qwen3-next-80b-a3b-instruct:free",
+      "canonical_slug": "qwen/qwen3-next-80b-a3b-instruct-2509",
+      "hugging_face_id": "Qwen/Qwen3-Next-80B-A3B-Instruct",
+      "name": "Qwen: Qwen3 Next 80B A3B Instruct (free)",
+      "created": 1757612213,
+      "description": "Qwen3-Next-80B-A3B-Instruct is an instruction-tuned chat model in the Qwen3-Next series optimized for fast, stable responses without \u201cthinking\u201d traces. It targets complex tasks across reasoning, code generation, knowledge QA, and multilingual use, while remaining robust on alignment and formatting. Compared with prior Qwen3 instruct variants, it focuses on higher throughput and stability on ultra-long inputs and multi-turn dialogues, making it well-suited for RAG, tool use, and agentic workflows that require consistent final answers rather than visible chain-of-thought.\n\nThe model employs scaling-efficient training and decoding to improve parameter efficiency and inference speed, and has been validated on a broad set of public benchmarks where it reaches or approaches larger Qwen3 systems in several categories while outperforming earlier mid-sized baselines. It is best used as a general assistant, code helper, and long-context task solver in production settings where deterministic, instruction-following outputs are preferred.",
+      "context_length": 262144,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Qwen3",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 262144,
+        "max_completion_tokens": null,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "max_tokens",
+        "presence_penalty",
+        "response_format",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_p"
+      ],
+      "default_parameters": {},
+      "expiration_date": null
+    },
+    {
+      "id": "stepfun/step-3.5-flash:free",
+      "canonical_slug": "stepfun/step-3.5-flash",
+      "hugging_face_id": "stepfun-ai/Step-3.5-Flash",
+      "name": "StepFun: Step 3.5 Flash (free)",
+      "created": 1769728337,
+      "description": "Step 3.5 Flash is StepFun's most capable open-source foundation model. Built on a sparse Mixture of Experts (MoE) architecture, it selectively activates only 11B of its 196B parameters per token. It is a reasoning model that is incredibly speed efficient even at long contexts.",
+      "context_length": 256000,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 256000,
+        "max_completion_tokens": 256000,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "stop",
+        "temperature",
+        "tools",
+        "top_p"
+      ],
+      "default_parameters": {
+        "temperature": null,
+        "top_p": null,
+        "frequency_penalty": null
+      },
+      "expiration_date": null
+    },
+    {
+      "id": "qwen/qwen3-vl-30b-a3b-thinking",
+      "canonical_slug": "qwen/qwen3-vl-30b-a3b-thinking",
+      "hugging_face_id": "Qwen/Qwen3-VL-30B-A3B-Thinking",
+      "name": "Qwen: Qwen3 VL 30B A3B Thinking",
+      "created": 1759794479,
+      "description": "Qwen3-VL-30B-A3B-Thinking is a multimodal model that unifies strong text generation with visual understanding for images and videos. Its Thinking variant enhances reasoning in STEM, math, and complex tasks. It excels in perception of real-world/synthetic categories, 2D/3D spatial grounding, and long-form visual comprehension, achieving competitive multimodal benchmark results. For agentic use, it handles multi-image multi-turn instructions, video timeline alignments, GUI automation, and visual coding from sketches to debugged UI. Text performance matches flagship Qwen3 models, suiting document AI, OCR, UI assistance, spatial tasks, and agent research.",
+      "context_length": 131072,
+      "architecture": {
+        "modality": "text+image->text",
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Qwen3",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0",
+        "request": "0",
+        "image": "0",
+        "web_search": "0",
+        "internal_reasoning": "0"
+      },
+      "top_provider": {
+        "context_length": 131072,
+        "max_completion_tokens": 32768,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "max_tokens",
+        "presence_penalty",
+        "reasoning",
+        "repetition_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_p"
+      ],
+      "default_parameters": {
+        "temperature": 0.8,
+        "top_p": 0.95
+      },
+      "expiration_date": null
+    },
+    {
+      "id": "arcee-ai/trinity-mini:free",
+      "canonical_slug": "arcee-ai/trinity-mini-20251201",
+      "hugging_face_id": "arcee-ai/Trinity-Mini",
+      "name": "Arcee AI: Trinity Mini (free)",
+      "created": 1764601720,
+      "description": "Trinity Mini is a 26B-parameter (3B active) sparse mixture-of-experts language model featuring 128 experts with 8 active per token. Engineered for efficient reasoning over long contexts (131k) with robust function calling and multi-step agent workflows.",
+      "context_length": 131072,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 131072,
+        "max_completion_tokens": null,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "response_format",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_p"
+      ],
+      "default_parameters": {
+        "temperature": 0.15,
+        "top_p": 0.75,
+        "frequency_penalty": null
+      },
+      "expiration_date": null
+    },
+    {
+      "id": "qwen/qwen3-vl-235b-a22b-thinking",
+      "canonical_slug": "qwen/qwen3-vl-235b-a22b-thinking",
+      "hugging_face_id": "Qwen/Qwen3-VL-235B-A22B-Thinking",
+      "name": "Qwen: Qwen3 VL 235B A22B Thinking",
+      "created": 1758668690,
+      "description": "Qwen3-VL-235B-A22B Thinking is a multimodal model that unifies strong text generation with visual understanding across images and video. The Thinking model is optimized for multimodal reasoning in STEM and math. The series emphasizes robust perception (recognition of diverse real-world and synthetic categories), spatial understanding (2D/3D grounding), and long-form visual comprehension, with competitive results on public multimodal benchmarks for both perception and reasoning.\n\nBeyond analysis, Qwen3-VL supports agentic interaction and tool use: it can follow complex instructions over multi-image, multi-turn dialogues; align text to video timelines for precise temporal queries; and operate GUI elements for automation tasks. The models also enable visual coding workflows, turning sketches or mockups into code and assisting with UI debugging, while maintaining strong text-only performance comparable to the flagship Qwen3 language models. This makes Qwen3-VL suitable for production scenarios spanning document AI, multilingual OCR, software/UI assistance, spatial/embodied tasks, and research on vision-language agents.",
+      "context_length": 131072,
+      "architecture": {
+        "modality": "text+image->text",
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Qwen3",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0",
+        "request": "0",
+        "image": "0",
+        "web_search": "0",
+        "internal_reasoning": "0"
+      },
+      "top_provider": {
+        "context_length": 131072,
+        "max_completion_tokens": 32768,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "max_tokens",
+        "presence_penalty",
+        "reasoning",
+        "repetition_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_p"
+      ],
+      "default_parameters": {
+        "temperature": 0.8,
+        "top_p": 0.95,
+        "frequency_penalty": null
+      },
+      "expiration_date": null
+    },
+    {
+      "id": "nvidia/nemotron-nano-9b-v2:free",
+      "canonical_slug": "nvidia/nemotron-nano-9b-v2",
+      "hugging_face_id": "nvidia/NVIDIA-Nemotron-Nano-9B-v2",
+      "name": "NVIDIA: Nemotron Nano 9B V2 (free)",
+      "created": 1757106807,
+      "description": "NVIDIA-Nemotron-Nano-9B-v2 is a large language model (LLM) trained from scratch by NVIDIA, and designed as a unified model for both reasoning and non-reasoning tasks. It responds to user queries and tasks by first generating a reasoning trace and then concluding with a final response. \n\nThe model's reasoning capabilities can be controlled via a system prompt. If the user prefers the model to provide its final answer without intermediate reasoning traces, it can be configured to do so.",
+      "context_length": 128000,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 128000,
+        "max_completion_tokens": null,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "response_format",
+        "seed",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "default_parameters": {},
+      "expiration_date": null
+    },
+    {
+      "id": "qwen/qwen3-coder:free",
+      "canonical_slug": "qwen/qwen3-coder-480b-a35b-07-25",
+      "hugging_face_id": "Qwen/Qwen3-Coder-480B-A35B-Instruct",
+      "name": "Qwen: Qwen3 Coder 480B A35B (free)",
+      "created": 1753230546,
+      "description": "Qwen3-Coder-480B-A35B-Instruct is a Mixture-of-Experts (MoE) code generation model developed by the Qwen team. It is optimized for agentic coding tasks such as function calling, tool use, and long-context reasoning over repositories. The model features 480 billion total parameters, with 35 billion active per forward pass (8 out of 160 experts).\n\nPricing for the Alibaba endpoints varies by context length. Once a request is greater than 128k input tokens, the higher pricing is used.",
+      "context_length": 262000,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Qwen3",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 262000,
+        "max_completion_tokens": 262000,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "max_tokens",
+        "presence_penalty",
+        "stop",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_p"
+      ],
+      "default_parameters": {},
+      "expiration_date": null
+    },
+    {
+      "id": "liquid/lfm-2.5-1.2b-thinking:free",
+      "canonical_slug": "liquid/lfm-2.5-1.2b-thinking-20260120",
+      "hugging_face_id": "LiquidAI/LFM2.5-1.2B-Thinking",
+      "name": "LiquidAI: LFM2.5-1.2B-Thinking (free)",
+      "created": 1768927527,
+      "description": "LFM2.5-1.2B-Thinking is a lightweight reasoning-focused model optimized for agentic tasks, data extraction, and RAG\u2014while still running comfortably on edge devices. It supports long context (up to 32K tokens) and is designed to provide higher-quality \u201cthinking\u201d responses in a small 1.2B model.",
+      "context_length": 32768,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 32768,
+        "max_completion_tokens": null,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "max_tokens",
+        "min_p",
+        "presence_penalty",
+        "reasoning",
+        "repetition_penalty",
+        "seed",
+        "stop",
+        "temperature",
+        "top_k",
+        "top_p"
+      ],
+      "default_parameters": {
+        "temperature": null,
+        "top_p": null,
+        "frequency_penalty": null
+      },
+      "expiration_date": null
+    },
+    {
+      "id": "liquid/lfm-2.5-1.2b-instruct:free",
+      "canonical_slug": "liquid/lfm-2.5-1.2b-instruct-20260120",
+      "hugging_face_id": "LiquidAI/LFM2.5-1.2B-Instruct",
+      "name": "LiquidAI: LFM2.5-1.2B-Instruct (free)",
+      "created": 1768927521,
+      "description": "LFM2.5-1.2B-Instruct is a compact, high-performance instruction-tuned model built for fast on-device AI. It delivers strong chat quality in a 1.2B parameter footprint, with efficient edge inference and broad runtime support.",
+      "context_length": 32768,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 32768,
+        "max_completion_tokens": null,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "max_tokens",
+        "min_p",
+        "presence_penalty",
+        "repetition_penalty",
+        "seed",
+        "stop",
+        "temperature",
+        "top_k",
+        "top_p"
+      ],
+      "default_parameters": {
+        "temperature": null,
+        "top_p": null,
+        "frequency_penalty": null
+      },
+      "expiration_date": null
+    },
+    {
+      "id": "deepseek/deepseek-r1-0528:free",
+      "canonical_slug": "deepseek/deepseek-r1-0528",
+      "hugging_face_id": "deepseek-ai/DeepSeek-R1-0528",
+      "name": "DeepSeek: R1 0528 (free)",
+      "created": 1748455170,
+      "description": "May 28th update to the [original DeepSeek R1](/deepseek/deepseek-r1) Performance on par with [OpenAI o1](/openai/o1), but open-sourced and with fully open reasoning tokens. It's 671B parameters in size, with 37B active in an inference pass.\n\nFully open-source model.",
+      "context_length": 163840,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "DeepSeek",
+        "instruct_type": "deepseek-r1"
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 163840,
+        "max_completion_tokens": 163840,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "max_tokens",
+        "min_p",
+        "presence_penalty",
+        "reasoning",
+        "repetition_penalty",
+        "stop",
+        "temperature",
+        "top_k",
+        "top_p"
+      ],
+      "default_parameters": {
+        "temperature": null,
+        "top_p": null,
+        "frequency_penalty": null
+      },
+      "expiration_date": "2026-02-24"
+    },
+    {
+      "id": "nvidia/nemotron-nano-12b-v2-vl:free",
+      "canonical_slug": "nvidia/nemotron-nano-12b-v2-vl",
+      "hugging_face_id": "nvidia/NVIDIA-Nemotron-Nano-12B-v2-VL-BF16",
+      "name": "NVIDIA: Nemotron Nano 12B 2 VL (free)",
+      "created": 1761675565,
+      "description": "NVIDIA Nemotron Nano 2 VL is a 12-billion-parameter open multimodal reasoning model designed for video understanding and document intelligence. It introduces a hybrid Transformer-Mamba architecture, combining transformer-level accuracy with Mamba\u2019s memory-efficient sequence modeling for significantly higher throughput and lower latency.\n\nThe model supports inputs of text and multi-image documents, producing natural-language outputs. It is trained on high-quality NVIDIA-curated synthetic datasets optimized for optical-character recognition, chart reasoning, and multimodal comprehension.\n\nNemotron Nano 2 VL achieves leading results on OCRBench v2 and scores \u2248 74 average across MMMU, MathVista, AI2D, OCRBench, OCR-Reasoning, ChartQA, DocVQA, and Video-MME\u2014surpassing prior open VL baselines. With Efficient Video Sampling (EVS), it handles long-form videos while reducing inference cost.\n\nOpen-weights, training data, and fine-tuning recipes are released under a permissive NVIDIA open license, with deployment supported across NeMo, NIM, and major inference runtimes.",
+      "context_length": 128000,
+      "architecture": {
+        "modality": "text+image+video->text",
+        "input_modalities": [
+          "image",
+          "text",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 128000,
+        "max_completion_tokens": 128000,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "seed",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "default_parameters": {
+        "temperature": null,
+        "top_p": null,
+        "frequency_penalty": null
+      },
+      "expiration_date": null
+    },
+    {
+      "id": "qwen/qwen3-235b-a22b-thinking-2507",
+      "canonical_slug": "qwen/qwen3-235b-a22b-thinking-2507",
+      "hugging_face_id": "Qwen/Qwen3-235B-A22B-Thinking-2507",
+      "name": "Qwen: Qwen3 235B A22B Thinking 2507",
+      "created": 1753449557,
+      "description": "Qwen3-235B-A22B-Thinking-2507 is a high-performance, open-weight Mixture-of-Experts (MoE) language model optimized for complex reasoning tasks. It activates 22B of its 235B parameters per forward pass and natively supports up to 262,144 tokens of context. This \"thinking-only\" variant enhances structured logical reasoning, mathematics, science, and long-form generation, showing strong benchmark performance across AIME, SuperGPQA, LiveCodeBench, and MMLU-Redux. It enforces a special reasoning mode (</think>) and is designed for high-token outputs (up to 81,920 tokens) in challenging domains.\n\nThe model is instruction-tuned and excels at step-by-step reasoning, tool use, agentic workflows, and multilingual tasks. This release represents the most capable open-source variant in the Qwen3-235B series, surpassing many closed models in structured reasoning use cases.",
+      "context_length": 131072,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Qwen3",
+        "instruct_type": "qwen3"
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0",
+        "request": "0",
+        "image": "0",
+        "web_search": "0",
+        "internal_reasoning": "0"
+      },
+      "top_provider": {
+        "context_length": 131072,
+        "max_completion_tokens": null,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "logit_bias",
+        "max_tokens",
+        "min_p",
+        "presence_penalty",
+        "reasoning",
+        "repetition_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_p"
+      ],
+      "default_parameters": {
+        "temperature": null,
+        "top_p": null,
+        "frequency_penalty": null
+      },
+      "expiration_date": null
+    },
+    {
+      "id": "upstage/solar-pro-3:free",
+      "canonical_slug": "upstage/solar-pro-3",
+      "hugging_face_id": "",
+      "name": "Upstage: Solar Pro 3 (free)",
+      "created": 1769481200,
+      "description": "Solar Pro 3 is Upstage's powerful Mixture-of-Experts (MoE) language model. With 102B total parameters and 12B active parameters per forward pass, it delivers exceptional performance while maintaining computational efficiency. Optimized for Korean with English and Japanese support.",
+      "context_length": 128000,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 128000,
+        "max_completion_tokens": null,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "response_format",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools"
+      ],
+      "default_parameters": {
+        "temperature": null,
+        "top_p": null,
+        "frequency_penalty": null
+      },
+      "expiration_date": "2026-03-02"
+    },
+    {
+      "id": "arcee-ai/trinity-large-preview:free",
+      "canonical_slug": "arcee-ai/trinity-large-preview",
+      "hugging_face_id": "arcee-ai/Trinity-Large-Preview",
+      "name": "Arcee AI: Trinity Large Preview (free)",
+      "created": 1769552670,
+      "description": "Trinity-Large-Preview is a frontier-scale open-weight language model from Arcee, built as a 400B-parameter sparse Mixture-of-Experts with 13B active parameters per token using 4-of-256 expert routing. \n\nIt excels in creative writing, storytelling, role-play, chat scenarios, and real-time voice assistance, better than your average reasoning model usually can. But we\u2019re also introducing some of our newer agentic performance. It was trained to navigate well in agent harnesses like OpenCode, Cline, and Kilo Code, and to handle complex toolchains and long, constraint-filled prompts. \n\nThe architecture natively supports very long context windows up to 512k tokens, with the Preview API currently served at 128k context using 8-bit quantization for practical deployment. Trinity-Large-Preview reflects Arcee\u2019s efficiency-first design philosophy, offering a production-oriented frontier model with open weights and permissive licensing suitable for real-world applications and experimentation.",
+      "context_length": 131000,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0",
+        "request": "0",
+        "image": "0",
+        "web_search": "0",
+        "internal_reasoning": "0"
+      },
+      "top_provider": {
+        "context_length": 131000,
+        "max_completion_tokens": null,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "max_tokens",
+        "response_format",
+        "structured_outputs",
+        "temperature",
+        "tools",
+        "top_k",
+        "top_p"
+      ],
+      "default_parameters": {
+        "temperature": 0.8,
+        "top_p": 0.8,
+        "frequency_penalty": null
+      },
+      "expiration_date": null
+    },
+    {
+      "id": "mistralai/mistral-small-3.1-24b-instruct:free",
+      "canonical_slug": "mistralai/mistral-small-3.1-24b-instruct-2503",
+      "hugging_face_id": "mistralai/Mistral-Small-3.1-24B-Instruct-2503",
+      "name": "Mistral: Mistral Small 3.1 24B (free)",
+      "created": 1742238937,
+      "description": "Mistral Small 3.1 24B Instruct is an upgraded variant of Mistral Small 3 (2501), featuring 24 billion parameters with advanced multimodal capabilities. It provides state-of-the-art performance in text-based reasoning and vision tasks, including image analysis, programming, mathematical reasoning, and multilingual support across dozens of languages. Equipped with an extensive 128k token context window and optimized for efficient local inference, it supports use cases such as conversational agents, function calling, long-document comprehension, and privacy-sensitive deployments. The updated version is [Mistral Small 3.2](mistralai/mistral-small-3.2-24b-instruct)",
+      "context_length": 128000,
+      "architecture": {
+        "modality": "text+image->text",
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Mistral",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 128000,
+        "max_completion_tokens": null,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "max_tokens",
+        "presence_penalty",
+        "response_format",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_p"
+      ],
+      "default_parameters": {
+        "temperature": 0.3
+      },
+      "expiration_date": null
+    },
+    {
+      "id": "meta-llama/llama-3.3-70b-instruct:free",
+      "canonical_slug": "meta-llama/llama-3.3-70b-instruct",
+      "hugging_face_id": "meta-llama/Llama-3.3-70B-Instruct",
+      "name": "Meta: Llama 3.3 70B Instruct (free)",
+      "created": 1733506137,
+      "description": "The Meta Llama 3.3 multilingual large language model (LLM) is a pretrained and instruction tuned generative model in 70B (text in/text out). The Llama 3.3 instruction tuned text only model is optimized for multilingual dialogue use cases and outperforms many of the available open source and closed chat models on common industry benchmarks.\n\nSupported languages: English, German, French, Italian, Portuguese, Hindi, Spanish, and Thai.\n\n[Model Card](https://github.com/meta-llama/llama-models/blob/main/models/llama3_3/MODEL_CARD.md)",
+      "context_length": 128000,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Llama3",
+        "instruct_type": "llama3"
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 128000,
+        "max_completion_tokens": 128000,
+        "is_moderated": true
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "max_tokens",
+        "presence_penalty",
+        "seed",
+        "stop",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_p"
+      ],
+      "default_parameters": {},
+      "expiration_date": null
+    },
+    {
+      "id": "google/gemma-3n-e2b-it:free",
+      "canonical_slug": "google/gemma-3n-e2b-it",
+      "hugging_face_id": "google/gemma-3n-E2B-it",
+      "name": "Google: Gemma 3n 2B (free)",
+      "created": 1752074904,
+      "description": "Gemma 3n E2B IT is a multimodal, instruction-tuned model developed by Google DeepMind, designed to operate efficiently at an effective parameter size of 2B while leveraging a 6B architecture. Based on the MatFormer architecture, it supports nested submodels and modular composition via the Mix-and-Match framework. Gemma 3n models are optimized for low-resource deployment, offering 32K context length and strong multilingual and reasoning performance across common benchmarks. This variant is trained on a diverse corpus including code, math, web, and multimodal data.",
+      "context_length": 8192,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 8192,
+        "max_completion_tokens": 2048,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "max_tokens",
+        "presence_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "temperature",
+        "top_p"
+      ],
+      "default_parameters": {},
+      "expiration_date": null
+    },
+    {
+      "id": "google/gemma-3-27b-it:free",
+      "canonical_slug": "google/gemma-3-27b-it",
+      "hugging_face_id": "google/gemma-3-27b-it",
+      "name": "Google: Gemma 3 27B (free)",
+      "created": 1741756359,
+      "description": "Gemma 3 introduces multimodality, supporting vision-language input and text outputs. It handles context windows up to 128k tokens, understands over 140 languages, and offers improved math, reasoning, and chat capabilities, including structured outputs and function calling. Gemma 3 27B is Google's latest open source model, successor to [Gemma 2](google/gemma-2-27b-it)",
+      "context_length": 131072,
+      "architecture": {
+        "modality": "text+image->text",
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Gemini",
+        "instruct_type": "gemma"
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 131072,
+        "max_completion_tokens": 8192,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "max_tokens",
+        "response_format",
+        "seed",
+        "stop",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "default_parameters": {
+        "temperature": null,
+        "top_p": null,
+        "frequency_penalty": null
+      },
+      "expiration_date": null
+    },
+    {
+      "id": "qwen/qwen3-4b:free",
+      "canonical_slug": "qwen/qwen3-4b-04-28",
+      "hugging_face_id": "Qwen/Qwen3-4B",
+      "name": "Qwen: Qwen3 4B (free)",
+      "created": 1746031104,
+      "description": "Qwen3-4B is a 4 billion parameter dense language model from the Qwen3 series, designed to support both general-purpose and reasoning-intensive tasks. It introduces a dual-mode architecture\u2014thinking and non-thinking\u2014allowing dynamic switching between high-precision logical reasoning and efficient dialogue generation. This makes it well-suited for multi-turn chat, instruction following, and complex agent workflows.",
+      "context_length": 40960,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Qwen3",
+        "instruct_type": "qwen3"
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 40960,
+        "max_completion_tokens": null,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "max_tokens",
+        "presence_penalty",
+        "reasoning",
+        "response_format",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_p"
+      ],
+      "default_parameters": {},
+      "expiration_date": null
+    },
+    {
+      "id": "google/gemma-3n-e4b-it:free",
+      "canonical_slug": "google/gemma-3n-e4b-it",
+      "hugging_face_id": "google/gemma-3n-E4B-it",
+      "name": "Google: Gemma 3n 4B (free)",
+      "created": 1747776824,
+      "description": "Gemma 3n E4B-it is optimized for efficient execution on mobile and low-resource devices, such as phones, laptops, and tablets. It supports multimodal inputs\u2014including text, visual data, and audio\u2014enabling diverse tasks such as text generation, speech recognition, translation, and image analysis. Leveraging innovations like Per-Layer Embedding (PLE) caching and the MatFormer architecture, Gemma 3n dynamically manages memory usage and computational load by selectively activating model parameters, significantly reducing runtime resource requirements.\n\nThis model supports a wide linguistic range (trained in over 140 languages) and features a flexible 32K token context window. Gemma 3n can selectively load parameters, optimizing memory and computational efficiency based on the task or device capabilities, making it well-suited for privacy-focused, offline-capable applications and on-device AI solutions. [Read more in the blog post](https://developers.googleblog.com/en/introducing-gemma-3n/)",
+      "context_length": 8192,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 8192,
+        "max_completion_tokens": 2048,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "max_tokens",
+        "presence_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "temperature",
+        "top_p"
+      ],
+      "default_parameters": {},
+      "expiration_date": null
+    },
+    {
+      "id": "openai/gpt-oss-120b:free",
+      "canonical_slug": "openai/gpt-oss-120b",
+      "hugging_face_id": "openai/gpt-oss-120b",
+      "name": "OpenAI: gpt-oss-120b (free)",
+      "created": 1754414231,
+      "description": "gpt-oss-120b is an open-weight, 117B-parameter Mixture-of-Experts (MoE) language model from OpenAI designed for high-reasoning, agentic, and general-purpose production use cases. It activates 5.1B parameters per forward pass and is optimized to run on a single H100 GPU with native MXFP4 quantization. The model supports configurable reasoning depth, full chain-of-thought access, and native tool use, including function calling, browsing, and structured output generation.",
+      "context_length": 131072,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "GPT",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 131072,
+        "max_completion_tokens": 131072,
+        "is_moderated": true
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "seed",
+        "stop",
+        "temperature",
+        "tool_choice",
+        "tools"
+      ],
+      "default_parameters": {
+        "temperature": null,
+        "top_p": null,
+        "frequency_penalty": null
+      },
+      "expiration_date": null
+    },
+    {
+      "id": "openai/gpt-oss-20b:free",
+      "canonical_slug": "openai/gpt-oss-20b",
+      "hugging_face_id": "openai/gpt-oss-20b",
+      "name": "OpenAI: gpt-oss-20b (free)",
+      "created": 1754414229,
+      "description": "gpt-oss-20b is an open-weight 21B parameter model released by OpenAI under the Apache 2.0 license. It uses a Mixture-of-Experts (MoE) architecture with 3.6B active parameters per forward pass, optimized for lower-latency inference and deployability on consumer or single-GPU hardware. The model is trained in OpenAI\u2019s Harmony response format and supports reasoning level configuration, fine-tuning, and agentic capabilities including function calling, tool use, and structured outputs.",
+      "context_length": 131072,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "GPT",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 131072,
+        "max_completion_tokens": 131072,
+        "is_moderated": true
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "seed",
+        "stop",
+        "temperature",
+        "tool_choice",
+        "tools"
+      ],
+      "default_parameters": {
+        "temperature": null,
+        "top_p": null,
+        "frequency_penalty": null
+      },
+      "expiration_date": null
+    },
+    {
+      "id": "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+      "canonical_slug": "venice/uncensored",
+      "hugging_face_id": "cognitivecomputations/Dolphin-Mistral-24B-Venice-Edition",
+      "name": "Venice: Uncensored (free)",
+      "created": 1752094966,
+      "description": "Venice Uncensored Dolphin Mistral 24B Venice Edition is a fine-tuned variant of Mistral-Small-24B-Instruct-2501, developed by dphn.ai in collaboration with Venice.ai. This model is designed as an \u201cuncensored\u201d instruct-tuned LLM, preserving user control over alignment, system prompts, and behavior. Intended for advanced and unrestricted use cases, Venice Uncensored emphasizes steerability and transparent behavior, removing default safety and alignment layers typically found in mainstream assistant models.",
+      "context_length": 32768,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 32768,
+        "max_completion_tokens": null,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "max_tokens",
+        "presence_penalty",
+        "response_format",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "top_k",
+        "top_p"
+      ],
+      "default_parameters": {},
+      "expiration_date": null
+    },
+    {
+      "id": "meta-llama/llama-3.2-3b-instruct:free",
+      "canonical_slug": "meta-llama/llama-3.2-3b-instruct",
+      "hugging_face_id": "meta-llama/Llama-3.2-3B-Instruct",
+      "name": "Meta: Llama 3.2 3B Instruct (free)",
+      "created": 1727222400,
+      "description": "Llama 3.2 3B is a 3-billion-parameter multilingual large language model, optimized for advanced natural language processing tasks like dialogue generation, reasoning, and summarization. Designed with the latest transformer architecture, it supports eight languages, including English, Spanish, and Hindi, and is adaptable for additional languages.\n\nTrained on 9 trillion tokens, the Llama 3.2 3B model excels in instruction-following, complex reasoning, and tool use. Its balanced performance makes it ideal for applications needing accuracy and efficiency in text generation across multilingual settings.\n\nClick here for the [original model card](https://github.com/meta-llama/llama-models/blob/main/models/llama3_2/MODEL_CARD.md).\n\nUsage of this model is subject to [Meta's Acceptable Use Policy](https://www.llama.com/llama3/use-policy/).",
+      "context_length": 131072,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Llama3",
+        "instruct_type": "llama3"
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 131072,
+        "max_completion_tokens": null,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "max_tokens",
+        "presence_penalty",
+        "stop",
+        "temperature",
+        "top_k",
+        "top_p"
+      ],
+      "default_parameters": {},
+      "expiration_date": null
+    },
+    {
+      "id": "z-ai/glm-4.5-air:free",
+      "canonical_slug": "z-ai/glm-4.5-air",
+      "hugging_face_id": "zai-org/GLM-4.5-Air",
+      "name": "Z.ai: GLM 4.5 Air (free)",
+      "created": 1753471258,
+      "description": "GLM-4.5-Air is the lightweight variant of our latest flagship model family, also purpose-built for agent-centric applications. Like GLM-4.5, it adopts the Mixture-of-Experts (MoE) architecture but with a more compact parameter size. GLM-4.5-Air also supports hybrid inference modes, offering a \"thinking mode\" for advanced reasoning and tool use, and a \"non-thinking mode\" for real-time interaction. Users can control the reasoning behaviour with the `reasoning` `enabled` boolean. [Learn more in our docs](https://openrouter.ai/docs/use-cases/reasoning-tokens#enable-reasoning-with-default-config)",
+      "context_length": 131072,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 131072,
+        "max_completion_tokens": 96000,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "default_parameters": {
+        "temperature": 0.75,
+        "top_p": null,
+        "frequency_penalty": null
+      },
+      "expiration_date": null
+    },
+    {
+      "id": "google/gemma-3-4b-it:free",
+      "canonical_slug": "google/gemma-3-4b-it",
+      "hugging_face_id": "google/gemma-3-4b-it",
+      "name": "Google: Gemma 3 4B (free)",
+      "created": 1741905510,
+      "description": "Gemma 3 introduces multimodality, supporting vision-language input and text outputs. It handles context windows up to 128k tokens, understands over 140 languages, and offers improved math, reasoning, and chat capabilities, including structured outputs and function calling.",
+      "context_length": 32768,
+      "architecture": {
+        "modality": "text+image->text",
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Gemini",
+        "instruct_type": "gemma"
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 32768,
+        "max_completion_tokens": 8192,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "max_tokens",
+        "response_format",
+        "seed",
+        "stop",
+        "temperature",
+        "top_p"
+      ],
+      "default_parameters": {},
+      "expiration_date": null
+    },
+    {
+      "id": "google/gemma-3-12b-it:free",
+      "canonical_slug": "google/gemma-3-12b-it",
+      "hugging_face_id": "google/gemma-3-12b-it",
+      "name": "Google: Gemma 3 12B (free)",
+      "created": 1741902625,
+      "description": "Gemma 3 introduces multimodality, supporting vision-language input and text outputs. It handles context windows up to 128k tokens, understands over 140 languages, and offers improved math, reasoning, and chat capabilities, including structured outputs and function calling. Gemma 3 12B is the second largest in the family of Gemma 3 models after [Gemma 3 27B](google/gemma-3-27b-it)",
+      "context_length": 32768,
+      "architecture": {
+        "modality": "text+image->text",
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Gemini",
+        "instruct_type": "gemma"
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 32768,
+        "max_completion_tokens": 8192,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "max_tokens",
+        "seed",
+        "stop",
+        "temperature",
+        "top_p"
+      ],
+      "default_parameters": {},
+      "expiration_date": null
+    },
+    {
+      "id": "nousresearch/hermes-3-llama-3.1-405b:free",
+      "canonical_slug": "nousresearch/hermes-3-llama-3.1-405b",
+      "hugging_face_id": "NousResearch/Hermes-3-Llama-3.1-405B",
+      "name": "Nous: Hermes 3 405B Instruct (free)",
+      "created": 1723766400,
+      "description": "Hermes 3 is a generalist language model with many improvements over Hermes 2, including advanced agentic capabilities, much better roleplaying, reasoning, multi-turn conversation, long context coherence, and improvements across the board.\n\nHermes 3 405B is a frontier-level, full-parameter finetune of the Llama-3.1 405B foundation model, focused on aligning LLMs to the user, with powerful steering capabilities and control given to the end user.\n\nThe Hermes 3 series builds and expands on the Hermes 2 set of capabilities, including more powerful and reliable function calling and structured output capabilities, generalist assistant capabilities, and improved code generation skills.\n\nHermes 3 is competitive, if not superior, to Llama-3.1 Instruct models at general capabilities, with varying strengths and weaknesses attributable between the two.",
+      "context_length": 131072,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Llama3",
+        "instruct_type": "chatml"
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "top_provider": {
+        "context_length": 131072,
+        "max_completion_tokens": null,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "max_tokens",
+        "presence_penalty",
+        "stop",
+        "temperature",
+        "top_k",
+        "top_p"
+      ],
+      "default_parameters": {},
+      "expiration_date": null
+    }
+  ]
+}

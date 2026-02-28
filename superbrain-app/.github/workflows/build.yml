@@ -32,10 +32,9 @@ jobs:
 
       - name: Install JS dependencies
         run: npm ci
-        working-directory: superbrain-app
 
       - name: Set Android SDK local.properties
-        run: echo "sdk.dir=$ANDROID_HOME" > superbrain-app/android/local.properties
+        run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 
       - name: Cache Gradle packages
         uses: actions/cache@v4
@@ -44,24 +43,24 @@ jobs:
             ~/.gradle/caches
             ~/.gradle/wrapper
             ~/.npm
-          key: gradle-npm-${{ hashFiles('superbrain-app/package-lock.json', 'superbrain-app/android/**/*.gradle*', 'superbrain-app/android/gradle/wrapper/gradle-wrapper.properties') }}
+          key: gradle-npm-${{ hashFiles('package-lock.json', 'android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             gradle-npm-
             gradle-
 
       - name: Make gradlew executable
-        run: chmod +x superbrain-app/android/gradlew
+        run: chmod +x android/gradlew
 
       - name: Build APK
         run: |
           BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
           TASK="assemble$(echo ${BUILD_TYPE^})"
-          cd superbrain-app/android && ./gradlew $TASK --no-daemon --stacktrace
+          cd android && ./gradlew $TASK --no-daemon --stacktrace
 
       - name: Find and upload APK
         run: |
           BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
-          APK_PATH=$(find superbrain-app/android/app/build/outputs/apk/${BUILD_TYPE} -name "*.apk" | head -1)
+          APK_PATH=$(find android/app/build/outputs/apk/${BUILD_TYPE} -name "*.apk" | head -1)
           echo "APK found at: $APK_PATH"
           cp "$APK_PATH" superbrain.apk
 

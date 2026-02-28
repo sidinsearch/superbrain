@@ -18,8 +18,6 @@ backend/.mongodb_config
 backend/.instagram_session.json
 backend/.instaloader_session
 backend/token.txt
-backend/config/ngrok_token.txt
-backend/.setup_done
 
 # ── Database ─────────────────────────────────────────────────────────────────
 backend/superbrain.db
@@ -29,22 +27,21 @@ backend/superbrain.db-wal
 # ── Backend temp / generated ─────────────────────────────────────────────────
 backend/temp/
 backend/static/
-backend/*.apk
 
-# ── Mobile app ───────────────────────────────────────────────────────────────
-superbrain-app/node_modules/
-superbrain-app/.expo/
-superbrain-app/android/build/
-superbrain-app/android/app/build/
-superbrain-app/android/.gradle/
-superbrain-app/.env
+# ── Mobile app (React Native / Expo) ─────────────────────────────────────────
+node_modules/
+.expo/
+android/build/
+android/app/build/
+android/.gradle/
+.env*.local
+expo-env.d.ts
+*.tsbuildinfo
+web-build/
+.metro-health-check*
 
-supermobile-app/node_modules/
-supermobile-app/.expo/
-supermobile-app/android/build/
-supermobile-app/android/app/build/
-supermobile-app/android/.gradle/
-supermobile-app/.env
+# Old nested copy — no longer part of the project
+supermobile-app/
 
 # ── IDE / OS ─────────────────────────────────────────────────────────────────
 .vscode/
