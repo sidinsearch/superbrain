@@ -29,6 +29,7 @@ backend/superbrain.db-wal
 # ── Backend temp / generated ─────────────────────────────────────────────────
 backend/temp/
 backend/static/
+backend/*.apk
 
 # ── Mobile app ───────────────────────────────────────────────────────────────
 # superbrain-app has its own separate git repo (freakysid/superbrain-mobile)
