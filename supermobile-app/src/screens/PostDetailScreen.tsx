@@ -10,7 +10,7 @@ import postsCache from '../services/postsCache';
 import CustomToast from '../components/CustomToast';
 import collectionsService from '../services/collections';
 import { Collection } from '../types';
-import { schedulePostWatchLaterNotification } from '../services/notificationService';
+import { schedulePostWatchLaterNotification, sendImmediateWatchLaterNotification } from '../services/notificationService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PostDetail'>;
 
@@ -91,9 +91,9 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
   const handleAddToCollection = async (collectionId: string) => {
     try {
       await collectionsService.addPostToCollection(collectionId, post.shortcode);
-      // Schedule daily Watch Later notification when added to that collection
+      // Fire instant "Added to Watch Later" notification + schedule daily reminders
       if (collectionId === 'default_watch_later') {
-        schedulePostWatchLaterNotification(post).catch(() => {});
+        sendImmediateWatchLaterNotification(post).catch(() => {});
       }
       
       setShowCollectionsModal(false);
@@ -152,16 +152,23 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
   const confirmDelete = async () => {
     try {
       setDeleting(true);
-      await apiService.deletePost(post.shortcode);
+      // Optimistic: remove locally first so the user is never stuck on a
+      // network error. Queue the delete if we're offline.
       await postsCache.removePostFromCache(post.shortcode);
-      
       setShowDeleteModal(false);
       setToast({ visible: true, message: 'Post deleted successfully', type: 'success' });
       setTimeout(() => navigation.goBack(), 1500);
+      try {
+        await apiService.deletePost(post.shortcode);
+      } catch (apiErr: any) {
+        if (!apiErr?.response) {
+          // Network-level failure — sync when back online
+          await postsCache.enqueuePendingMutation({ type: 'delete', shortcode: post.shortcode });
+        }
+      }
     } catch (error) {
       console.error('Delete error:', error);
       setDeleting(false);
-      
       setToast({ visible: true, message: 'Failed to delete post', type: 'error' });
     }
   };
@@ -173,23 +180,32 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
   const handleSaveEdit = async () => {
     try {
       setSaving(true);
-      await apiService.updatePost(post.shortcode, {
-        category: editedCategory,
-        title: editedTitle,
-        summary: editedSummary,
-      });
-      // Update the post object
+      // Apply changes locally first (optimistic — visible even offline)
       post.category = editedCategory;
       post.title = editedTitle;
       post.summary = editedSummary;
-      // Update cache
       await postsCache.updatePostInCache(post);
-      
       setShowEditModal(false);
       setToast({ visible: true, message: 'Post updated successfully', type: 'success' });
+      // Sync to backend; queue if offline
+      try {
+        await apiService.updatePost(post.shortcode, {
+          category: editedCategory,
+          title: editedTitle,
+          summary: editedSummary,
+        });
+      } catch (apiErr: any) {
+        if (!apiErr?.response) {
+          // Network-level failure — sync when back online
+          await postsCache.enqueuePendingMutation({
+            type: 'update',
+            shortcode: post.shortcode,
+            updates: { category: editedCategory, title: editedTitle, summary: editedSummary },
+          });
+        }
+      }
     } catch (error) {
       console.error('Update error:', error);
-      
       setToast({ visible: true, message: 'Failed to update post', type: 'error' });
     } finally {
       setSaving(false);
