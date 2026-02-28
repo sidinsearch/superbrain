@@ -339,12 +339,25 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
               await postsCache.savePosts([...placeholders, ...freshPosts]);
             }
             postsCache.markAnalysisComplete(shortcode);
-          }).catch((err: any) => {
+          }).catch(async (err: any) => {
             if (err?.isRetryQueued) {
+              // Backend accepted but quota full — it will retry automatically
               showToast('⏰ Queued — will retry automatically tomorrow', 'info');
+              postsCache.markAnalysisComplete(shortcode);
+            } else if (!err?.response) {
+              // Network error (backend offline) — keep placeholder alive, retry on reconnect
+              await postsCache.enqueuePendingAnalysis({
+                url,
+                shortcode,
+                title: post?.title || '',
+                thumbnail_url: post?.thumbnail_url,
+                content_type: post?.content_type,
+                queuedAt: new Date().toISOString(),
+              });
+              // Do NOT call markAnalysisComplete — placeholder stays on HomeScreen
             } else {
+              // Real backend error — mark failed so user can see it
               console.error('Background analysis error:', err);
-              // Track in local failed list so user can re-analyze from Library
               postsCache.markAsFailed(
                 shortcode,
                 url,
@@ -352,8 +365,8 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
                 post?.thumbnail_url,
                 post?.content_type,
               );
+              postsCache.markAnalysisComplete(shortcode);
             }
-            postsCache.markAnalysisComplete(shortcode);
           });
         }
       }
@@ -410,13 +423,28 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
             await postsCache.savePosts([...placeholders, ...freshPosts]);
           }
           if (sc) postsCache.markAnalysisComplete(sc);
-        }).catch((err: any) => {
+        }).catch(async (err: any) => {
           const sc = post.shortcode;
           if (err?.isRetryQueued) {
+            // Backend accepted but quota full — it will retry automatically
             showToast('⏰ Quota full — queued for retry tomorrow', 'info');
+            if (sc) postsCache.markAnalysisComplete(sc);
+          } else if (!err?.response) {
+            // Network error (backend offline) — keep placeholder alive, retry on reconnect
+            if (sc) {
+              await postsCache.enqueuePendingAnalysis({
+                url,
+                shortcode: sc,
+                title: post?.title || '',
+                thumbnail_url: post?.thumbnail_url,
+                content_type: post?.content_type,
+                queuedAt: new Date().toISOString(),
+              });
+            }
+            // Do NOT call markAnalysisComplete — placeholder stays on HomeScreen
           } else {
+            // Real backend error — mark failed so user can see it
             console.error('Background analysis error:', err);
-            // Track in local failed list so user can re-analyze from Library
             if (sc) {
               postsCache.markAsFailed(
                 sc,
@@ -425,9 +453,9 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
                 post?.thumbnail_url,
                 post?.content_type,
               );
+              postsCache.markAnalysisComplete(sc);
             }
           }
-          if (sc) postsCache.markAnalysisComplete(sc);
         });
       }
       

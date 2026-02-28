@@ -214,6 +214,8 @@ const HomeScreen = () => {
 
       // Flush any post mutations (delete/update) that were queued while offline
       postsCache.flushPendingPostMutations().catch(() => {});
+      // Flush any URLs that were shared while offline — submit them for analysis now
+      postsCache.flushPendingAnalyses().catch(() => {});
 
       // Guard: never show any data if token is not configured
       const token = await apiService.getApiToken();

@@ -7,10 +7,20 @@ const CACHE_TIMESTAMP_KEY = '@superbrain_posts_timestamp';
 const ANALYZING_POSTS_KEY = '@superbrain_analyzing_posts';
 const FAILED_POSTS_KEY = '@superbrain_failed_posts';
 const PENDING_MUTATIONS_KEY = '@superbrain_pending_post_mutations';
+const PENDING_ANALYSES_KEY  = '@superbrain_pending_analyses';
 
 type PendingPostMutation =
   | { type: 'delete'; shortcode: string }
   | { type: 'update'; shortcode: string; updates: Record<string, string> };
+
+type PendingAnalysis = {
+  url:           string;
+  shortcode:     string;
+  title:         string;
+  thumbnail_url?: string;
+  content_type?: string;
+  queuedAt:      string;
+};
 // Keep cache for 30 minutes — background refresh happens anyway when
 // analyzing posts exist, so long TTL just prevents unnecessary server
 // round-trips when showing already-up-to-date data.
@@ -25,6 +35,8 @@ class PostsCacheService {
   private failedPostsCache: FailedPost[] | null = null;
   // Offline mutation queue — flushed next time online
   private pendingMutationsList: PendingPostMutation[] = [];
+  // Offline analysis queue — URLs that couldn't reach backend, retried on reconnect
+  private pendingAnalysesList: PendingAnalysis[] = [];
 
   constructor() {
     this.preWarm();
@@ -32,18 +44,20 @@ class PostsCacheService {
 
   private async preWarm(): Promise<void> {
     try {
-      const [postsRaw, tsRaw, analyzingRaw, failedRaw, pendingRaw] = await Promise.all([
+      const [postsRaw, tsRaw, analyzingRaw, failedRaw, pendingRaw, pendingAnalysesRaw] = await Promise.all([
         AsyncStorage.getItem(POSTS_CACHE_KEY),
         AsyncStorage.getItem(CACHE_TIMESTAMP_KEY),
         AsyncStorage.getItem(ANALYZING_POSTS_KEY),
         AsyncStorage.getItem(FAILED_POSTS_KEY),
         AsyncStorage.getItem(PENDING_MUTATIONS_KEY),
+        AsyncStorage.getItem(PENDING_ANALYSES_KEY),
       ]);
       if (postsRaw) this.posts = JSON.parse(postsRaw);
       if (tsRaw) this.cacheTimestamp = parseInt(tsRaw, 10);
       if (analyzingRaw) this.analyzingPosts = new Set(JSON.parse(analyzingRaw));
       if (failedRaw) this.failedPostsCache = JSON.parse(failedRaw);
       if (pendingRaw) this.pendingMutationsList = JSON.parse(pendingRaw);
+      if (pendingAnalysesRaw) this.pendingAnalysesList = JSON.parse(pendingAnalysesRaw);
     } catch (e) {
       console.error('PostsCache preWarm error:', e);
     }
@@ -90,6 +104,58 @@ class PostsCacheService {
 
   hasPendingMutations(): boolean {
     return this.pendingMutationsList.length > 0;
+  }
+
+  // ─── Pending analysis queue (offline share → retry when reconnected) ────────
+
+  /** Queue a URL for analysis that couldn't reach the backend (offline). */
+  async enqueuePendingAnalysis(a: PendingAnalysis): Promise<void> {
+    // De-duplicate by shortcode
+    this.pendingAnalysesList = this.pendingAnalysesList.filter(x => x.shortcode !== a.shortcode);
+    this.pendingAnalysesList.push(a);
+    try {
+      await AsyncStorage.setItem(PENDING_ANALYSES_KEY, JSON.stringify(this.pendingAnalysesList));
+    } catch { /* best effort */ }
+  }
+
+  /**
+   * Replay queued analyses. For each URL:
+   *   - Success / 202-quota → remove from queue, markAnalysisComplete so watcher picks it up
+   *   - Network error       → keep in queue, placeholder stays alive
+   *   - Other HTTP error    → discard (invalid URL etc.), mark failed
+   */
+  async flushPendingAnalyses(): Promise<void> {
+    if (this.pendingAnalysesList.length === 0) return;
+    console.log(`[PostsCache] flushing ${this.pendingAnalysesList.length} pending analysis/analyses`);
+    const remaining: PendingAnalysis[] = [];
+    for (const a of this.pendingAnalysesList) {
+      try {
+        await apiService.analyzeInstagramUrl(a.url);
+        // Success: watcher will detect completion via getRecentPosts
+        await this.markAnalysisComplete(a.shortcode);
+      } catch (e: any) {
+        if (e?.isRetryQueued) {
+          // Backend accepted it (202) — backend handles retry, we're done
+          await this.markAnalysisComplete(a.shortcode);
+        } else if (!e?.response) {
+          // Still offline — keep queued, leave analyzing placeholder alive
+          remaining.push(a);
+        } else {
+          // HTTP error — discard, mark as failed so user can see it
+          await this.markAnalysisComplete(a.shortcode);
+          await this.markAsFailed(a.shortcode, a.url, a.title, a.thumbnail_url, a.content_type);
+        }
+      }
+    }
+    this.pendingAnalysesList = remaining;
+    try {
+      if (remaining.length === 0) await AsyncStorage.removeItem(PENDING_ANALYSES_KEY);
+      else await AsyncStorage.setItem(PENDING_ANALYSES_KEY, JSON.stringify(remaining));
+    } catch { /* best effort */ }
+  }
+
+  hasPendingAnalyses(): boolean {
+    return this.pendingAnalysesList.length > 0;
   }
 
   /**
