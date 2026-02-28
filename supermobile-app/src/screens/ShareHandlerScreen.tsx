@@ -328,22 +328,31 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
           
           // Trigger backend analysis in background
           apiService.analyzeInstagramUrl(url).then(async () => {
-            // When analysis completes, refresh cache
+            // Merge fresh posts with any still-analyzing placeholders — don't wipe them
             const freshPosts = await apiService.getRecentPosts(50);
-            await postsCache.savePosts(freshPosts);
+            if (freshPosts.length > 0) {
+              const stillAnalyzing = postsCache.getAnalyzingPosts().filter(s => s !== shortcode);
+              const cachedNow = await postsCache.getCachedPosts() || [];
+              const placeholders = cachedNow.filter(
+                p => stillAnalyzing.includes(p.shortcode) && !freshPosts.find(fp => fp.shortcode === p.shortcode)
+              );
+              await postsCache.savePosts([...placeholders, ...freshPosts]);
+            }
             postsCache.markAnalysisComplete(shortcode);
           }).catch((err: any) => {
             if (err?.isRetryQueued) {
               showToast('⏰ Queued — will retry automatically tomorrow', 'info');
             } else {
-              console.error('Background analysis error:', err);              // Track in local failed list so user can re-analyze from Library
+              console.error('Background analysis error:', err);
+              // Track in local failed list so user can re-analyze from Library
               postsCache.markAsFailed(
                 shortcode,
                 url,
                 post?.title || '',
                 post?.thumbnail_url,
                 post?.content_type,
-              );            }
+              );
+            }
             postsCache.markAnalysisComplete(shortcode);
           });
         }
@@ -389,23 +398,36 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
         
         // Trigger backend analysis in background
         apiService.analyzeInstagramUrl(url).then(async () => {
+          // Merge fresh posts with any still-analyzing placeholders — don't wipe them
           const freshPosts = await apiService.getRecentPosts(50);
-          await postsCache.savePosts(freshPosts);
-          if (post.shortcode) postsCache.markAnalysisComplete(post.shortcode);
+          const sc = post.shortcode;
+          if (freshPosts.length > 0) {
+            const stillAnalyzing = postsCache.getAnalyzingPosts().filter(s => s !== sc);
+            const cachedNow = await postsCache.getCachedPosts() || [];
+            const placeholders = cachedNow.filter(
+              p => stillAnalyzing.includes(p.shortcode) && !freshPosts.find(fp => fp.shortcode === p.shortcode)
+            );
+            await postsCache.savePosts([...placeholders, ...freshPosts]);
+          }
+          if (sc) postsCache.markAnalysisComplete(sc);
         }).catch((err: any) => {
+          const sc = post.shortcode;
           if (err?.isRetryQueued) {
             showToast('⏰ Quota full — queued for retry tomorrow', 'info');
           } else {
-            console.error('Background analysis error:', err);            if (post?.shortcode) {
+            console.error('Background analysis error:', err);
+            // Track in local failed list so user can re-analyze from Library
+            if (sc) {
               postsCache.markAsFailed(
-                post.shortcode,
+                sc,
                 url,
                 post?.title || '',
                 post?.thumbnail_url,
                 post?.content_type,
               );
-            }          }
-          if (post.shortcode) postsCache.markAnalysisComplete(post.shortcode);
+            }
+          }
+          if (sc) postsCache.markAnalysisComplete(sc);
         });
       }
       

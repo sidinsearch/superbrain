@@ -12,6 +12,7 @@ import {
   StatusBar,
   Dimensions,
   Modal,
+  InteractionManager,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -60,9 +61,14 @@ const HomeScreen = () => {
   const [toast, setToast] = useState({ visible: false, message: '', type: 'info' as 'success' | 'error' | 'warning' | 'info' });
   const [isInitialized, setIsInitialized] = useState(false);
   const [isConfigured, setIsConfigured] = useState(true);
+  // analyzingIds mirrors postsCache.analyzingPosts as React state so that
+  // clearing an overlay always triggers a re-render even if `posts` doesn't change.
+  const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(
+    () => new Set(postsCache.getAnalyzingPosts())
+  );
+  const syncAnalyzingIds = () => setAnalyzingIds(new Set(postsCache.getAnalyzingPosts()));
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const loadPostsRef = useRef<(forceRefresh?: boolean) => Promise<void>>();
-  const prevProcessingRef = useRef<number>(0); // tracks backend processing_count across poll ticks
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
 
@@ -77,12 +83,15 @@ const HomeScreen = () => {
     };
   }, []);
 
-  // Refresh when screen comes into focus (but skip first time)
+  // Refresh when screen comes into focus (but skip first time).
+  // Deferred with InteractionManager so the navigation animation completes
+  // before we do any AsyncStorage reads or setState calls — prevents jank.
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       if (isInitialized) {
-        console.log('HomeScreen - Screen focused, refreshing...');
-        loadPosts(false); // Don't force refresh, let cache-first strategy work
+        InteractionManager.runAfterInteractions(() => {
+          loadPosts(false);
+        });
       }
     });
     return unsubscribe;
@@ -127,7 +136,19 @@ const HomeScreen = () => {
     },
   ];
 
-  const initializeAndLoad = async () => {    try {
+  const initializeAndLoad = async () => {
+    // Pre-load cached posts IMMEDIATELY so the user sees their data even if
+    // the backend is unreachable. This runs before any network call.
+    try {
+      const cached = await postsCache.getCachedPosts();
+      if (cached && cached.length > 0) {
+        setPosts(cached);
+        setLoading(false);
+        syncAnalyzingIds();
+      }
+    } catch { /* ignore — will retry in loadPosts */ }
+
+    try {
       await apiService.initialize();
       const token = await apiService.getApiToken();
       if (!token) {
@@ -137,18 +158,24 @@ const HomeScreen = () => {
         return;
       }
       setIsConfigured(true);
-      // Await backend sync first, THEN reschedule notifications
-      // This ensures fresh-install users get notifications restored after backend pull
-      try {
-        await collectionsService.syncFromBackend();
-      } catch { /* offline — local cache used */ }
-      // Reschedule Watch Later notifications with (possibly restored) collection data
+      // Fire-and-forget background tasks — don't block post loading on network calls
+      collectionsService.syncFromBackend().catch(() => {});
       scheduleAllWatchLaterNotifications().catch(() => {});
-      await loadPosts(false); // Use cache-first strategy even on initial load
+      await loadPosts(false);
       setIsInitialized(true);
     } catch (error) {
       console.error('Error initializing:', error);
-      showToast('Failed to connect to server. Check your API settings.', 'error');
+      // Still show cached posts if available rather than a blank screen
+      try {
+        const cached = await postsCache.getCachedPosts();
+        if (cached && cached.length > 0) {
+          setPosts(cached);
+          setLoading(false);
+          setIsConfigured(true);
+          syncAnalyzingIds();
+        }
+      } catch { /* nothing we can do */ }
+      showToast('Server unreachable — showing cached data', 'info');
       setIsInitialized(true);
     }
   };
@@ -165,6 +192,7 @@ const HomeScreen = () => {
             postsCache.markAnalysisComplete(fp.shortcode);
           }
         }
+        syncAnalyzingIds();
       }
 
       // Guard: never show any data if token is not configured
@@ -178,15 +206,22 @@ const HomeScreen = () => {
       const cachedPosts = await postsCache.getCachedPosts();
       if (cachedPosts && cachedPosts.length > 0) {
         console.log('HomeScreen - Loaded from cache:', cachedPosts.length, 'posts');
-        setPosts(cachedPosts);
+        // Only update UI if something actually changed — avoids redundant re-renders
+        // on every screen focus when the list is already up to date.
+        setPosts(prev => {
+          if (
+            prev.length === cachedPosts.length &&
+            prev[0]?.shortcode === cachedPosts[0]?.shortcode &&
+            prev[prev.length - 1]?.shortcode === cachedPosts[cachedPosts.length - 1]?.shortcode
+          ) return prev;
+          return cachedPosts;
+        });
         setLoading(false); // Clear loading immediately when we have cache
         
-        // If cache is valid and not forcing refresh, we're done —
-        // BUT only skip the server fetch if there are NO analyzing posts.
-        // When posts are in-flight we must reach the watcher startup logic below.
+        // Only skip the server fetch if the cache is still fresh AND no posts are
+        // still being analyzed. isCacheValid() is a synchronous in-memory check.
         if (!forceRefresh) {
-          const isValid = await postsCache.isCacheValid();
-          if (isValid && postsCache.getAnalyzingPosts().length === 0) {
+          if (postsCache.isCacheValid() && postsCache.getAnalyzingPosts().length === 0) {
             return;
           }
         }
@@ -202,91 +237,91 @@ const HomeScreen = () => {
       const fetchedPosts = await apiService.getRecentPosts(50);
       console.log('HomeScreen - Fetched', fetchedPosts.length, 'posts from server');
       
-      if (fetchedPosts.length > 0 || postsCache.getAnalyzingPosts().length > 0) {
-        // Clear analyzing state for posts that are now done on the server
-        const prevAnalyzing = postsCache.getAnalyzingPosts();
-        for (const shortcode of prevAnalyzing) {
-          const serverPost = fetchedPosts.find(p => p.shortcode === shortcode);
-          if (serverPost && !serverPost.processing) {
-            await postsCache.markAnalysisComplete(shortcode);
-            console.log('HomeScreen - Analysis complete for:', shortcode);
-          }
+      // Reconcile analyzing state against whatever the server returned
+      // (even if it returned nothing — we still want to clear completed posts)
+      const prevAnalyzing = postsCache.getAnalyzingPosts();
+      for (const shortcode of prevAnalyzing) {
+        const serverPost = fetchedPosts.find(p => p.shortcode === shortcode);
+        if (serverPost && !serverPost.processing) {
+          await postsCache.markAnalysisComplete(shortcode);
+          console.log('HomeScreen - Analysis complete for:', shortcode);
         }
+      }
+      syncAnalyzingIds(); // update React state so overlay re-renders immediately
 
-        // After clearing completed ones, get the remaining still-analyzing shortcodes
-        const stillAnalyzing = postsCache.getAnalyzingPosts();
+      const stillAnalyzing = postsCache.getAnalyzingPosts();
+      const hasAnalyzing = stillAnalyzing.length > 0;
 
-        // Preserve analyzing placeholders that haven't appeared on the server yet.
-        // Without this, setPosts(fetchedPosts) would wipe the "Analyzing..." card
-        // because the backend only returns posts that are fully saved to the DB.
+      if (fetchedPosts.length > 0) {
+        // Server returned real data — safe to merge placeholders + save
         const analyzingPlaceholders = (cachedPosts || []).filter(
           p => stillAnalyzing.includes(p.shortcode) && !fetchedPosts.find(fp => fp.shortcode === p.shortcode)
         );
-
-        // Merge: placeholders first (at top), then server posts (de-duped)
         const mergedPosts = [
           ...analyzingPlaceholders,
           ...fetchedPosts.filter(p => !stillAnalyzing.includes(p.shortcode)),
         ];
-
         setPosts(mergedPosts);
         await postsCache.savePosts(mergedPosts);
+      } else if (cachedPosts && cachedPosts.length > 0) {
+        // Server returned empty (offline / busy / error) — keep showing cached data.
+        // CRITICAL: do NOT call savePosts here or we wipe real posts from the cache.
+        console.log('HomeScreen - Server returned empty, keeping cached posts intact');
+        setPosts(cachedPosts);
+      } else {
+        console.log('HomeScreen - No posts found anywhere');
+        showToast('No posts yet — share something to get started!', 'info');
+      }
 
-        // hasAnalyzing is true as long as ANY shortcode is still in the analyzing set
-        const hasAnalyzing = stillAnalyzing.length > 0;
+      if (hasAnalyzing && !pollIntervalRef.current) {
+        // Poll /recent directly every 3 s. No queue-status indirection — we just
+        // check whether each analyzing post now has processing:false on the server.
+        console.log('HomeScreen - Starting analyzing watcher');
+        pollIntervalRef.current = setInterval(async () => {
+          try {
+            const freshPosts = await apiService.getRecentPosts(50);
+            const prevAnalyzing = postsCache.getAnalyzingPosts();
+            let anyCompleted = false;
+            for (const sc of prevAnalyzing) {
+              const done = freshPosts.find(p => p.shortcode === sc && !p.processing);
+              if (done) {
+                await postsCache.markAnalysisComplete(sc);
+                anyCompleted = true;
+                console.log('HomeScreen [watcher] - Analysis complete:', sc);
+              }
+            }
+            if (anyCompleted) syncAnalyzingIds();
 
-        if (hasAnalyzing && !pollIntervalRef.current) {
-          // Start a lightweight /queue-status poller instead of calling /recent every tick.
-          // Only fires a full loadPosts when backend signals it just finished processing.
-          console.log('HomeScreen - Starting queue-status watcher');
-          // Pre-seed synchronously so the FIRST interval tick sees wasActive=true.
-          // Without this, prevProcessingRef starts at 0 and the first tick misses
-          // the wasActive && nowIdle transition if the backend finishes quickly.
-          prevProcessingRef.current = 1;
-          apiService.getQueueStatus().then(s => {
-            const total = s ? s.processing_count + s.queue_count : 0;
-            if (total === 0) {
-              // Backend already finished by the time we seeded — kick a refresh immediately
-              // and stop the watcher so we don't loop endlessly.
-              console.log('HomeScreen - Backend already idle on seed, refreshing now');
+            const stillAnalyzing = postsCache.getAnalyzingPosts();
+
+            if (freshPosts.length > 0) {
+              // Only merge+save when the server actually returned data — never wipe
+              // the cache with an empty response caused by a network hiccup.
+              const cached = await postsCache.getCachedPosts() || [];
+              const placeholders = cached.filter(
+                p => stillAnalyzing.includes(p.shortcode) && !freshPosts.find(fp => fp.shortcode === p.shortcode)
+              );
+              const merged = [
+                ...placeholders,
+                ...freshPosts.filter(p => !stillAnalyzing.includes(p.shortcode)),
+              ];
+              setPosts(merged);
+              await postsCache.savePosts(merged);
+            }
+            // If freshPosts is empty (offline/server busy), leave posts+cache untouched.
+
+            if (stillAnalyzing.length === 0) {
+              console.log('HomeScreen [watcher] - All done, stopping');
               clearInterval(pollIntervalRef.current!);
               pollIntervalRef.current = null;
-              loadPostsRef.current?.(true);
-            } else {
-              prevProcessingRef.current = total;
             }
-          }).catch(() => {});
+          } catch { /* network hiccup — keep polling */ }
+        }, 3000);
 
-          pollIntervalRef.current = setInterval(async () => {
-            try {
-              const status = await apiService.getQueueStatus();
-              if (!status) return;
-              const total = status.processing_count + status.queue_count;
-              const wasActive = prevProcessingRef.current > 0;
-              const nowIdle = total === 0;
-              prevProcessingRef.current = total;
-
-              if (wasActive && nowIdle) {
-                // Backend just finished — fetch the completed post now
-                console.log('HomeScreen - Backend finished processing, refreshing...');
-                loadPostsRef.current?.(true);
-              } else if (nowIdle && postsCache.getAnalyzingPosts().length === 0) {
-                // Nothing left to track — stop watching
-                console.log('HomeScreen - Nothing analyzing, stopping watcher');
-                clearInterval(pollIntervalRef.current!);
-                pollIntervalRef.current = null;
-              }
-            } catch { /* network hiccup — keep polling */ }
-          }, 2000);
-
-        } else if (!hasAnalyzing && pollIntervalRef.current) {
-          console.log('HomeScreen - Stopping watcher, all posts analyzed');
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
-        }
-      } else if (!cachedPosts || cachedPosts.length === 0) {
-        console.log('HomeScreen - No posts found on server');
-        showToast('No posts yet — share something to get started!', 'info');
+      } else if (!hasAnalyzing && pollIntervalRef.current) {
+        console.log('HomeScreen - Stopping watcher, all posts analyzed');
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
       }
     } catch (error: any) {
       console.error('Error loading posts:', error);
@@ -447,7 +482,7 @@ const HomeScreen = () => {
 
     // YouTube and webpage always get a landscape (full-width 16:9) card
     if (post.content_type === 'youtube' || post.content_type === 'webpage') {
-      const isAnalyzing = postsCache.isAnalyzing(post.shortcode);
+      const isAnalyzing = analyzingIds.has(post.shortcode);
       return (
         <TouchableOpacity
           key={post.shortcode}
@@ -519,7 +554,7 @@ const HomeScreen = () => {
       );
     }
 
-    const isAnalyzing = postsCache.isAnalyzing(post.shortcode);
+    const isAnalyzing = analyzingIds.has(post.shortcode);
     
     return (
       <TouchableOpacity
