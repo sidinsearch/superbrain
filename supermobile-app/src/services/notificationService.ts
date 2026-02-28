@@ -137,16 +137,22 @@ export async function requestNotificationPermission(): Promise<boolean> {
   }
 
   // Register "Mark as Watched" action button (Android & iOS)
-  await Notifications.setNotificationCategoryAsync('watch_later_post', [
-    {
-      identifier: 'mark_watched',
-      buttonTitle: '✓ Mark as Watched',
-      options: {
-        isDestructive: true,
-        opensAppToForeground: false, // silently removes without opening app
+  // Wrapped in try-catch — on some Android versions this can fail, which must
+  // not block the notification channel setup or permission grant.
+  try {
+    await Notifications.setNotificationCategoryAsync('watch_later_post', [
+      {
+        identifier: 'mark_watched',
+        buttonTitle: '✓ Mark as Watched',
+        options: {
+          isDestructive: true,
+          opensAppToForeground: false,
+        },
       },
-    },
-  ]);
+    ]);
+  } catch (e) {
+    console.warn('[Notifications] setNotificationCategoryAsync failed (non-fatal):', e);
+  }
 
   const { status: existing } = await Notifications.getPermissionsAsync();
   if (existing === 'granted') return true;
