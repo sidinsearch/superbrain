@@ -134,6 +134,16 @@ export async function requestNotificationPermission(): Promise<boolean> {
       lightColor: '#ff6b6b',
       sound: 'default',
     });
+    // Separate HIGH-importance channel for the instant "Added to Watch Later" banner.
+    // Android does not allow changing an existing channel's importance after first creation,
+    // so this must be a distinct channel from the daily reminder channel.
+    await Notifications.setNotificationChannelAsync('watch-later-added', {
+      name: 'Watch Later — Added Confirmation',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 200],
+      lightColor: '#667eea',
+      sound: 'default',
+    });
   }
 
   // Register "Mark as Watched" action button (Android & iOS)
@@ -335,7 +345,8 @@ export async function sendImmediateWatchLaterNotification(post: Post): Promise<v
         sound: 'default',
         categoryIdentifier: 'watch_later_post',
         data: { shortcode: post.shortcode, type: 'watch_later_added' },
-        ...(Platform.OS === 'android' ? { channelId: 'watch-later', color: '#667eea' } : {}),
+        // Use the HIGH-importance channel so Android shows a banner heads-up
+        ...(Platform.OS === 'android' ? { channelId: 'watch-later-added', color: '#667eea' } : {}),
       },
       trigger: null,
     });

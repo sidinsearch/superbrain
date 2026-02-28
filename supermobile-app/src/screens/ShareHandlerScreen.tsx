@@ -309,9 +309,9 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
       if (url && post) {
         const shortcode = post.shortcode; // already computed correctly for all URL types
         if (shortcode) {
-          // Duplicate check — warn if post is already in the selected collection
-          const existingIds = await collectionsService.getCollectionPosts(collectionId);
-          if (existingIds.includes(shortcode)) {
+          // Duplicate check — use already-loaded collections state (no async race)
+          const targetCol = collections.find(c => c.id === collectionId);
+          if (targetCol?.postIds?.includes(shortcode)) {
             showToast('Already saved in this collection', 'warning');
             setIsSaving(false);
             return;
