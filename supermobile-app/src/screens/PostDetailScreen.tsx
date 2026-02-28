@@ -90,6 +90,14 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
 
   const handleAddToCollection = async (collectionId: string) => {
     try {
+      // Duplicate check — tell the user if this post is already in the collection
+      const existingIds = await collectionsService.getCollectionPosts(collectionId);
+      if (existingIds.includes(post.shortcode)) {
+        setShowCollectionsModal(false);
+        setToast({ visible: true, message: 'Already in this collection', type: 'warning' });
+        return;
+      }
+
       await collectionsService.addPostToCollection(collectionId, post.shortcode);
       // Fire instant "Added to Watch Later" notification + schedule daily reminders
       if (collectionId === 'default_watch_later') {
@@ -122,6 +130,14 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
 
   const handleReanalyze = async () => {
     if (reanalyzing) return;
+
+    // Connectivity check — show toast instead of showing a stuck analyzing overlay
+    const reachable = await apiService.isReachable();
+    if (!reachable) {
+      setToast({ visible: true, message: '📡 Not connected to backend — connect first and retry', type: 'warning' });
+      return;
+    }
+
     setReanalyzing(true);
     const targetUrl = post.url || `https://www.instagram.com/p/${post.shortcode}/`;
     const { shortcode } = post;
