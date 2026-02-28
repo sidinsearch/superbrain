@@ -90,9 +90,9 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
 
   const handleAddToCollection = async (collectionId: string) => {
     try {
-      // Duplicate check — tell the user if this post is already in the collection
-      const existingIds = await collectionsService.getCollectionPosts(collectionId);
-      if (existingIds.includes(post.shortcode)) {
+      // Duplicate check — use already-loaded collections state (synchronous, no cache race)
+      const targetCollection = collections.find(c => c.id === collectionId);
+      if (targetCollection?.postIds?.includes(post.shortcode)) {
         setShowCollectionsModal(false);
         setToast({ visible: true, message: 'Already in this collection', type: 'warning' });
         return;
