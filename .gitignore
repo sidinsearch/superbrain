@@ -18,6 +18,8 @@ backend/.mongodb_config
 backend/.instagram_session.json
 backend/.instaloader_session
 backend/token.txt
+backend/config/ngrok_token.txt
+backend/.setup_done
 
 # ── Database ─────────────────────────────────────────────────────────────────
 backend/superbrain.db
@@ -29,6 +31,9 @@ backend/temp/
 backend/static/
 
 # ── Mobile app ───────────────────────────────────────────────────────────────
+# superbrain-app has its own separate git repo (freakysid/superbrain-mobile)
+superbrain-app/
+
 supermobile-app/node_modules/
 supermobile-app/.expo/
 supermobile-app/android/build/

@@ -1,11 +1,11 @@
 {
   "groq_gpt_oss_20b": {
     "key": "groq_gpt_oss_20b",
-    "avg_response_s": 1.1330823550656264,
-    "success_count": 21,
+    "avg_response_s": 1.3587389144652606,
+    "success_count": 48,
     "fail_count": 1,
     "down_until": null,
-    "last_used": "2026-02-24T10:14:58.746268",
+    "last_used": "2026-02-28T15:46:20.843218",
     "last_error": null,
     "base_priority": 0.5
   },
@@ -323,20 +323,20 @@
     "key": "gemini_25_flash_lite_vision",
     "avg_response_s": 6.709401964075168,
     "success_count": 14,
-    "fail_count": 0,
-    "down_until": null,
+    "fail_count": 8,
+    "down_until": "2026-02-28T15:47:26.495809",
     "last_used": "2026-02-24T09:45:09.831171",
-    "last_error": null,
+    "last_error": "No module named 'google.generativeai'",
     "base_priority": 1.5
   },
   "gemini_25_pro_vision": {
     "key": "gemini_25_pro_vision",
     "avg_response_s": null,
     "success_count": 0,
-    "fail_count": 3,
-    "down_until": "2026-02-24T10:14:55.289465",
+    "fail_count": 11,
+    "down_until": "2026-02-28T15:47:26.491940",
     "last_used": null,
-    "last_error": "429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current",
+    "last_error": "No module named 'google.generativeai'",
     "base_priority": 2
   },
   "gemini_3_flash_vision": {
@@ -353,59 +353,59 @@
     "key": "gemini_3_pro_vision",
     "avg_response_s": null,
     "success_count": 0,
-    "fail_count": 2,
-    "down_until": "2026-02-24T10:14:55.937573",
+    "fail_count": 10,
+    "down_until": "2026-02-28T15:47:26.494391",
     "last_used": null,
-    "last_error": "429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current",
+    "last_error": "No module named 'google.generativeai'",
     "base_priority": 3
   },
   "gemini_31_pro_vision": {
     "key": "gemini_31_pro_vision",
     "avg_response_s": null,
     "success_count": 0,
-    "fail_count": 1,
-    "down_until": "2026-02-24T08:23:08.716442",
+    "fail_count": 9,
+    "down_until": "2026-02-28T15:47:26.498163",
     "last_used": null,
-    "last_error": "429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current",
+    "last_error": "No module named 'google.generativeai'",
     "base_priority": 3.5
   },
   "gemini_20_flash_vision": {
     "key": "gemini_20_flash_vision",
     "avg_response_s": null,
     "success_count": 0,
-    "fail_count": 0,
-    "down_until": null,
+    "fail_count": 8,
+    "down_until": "2026-02-28T15:47:26.504389",
     "last_used": null,
-    "last_error": null,
+    "last_error": "No module named 'google.generativeai'",
     "base_priority": 4
   },
   "gemini_20_flash_lite_vision": {
     "key": "gemini_20_flash_lite_vision",
     "avg_response_s": null,
     "success_count": 0,
-    "fail_count": 0,
-    "down_until": null,
+    "fail_count": 8,
+    "down_until": "2026-02-28T15:47:26.506820",
     "last_used": null,
-    "last_error": null,
+    "last_error": "No module named 'google.generativeai'",
     "base_priority": 4.5
   },
   "gemini_15_flash_vision": {
     "key": "gemini_15_flash_vision",
     "avg_response_s": null,
     "success_count": 0,
-    "fail_count": 0,
-    "down_until": null,
+    "fail_count": 8,
+    "down_until": "2026-02-28T15:47:26.510735",
     "last_used": null,
-    "last_error": null,
+    "last_error": "No module named 'google.generativeai'",
     "base_priority": 4.8
   },
   "groq_llama4_scout_vision": {
     "key": "groq_llama4_scout_vision",
-    "avg_response_s": null,
-    "success_count": 0,
+    "avg_response_s": 2.1663871744251377,
+    "success_count": 28,
     "fail_count": 0,
     "down_until": null,
-    "last_used": null,
+    "last_used": "2026-02-28T15:46:16.547477",
     "last_error": null,
     "base_priority": 5
   },
@@ -607,7 +607,7 @@
     "down_until": null,
     "last_used": null,
     "last_error": null,
-    "base_priority": 33
+    "base_priority": 32
   },
   "dyn_upstage_solar-pro-3_free": {
     "key": "dyn_upstage_solar-pro-3_free",
@@ -617,7 +617,7 @@
     "down_until": null,
     "last_used": null,
     "last_error": null,
-    "base_priority": 34
+    "base_priority": 33
   },
   "dyn_arcee-ai_trinity-large-preview_free": {
     "key": "dyn_arcee-ai_trinity-large-preview_free",
@@ -627,7 +627,7 @@
     "down_until": null,
     "last_used": null,
     "last_error": null,
-    "base_priority": 35
+    "base_priority": 34
   },
   "dyn_google_gemma-3n-e2b-it_free": {
     "key": "dyn_google_gemma-3n-e2b-it_free",
@@ -637,7 +637,7 @@
     "down_until": null,
     "last_used": null,
     "last_error": null,
-    "base_priority": 38
+    "base_priority": 37
   },
   "dyn_qwen_qwen3-4b_free": {
     "key": "dyn_qwen_qwen3-4b_free",
@@ -647,7 +647,7 @@
     "down_until": null,
     "last_used": null,
     "last_error": null,
-    "base_priority": 40
+    "base_priority": 39
   },
   "dyn_google_gemma-3n-e4b-it_free": {
     "key": "dyn_google_gemma-3n-e4b-it_free",
@@ -657,7 +657,7 @@
     "down_until": null,
     "last_used": null,
     "last_error": null,
-    "base_priority": 41
+    "base_priority": 40
   },
   "dyn_meta-llama_llama-3_2-3b-instruct_free": {
     "key": "dyn_meta-llama_llama-3_2-3b-instruct_free",
@@ -667,7 +667,7 @@
     "down_until": null,
     "last_used": null,
     "last_error": null,
-    "base_priority": 45
+    "base_priority": 44
   },
   "dyn_google_gemma-3-4b-it_free": {
     "key": "dyn_google_gemma-3-4b-it_free",
@@ -677,7 +677,7 @@
     "down_until": null,
     "last_used": null,
     "last_error": null,
-    "base_priority": 47
+    "base_priority": 46
   },
   "dyn_v_google_gemma-3-4b-it_free": {
     "key": "dyn_v_google_gemma-3-4b-it_free",
@@ -687,7 +687,7 @@
     "down_until": null,
     "last_used": null,
     "last_error": null,
-    "base_priority": 47
+    "base_priority": 46
   },
   "dyn_google_gemma-3-12b-it_free": {
     "key": "dyn_google_gemma-3-12b-it_free",
@@ -697,7 +697,7 @@
     "down_until": null,
     "last_used": null,
     "last_error": null,
-    "base_priority": 48
+    "base_priority": 47
   },
   "dyn_v_google_gemma-3-12b-it_free": {
     "key": "dyn_v_google_gemma-3-12b-it_free",
@@ -707,6 +707,6 @@
     "down_until": null,
     "last_used": null,
     "last_error": null,
-    "base_priority": 48
+    "base_priority": 47
   }
 }
