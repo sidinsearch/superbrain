@@ -17,6 +17,30 @@ A self-hosted AI-powered second brain for Android — save Instagram posts, YouT
 
 ---
 
+## App Screenshots
+
+<div align="center">
+<table>
+  <tr>
+    <td align="center"><img src="superbrain-app/assets/mockups/1.png" width="220"/></td>
+    <td align="center"><img src="superbrain-app/assets/mockups/2.png" width="220"/></td>
+    <td align="center"><img src="superbrain-app/assets/mockups/3.png" width="220"/></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="superbrain-app/assets/mockups/4.png" width="220"/></td>
+    <td align="center"><img src="superbrain-app/assets/mockups/5.png" width="220"/></td>
+    <td align="center"><img src="superbrain-app/assets/mockups/6.png" width="220"/></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="superbrain-app/assets/mockups/7.png" width="220"/></td>
+    <td align="center"><img src="superbrain-app/assets/mockups/8.png" width="220"/></td>
+    <td align="center"><img src="superbrain-app/assets/mockups/9.png" width="220"/></td>
+  </tr>
+</table>
+</div>
+
+---
+
 ## Table of Contents
 
 - [The Problem](#the-problem)
