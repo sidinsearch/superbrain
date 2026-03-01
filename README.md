@@ -11,11 +11,19 @@ A self-hosted AI-powered second brain for Android — save Instagram posts, YouT
 [![React Native](https://img.shields.io/badge/React_Native-0.81-61DAFB?logo=react&logoColor=white)](https://reactnative.dev)
 [![Expo SDK 54](https://img.shields.io/badge/Expo-SDK_54-000020?logo=expo&logoColor=white)](https://expo.dev)
 
-[![Download APK](https://img.shields.io/badge/Download-APK-2ea44f?style=for-the-badge&logo=android&logoColor=white)](https://github.com/sidinsearch/superbrain/releases)
-[![Report Bug](https://img.shields.io/badge/Report-Bug-d73a4a?style=for-the-badge&logo=github&logoColor=white)](https://github.com/sidinsearch/superbrain/issues)
-[![Request Feature](https://img.shields.io/badge/Request-Feature-7057ff?style=for-the-badge&logo=github&logoColor=white)](https://github.com/sidinsearch/superbrain/issues)
+[![Download APK](https://img.shields.io/badge/Download%20APK-2ea44f?style=for-the-badge&logo=android&logoColor=white)](https://github.com/sidinsearch/superbrain/releases)
+[![Report Bug](https://img.shields.io/badge/Report%20Bug-d73a4a?style=for-the-badge&logo=github&logoColor=white)](https://github.com/sidinsearch/superbrain/issues/new?labels=bug)
+[![Request Feature](https://img.shields.io/badge/Request%20Feature-7057ff?style=for-the-badge&logo=github&logoColor=white)](https://github.com/sidinsearch/superbrain/issues/new?labels=enhancement)
 
 </div>
+
+---
+
+## 🎬 Backend Demo
+
+<video src="docs/backend.mov" controls width="100%"></video>
+
+> *Clone the repo, run `python start.py` — the wizard handles everything: virtual environment, dependencies, API keys, and server setup.*
 
 ---
 
@@ -45,6 +53,8 @@ A self-hosted AI-powered second brain for Android — save Instagram posts, YouT
 
 ## Table of Contents
 
+- [Backend Demo](#-backend-demo)
+- [App Screenshots](#app-screenshots)
 - [The Problem](#the-problem)
 - [The Solution](#the-solution)
 - [Features](#features)
@@ -59,6 +69,8 @@ A self-hosted AI-powered second brain for Android — save Instagram posts, YouT
 - [Tech Stack](#tech-stack)
 - [Contributing](#contributing)
 - [License](#license)
+
+---
 
 ---
 
@@ -97,7 +109,7 @@ Everything is stored in a local SQLite database **you own** — no cloud subscri
 | **Multi-provider AI** | Automatic fallback across Groq, Gemini, OpenRouter, and Ollama |
 | **Smart model router** | EMA-ranked, auto-healing, self-optimising — always picks the fastest available model |
 | **Music identification** | Shazam-powered background music detection from Instagram reels |
-| **Audio transcription** | Groq Whisper API with local OpenAI Whisper as fallback |
+| **Audio transcription** | Groq Whisper API (cloud) with local OpenAI Whisper as offline fallback |
 | **Native YouTube analysis** | Gemini watches the video directly — no download needed |
 | **Web scraping** | Multi-strategy extraction (newspaper4k, trafilatura, Wayback Machine) |
 
@@ -205,7 +217,7 @@ Free AI APIs have rate limits, downtime, and variable speed. SuperBrain solves t
 | **OpenRouter** | `OPENROUTER_API_KEY` | Free model router at [openrouter.ai](https://openrouter.ai) |
 | **Ollama** | *(no key needed)* | Local inference — `start.py` guides setup · recommended model: `qwen3-vl:4b` |
 
-> **Tip:** You don't need all providers — the router falls back automatically. Add at least **Gemini** (most generous free tier). Ollama serves as the offline last resort.
+> **Tip:** You don't need all providers — the router falls back automatically. Start with at least **Gemini** (most generous free tier). Ollama serves as the fully offline last resort.
 
 ---
 
@@ -227,13 +239,15 @@ Free AI APIs have rate limits, downtime, and variable speed. SuperBrain solves t
 git clone https://github.com/sidinsearch/superbrain.git
 cd superbrain/backend
 
-# 2. Run the setup wizard — creates venv, installs deps, configures API keys
+# 2. Run the interactive setup wizard
+#    Creates venv · installs deps · configures API keys · starts server
 python start.py
 
-# 3. In a separate terminal, expose the server (if running locally)
+# 3. Expose the server to the internet (if running on your local machine)
 ngrok http 8000
 
-# 4. Install the APK on your phone, then enter the ngrok URL + token in Settings
+# 4. Install the APK on your Android phone
+#    Open Settings in the app → enter the ngrok URL + token from backend/token.txt
 ```
 
 `start.py` is the **single entry point** for the backend. On first run it walks you through:
@@ -487,8 +501,8 @@ This project is licensed under the **[GNU Affero General Public License v3.0](LI
 
 <p align="center">
   Made with ❤️ by <a href="https://github.com/sidinsearch">sidinsearch</a>
-</p>
-
-<p align="center">
-  Copyright &copy; 2026 <a href="https://github.com/sidinsearch">sidinsearch</a>. Licensed under the <a href="LICENSE">GNU Affero General Public License v3.0</a>.
+  &nbsp;·&nbsp;
+  Copyright &copy; 2026 <a href="https://github.com/sidinsearch">sidinsearch</a>
+  &nbsp;·&nbsp;
+  <a href="LICENSE">AGPL-3.0 License</a>
 </p>
