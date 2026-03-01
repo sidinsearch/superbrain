@@ -232,7 +232,7 @@ cd superbrain/backend
 python start.py
 
 # 3. Expose the server to the internet (if running on your local machine)
-ngrok http 8000
+ngrok http 5000
 
 # 4. Install the APK on your Android phone
 #    Open Settings in the app → enter the ngrok URL + token from backend/token.txt
@@ -274,14 +274,14 @@ cp config/.api_keys.example config/.api_keys
 python api.py
 ```
 
-The server starts on `http://localhost:8000`. A unique API token is auto-generated and saved to `backend/token.txt`.
+The server starts on `http://localhost:5000`. A unique API token is auto-generated and saved to `backend/token.txt`.
 
 </details>
 
 ### Expose with ngrok
 
 ```bash
-ngrok http 8000
+ngrok http 5000
 ```
 
 Copy the `https://xxxx.ngrok-free.app` URL and enter it in the app's **Settings** screen along with the token from `backend/token.txt`.
@@ -392,7 +392,7 @@ The backend is lightweight and runs anywhere with Python 3.10+:
 | **Hetzner** | €3.29/mo | Fast EU-based VPS |
 | **Google Cloud Run** | Pay-per-use | Serverless, scales to zero |
 
-For cloud hosting, open port `8000` in your firewall and point the app directly at your server's public IP — no ngrok needed.
+For cloud hosting, open port `5000` in your firewall and point the app directly at your server's public IP — no ngrok needed.
 
 ---
 
@@ -443,7 +443,7 @@ All endpoints require the `X-API-Key` header with the token from `backend/token.
 | `GET` | `/ping` | Connectivity check |
 | `GET` | `/health` | Health check with system info |
 
-> Interactive API docs are available at `http://localhost:8000/docs` (Swagger UI) and `/redoc`.
+> Interactive API docs are available at `http://localhost:5000/docs` (Swagger UI) and `/redoc`.
 
 ---
 
