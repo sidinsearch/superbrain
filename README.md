@@ -240,7 +240,9 @@ ngrok http 8000
 
 **See it in action:**
 
-<video src="docs/backend-setup.mp4" controls width="100%"></video>
+
+https://github.com/user-attachments/assets/9769681b-5494-4093-b1bf-2c60c20e1673
+
 
 `start.py` is the **single entry point** for the backend. On first run it walks you through:
 
