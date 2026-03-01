@@ -19,18 +19,6 @@ A self-hosted AI-powered second brain for Android — save Instagram posts, YouT
 
 ---
 
-## 🎬 Backend Setup Demo
-
-<div align="center">
-
-<video src="docs/backend-setup.mp4" controls width="100%"></video>
-
-*Clone the repo, run `python start.py` — the wizard handles everything: virtual environment, dependencies, API keys, and server launch.*
-
-</div>
-
----
-
 ## 📱 App Screenshots
 
 <div align="center">
@@ -57,8 +45,6 @@ A self-hosted AI-powered second brain for Android — save Instagram posts, YouT
 
 ## Table of Contents
 
-- [🎬 Backend Setup Demo](#-backend-setup-demo)
-- [📱 App Screenshots](#-app-screenshots)
 - [The Problem](#the-problem)
 - [The Solution](#the-solution)
 - [Features](#features)
@@ -251,6 +237,10 @@ ngrok http 8000
 # 4. Install the APK on your Android phone
 #    Open Settings in the app → enter the ngrok URL + token from backend/token.txt
 ```
+
+**See it in action:**
+
+<video src="docs/backend-setup.mp4" controls width="100%"></video>
 
 `start.py` is the **single entry point** for the backend. On first run it walks you through:
 
