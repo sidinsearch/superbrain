@@ -11,7 +11,9 @@ A self-hosted AI-powered second brain for Android — save Instagram posts, YouT
 [![React Native](https://img.shields.io/badge/React_Native-0.81-61DAFB?logo=react&logoColor=white)](https://reactnative.dev)
 [![Expo SDK 54](https://img.shields.io/badge/Expo-SDK_54-000020?logo=expo&logoColor=white)](https://expo.dev)
 
-[**Download APK**](https://github.com/sidinsearch/superbrain/releases) · [Report Bug](https://github.com/sidinsearch/superbrain/issues) · [Request Feature](https://github.com/sidinsearch/superbrain/issues)
+[![Download APK](https://img.shields.io/badge/Download-APK-2ea44f?style=for-the-badge&logo=android&logoColor=white)](https://github.com/sidinsearch/superbrain/releases)
+[![Report Bug](https://img.shields.io/badge/Report-Bug-d73a4a?style=for-the-badge&logo=github&logoColor=white)](https://github.com/sidinsearch/superbrain/issues)
+[![Request Feature](https://img.shields.io/badge/Request-Feature-7057ff?style=for-the-badge&logo=github&logoColor=white)](https://github.com/sidinsearch/superbrain/issues)
 
 </div>
 
@@ -485,4 +487,8 @@ This project is licensed under the **[GNU Affero General Public License v3.0](LI
 
 <p align="center">
   Made with ❤️ by <a href="https://github.com/sidinsearch">sidinsearch</a>
+</p>
+
+<p align="center">
+  Copyright &copy; 2026 <a href="https://github.com/sidinsearch">sidinsearch</a>. Licensed under the <a href="LICENSE">GNU Affero General Public License v3.0</a>.
 </p>
