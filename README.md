@@ -19,32 +19,36 @@ A self-hosted AI-powered second brain for Android — save Instagram posts, YouT
 
 ---
 
-## 🎬 Backend Demo
+## 🎬 Backend Setup Demo
 
-<video src="docs/backend.mov" controls width="100%"></video>
+<div align="center">
 
-> *Clone the repo, run `python start.py` — the wizard handles everything: virtual environment, dependencies, API keys, and server setup.*
+<video src="docs/backend-setup.mp4" controls width="100%"></video>
+
+*Clone the repo, run `python start.py` — the wizard handles everything: virtual environment, dependencies, API keys, and server launch.*
+
+</div>
 
 ---
 
-## App Screenshots
+## 📱 App Screenshots
 
 <div align="center">
 <table>
   <tr>
-    <td align="center"><img src="superbrain-app/assets/mockups/1.png" width="220"/></td>
-    <td align="center"><img src="superbrain-app/assets/mockups/2.png" width="220"/></td>
-    <td align="center"><img src="superbrain-app/assets/mockups/3.png" width="220"/></td>
+    <td><img src="superbrain-app/assets/mockups/1.png" width="220"/></td>
+    <td><img src="superbrain-app/assets/mockups/2.png" width="220"/></td>
+    <td><img src="superbrain-app/assets/mockups/3.png" width="220"/></td>
   </tr>
   <tr>
-    <td align="center"><img src="superbrain-app/assets/mockups/4.png" width="220"/></td>
-    <td align="center"><img src="superbrain-app/assets/mockups/5.png" width="220"/></td>
-    <td align="center"><img src="superbrain-app/assets/mockups/6.png" width="220"/></td>
+    <td><img src="superbrain-app/assets/mockups/4.png" width="220"/></td>
+    <td><img src="superbrain-app/assets/mockups/5.png" width="220"/></td>
+    <td><img src="superbrain-app/assets/mockups/6.png" width="220"/></td>
   </tr>
   <tr>
-    <td align="center"><img src="superbrain-app/assets/mockups/7.png" width="220"/></td>
-    <td align="center"><img src="superbrain-app/assets/mockups/8.png" width="220"/></td>
-    <td align="center"><img src="superbrain-app/assets/mockups/9.png" width="220"/></td>
+    <td><img src="superbrain-app/assets/mockups/7.png" width="220"/></td>
+    <td><img src="superbrain-app/assets/mockups/8.png" width="220"/></td>
+    <td><img src="superbrain-app/assets/mockups/9.png" width="220"/></td>
   </tr>
 </table>
 </div>
@@ -53,8 +57,8 @@ A self-hosted AI-powered second brain for Android — save Instagram posts, YouT
 
 ## Table of Contents
 
-- [Backend Demo](#-backend-demo)
-- [App Screenshots](#app-screenshots)
+- [🎬 Backend Setup Demo](#-backend-setup-demo)
+- [📱 App Screenshots](#-app-screenshots)
 - [The Problem](#the-problem)
 - [The Solution](#the-solution)
 - [Features](#features)
@@ -69,8 +73,6 @@ A self-hosted AI-powered second brain for Android — save Instagram posts, YouT
 - [Tech Stack](#tech-stack)
 - [Contributing](#contributing)
 - [License](#license)
-
----
 
 ---
 
