@@ -34,20 +34,22 @@ export const colors = {
   
   // Category colors
   categories: {
-    product: '#f59e0b',
-    places: '#3b82f6',
-    food: '#ef4444',
-    fashion: '#ec4899',
-    fitness: '#10b981',
-    education: '#8b5cf6',
-    entertainment: '#f97316',
-    pets: '#06b6d4',
-    other: '#6b7280',
+    product: '#f59e0b', // amber-500
+    places: '#3b82f6', // blue-500
+    food: '#ef4444', // red-500
+    fashion: '#ec4899', // pink-500
+    fitness: '#10b981', // emerald-500
+    education: '#8b5cf6', // violet-500
+    entertainment: '#f97316', // orange-500
+    pets: '#06b6d4', // cyan-500
+    software: '#0ea5e9', // sky-500
+    book: '#b45309', // amber-700
+    film: '#8b5cf6', // violet-500
+    recipe: '#ea580c', // orange-600
+    workout: '#14b8a6', // teal-500
+    'tv shows': '#d946ef', // fuchsia-500
+    event: '#f43f5e', // rose-500
+    uncategorized: '#6b7280', // gray-500
+    other: '#6b7280', // gray-500
   }
-};
-
-export const gradients = {
-  primary: ['#6366f1', '#8b5cf6'],
-  card: ['#1e2229', '#1a1d24'],
-  overlay: ['rgba(0, 0, 0, 0.9)', 'rgba(15, 17, 21, 0.95)'],
 };

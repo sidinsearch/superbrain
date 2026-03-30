@@ -78,7 +78,6 @@ class PostsCacheService {
   /** Replay queued post mutations. Removes ones that succeed or get 4xx. Keeps network failures. */
   async flushPendingPostMutations(): Promise<void> {
     if (this.pendingMutationsList.length === 0) return;
-    console.log(`[PostsCache] flushing ${this.pendingMutationsList.length} pending mutation(s)`);
     const remaining: PendingPostMutation[] = [];
     for (const m of this.pendingMutationsList) {
       try {
@@ -126,7 +125,6 @@ class PostsCacheService {
    */
   async flushPendingAnalyses(): Promise<void> {
     if (this.pendingAnalysesList.length === 0) return;
-    console.log(`[PostsCache] flushing ${this.pendingAnalysesList.length} pending analysis/analyses`);
     const remaining: PendingAnalysis[] = [];
     for (const a of this.pendingAnalysesList) {
       try {

@@ -5,17 +5,19 @@ FastAPI REST endpoints for analyzing Instagram content with MongoDB caching
 With request queuing, live progress logging, and API key authentication
 """
 
-from fastapi import FastAPI, HTTPException, Query, Header, Depends
+from fastapi import FastAPI, HTTPException, Query, Header, Depends, Request, UploadFile, File, Body
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, HttpUrl
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import subprocess
 import asyncio
 import sys
 import os
+import json
+import zipfile
+import io
 from datetime import datetime
-import asyncio
 import logging
 import secrets
 import string
@@ -35,46 +37,65 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Token management
-TOKEN_FILE = Path(__file__).parent / "token.txt"
+# Sync Code management - single code for both auth and server discovery
+SYNC_CODE_FILE = Path(__file__).parent / "sync_code.txt"
 
-def generate_token(length=32):
-    """Generate a random API token"""
+def generate_sync_code(length=8):
+    """Generate a random 8-character sync code"""
     alphabet = string.ascii_letters + string.digits
     return ''.join(secrets.choice(alphabet) for _ in range(length))
 
-def load_or_create_token():
-    """Load existing token or create new one"""
-    if TOKEN_FILE.exists():
-        with open(TOKEN_FILE, 'r') as f:
-            token = f.read().strip()
-            if token:
-                logger.info("="*80)
-                logger.info(f"🔐 API Token: {token}")
-                logger.info("="*80)
-                return token
+def generate_api_token(length=32):
+    """Generate a random API token (internal)"""
+    alphabet = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+def create_sync_code():
+    """Create sync code containing both API token and server URL info"""
+    api_token = generate_api_token()
+    # Encode info: sync_code will be just the short code, actual token stored separately
+    return api_token, api_token[:8].upper()
+
+def load_or_create_sync_code():
+    """Load existing sync code or create new one"""
+    if SYNC_CODE_FILE.exists():
+        with open(SYNC_CODE_FILE, 'r') as f:
+            content = f.read().strip()
+            if content:
+                parts = content.split(':')
+                if len(parts) == 2:
+                    api_token, sync_code = parts
+                    logger.info("="*80)
+                    logger.info(f"🔐 Sync Code: {sync_code}")
+                    logger.info("="*80)
+                    return api_token, sync_code
     
-    # Create new token
-    token = generate_token()
-    with open(TOKEN_FILE, 'w') as f:
-        f.write(token)
+    # Create new sync code
+    api_token, sync_code = create_sync_code()
+    with open(SYNC_CODE_FILE, 'w') as f:
+        f.write(f"{api_token}:{sync_code}")
     
     logger.info("="*80)
-    logger.info(f"🔐 API Token (NEW): {token}")
+    logger.info(f"🔐 Sync Code (NEW): {sync_code}")
     logger.info("="*80)
     
-    return token
+    return api_token, sync_code
 
-# Load API token
-API_TOKEN = load_or_create_token()
+# Load sync code
+API_TOKEN, SYNC_CODE = load_or_create_sync_code()
 
-async def verify_token(x_api_key: str = Header(..., description="API authentication key")):
-    """Verify API token from request header"""
-    if x_api_key != API_TOKEN:
-        logger.warning(f"🚫 Invalid API key attempt: {x_api_key[:10]}...")
+async def verify_token(request: Request, x_api_key: str = Header(..., description="API authentication key")):
+    """
+    Verify authentication - accepts either:
+    1. Full API token (for programmatic access)
+    2. Sync code (for mobile app connection)
+    """
+    # Accept both API_TOKEN and SYNC_CODE for authentication
+    if x_api_key != API_TOKEN and x_api_key.upper() != SYNC_CODE.upper():
+        logger.warning("Invalid API key attempt from IP: %s", request.client.host if hasattr(request, 'client') else 'unknown')
         raise HTTPException(
             status_code=401,
-            detail="Invalid API key. Check X-API-Key header."
+            detail="Invalid API key. Use sync code from server console."
         )
     return x_api_key
 
@@ -85,14 +106,41 @@ app = FastAPI(
     version="1.02"
 )
 
-# Enable CORS for all origins (adjust for production)
+# CORS configuration - restrict origins in production
+import os
+
+# Get allowed origins from environment variable or use defaults
+allowed_origins_env = os.getenv('ALLOWED_ORIGINS', '')
+if allowed_origins_env:
+    allowed_origins = [origin.strip() for origin in allowed_origins_env.split(',')]
+else:
+    # Development defaults - RESTRICT IN PRODUCTION
+    allowed_origins = [
+        "http://localhost:3000",
+        "http://localhost:8081", 
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:8081",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Change to specific domains in production
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Content-Type", "Authorization", "X-API-Key"],
 )
+
+# Security headers middleware
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # CSP - adjust based on your needs
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+    return response
 
 # Request queue management (persistent)
 max_concurrent = 1  # Process one post at a time - queue others sequentially
@@ -263,9 +311,11 @@ async def root():
         "name": "SuperBrain Instagram Analyzer API",
         "version": "1.02",
         "status": "operational",
-        "authentication": "Required - Use X-API-Key header",
+        "authentication": "Required - Use sync code from server console with X-API-Key header",
+        "message": "Run start.py on the server to get the sync code",
         "endpoints": {
-            "POST /analyze": "Analyze content from Instagram, YouTube, or any web page (requires auth)",
+            "POST /connect": "Connect with sync code to validate",
+            "POST /analyze": "Analyze content (requires auth)",
             "GET /caption": "Get post caption quickly (requires auth)",
             "GET /cache/{shortcode}": "Check cache (requires auth)",
             "GET /recent": "Get recent analyses (requires auth)",
@@ -697,6 +747,36 @@ async def get_database_stats(token: str = Depends(verify_token)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/categories")
+async def get_all_categories(token: str = Depends(verify_token)):
+    """
+    Get all categories with post counts
+    - Requires API authentication
+    """
+    try:
+        db = get_db()
+        stats = db.get_stats()
+        category_counts = stats.get('categories', {})
+        
+        # Convert to list format with icons
+        categories = []
+        for cat, count in sorted(category_counts.items(), key=lambda x: -x[1]):
+            categories.append({
+                'id': cat.lower(),
+                'name': cat,
+                'count': count
+            })
+        
+        return {
+            "success": True,
+            "categories": categories,
+            "total": sum(c['count'] for c in categories)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/category/{category}")
 async def get_by_category(
     category: str,
@@ -761,7 +841,86 @@ async def ping():
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
 
 
-# ──────────────────────────────────────────────────────────────────
+@app.get("/status")
+async def status():
+    """
+    Server status check - no auth required.
+    """
+    return {
+        "status": "online",
+        "version": "1.02",
+        "message": "Server is running. Use sync code from server console to connect."
+    }
+
+
+class ConnectRequest(BaseModel):
+    """Request model for /connect endpoint."""
+    sync_code: str
+
+
+@app.post("/connect")
+async def connect(request: ConnectRequest):
+    """
+    Connect using sync code. 
+    
+    Returns the API token for the app to use. 
+    The sync code can also be used directly as the authentication token.
+    
+    No auth required - this is for initial setup.
+    """
+    sync_code = request.sync_code
+    
+    # Validate sync_code is alphanumeric (should always be, but double-check)
+    if not sync_code.isalnum():
+        raise HTTPException(status_code=400, detail="Sync code must be alphanumeric (letters and numbers only).")
+    
+    if sync_code.upper() != SYNC_CODE.upper():
+        raise HTTPException(status_code=401, detail="Invalid sync code. Check the code shown in the server console.")
+    
+    return {
+        "success": True,
+        "sync_code": SYNC_CODE,  # Can be used directly as API key
+        "message": "Connection successful! Use the sync code as your API key."
+    }
+
+
+# ─────────────────────────────────────────────────────────────────
+# Sync code management
+# ─────────────────────────────────────────────────────────────────
+
+@app.post("/reset/sync-code")
+async def reset_sync_code(token: str = Depends(verify_token)):
+    """
+    Reset the sync code. A new sync code will be generated.
+    - Requires API authentication
+    """
+    global API_TOKEN, SYNC_CODE
+    
+    try:
+        # Generate new sync code
+        api_token, sync_code = create_sync_code()
+        
+        # Save to file
+        with open(SYNC_CODE_FILE, 'w') as f:
+            f.write(f"{api_token}:{sync_code}")
+        
+        # Update globals
+        API_TOKEN = api_token
+        SYNC_CODE = sync_code
+        
+        logger.warning(f"🔐 Sync code was reset by a client. New code: {sync_code}")
+        
+        return {
+            "success": True,
+            "sync_code": sync_code,
+            "message": "Sync code has been reset. Update this code in your mobile app."
+        }
+    except Exception as e:
+        logger.error(f"Error resetting sync code: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─────────────────────────────────────────────────────────────────
 # Collections endpoints
 # ──────────────────────────────────────────────────────────────────
 
@@ -776,6 +935,19 @@ class CollectionUpsertRequest(BaseModel):
 
 class CollectionPostsRequest(BaseModel):
     post_ids: List[str]
+
+
+# Allowed fields for import validation
+ALLOWED_POST_FIELDS = {
+    'shortcode', 'url', 'username', 'content_type', 'post_date',
+    'likes', 'thumbnail', 'title', 'summary', 'tags', 'music', 'category',
+    'visual_analysis', 'audio_transcription', 'text_analysis'
+}
+
+class ImportData(BaseModel):
+    version: Optional[str] = None
+    posts: List[dict] = []
+    collections: List[dict] = []
 
 
 @app.get("/collections")
@@ -989,6 +1161,479 @@ async def flush_retry_queue(token: str = Depends(verify_token)):
     except Exception as e:
         logger.error(f"Error flushing retry queue: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─────────────────────────────────────────────────────────────────
+# Reset endpoints (admin only)
+# ─────────────────────────────────────────────────────────────────
+
+TOKEN_FILE = Path(__file__).parent / "token.txt"
+
+@app.post("/reset/api-token")
+async def reset_api_token(token: str = Depends(verify_token)):
+    """
+    Reset the API token. A new token will be generated.
+    - Requires API authentication
+    - Returns the new token
+    """
+    global API_TOKEN
+    try:
+        # Generate new token
+        new_token = secrets.token_urlsafe(32)
+        
+        # Save to file
+        TOKEN_FILE.write_text(new_token)
+        
+        # Update in-memory token so it takes effect immediately
+        API_TOKEN = new_token
+        
+        logger.warning("API token was reset by a client")
+        
+        return {
+            "success": True,
+            "new_token": new_token,
+            "message": "API token has been reset. Update this token in your mobile app settings."
+        }
+    except Exception as e:
+        logger.error(f"Error resetting API token: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/reset/database")
+async def reset_database(
+    token: str = Depends(verify_token),
+    confirm: str = Body(..., description="Must be 'DELETE_ALL' to confirm")
+):
+    """
+    Reset (clear) the database. This will delete all posts and collections.
+    - Requires API authentication
+    - Requires confirm='DELETE_ALL' in body
+    """
+    if confirm != "DELETE_ALL":
+        raise HTTPException(status_code=400, detail="Confirmation required: pass confirm='DELETE_ALL'")
+    
+    try:
+        db = get_db()
+        
+        # Delete all posts
+        result = db.collection.delete_many({})
+        deleted_count = result.deleted_count
+        
+        logger.warning(f"🗑️ Database was reset by a client. Deleted {deleted_count} posts.")
+        
+        return {
+            "success": True,
+            "deleted_count": deleted_count,
+            "message": f"Database cleared. {deleted_count} posts deleted."
+        }
+    except Exception as e:
+        logger.error(f"Error resetting database: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─────────────────────────────────────────────────────────────────
+# Import/Export endpoints
+# ─────────────────────────────────────────────────────────────────
+
+@app.get("/export")
+async def export_data(
+    token: str = Depends(verify_token),
+    limit: int = Query(default=10000, ge=1, le=50000, description="Max posts to export"),
+    offset: int = Query(default=0, ge=0, description="Offset for pagination"),
+    format: str = Query(default="json", description="Export format: json or zip")
+):
+    """
+    Export data as JSON or ZIP (posts, collections, settings).
+    - Requires API authentication
+    - Supports pagination with limit and offset
+    """
+    try:
+        db = get_db()
+        
+        # Get posts with pagination using SQLite
+        posts = db.get_all_posts(limit=limit, offset=offset)
+        
+        # Get all collections
+        collections = db.get_all_collections()
+        
+        # Get stats
+        stats = db.get_stats()
+        
+        export_payload = {
+            "version": "1.0",
+            "exported_at": datetime.now().isoformat(),
+            "posts": posts,
+            "collections": collections,
+            "stats": stats
+        }
+        
+        if format.lower() == "zip":
+            # Create a zip file in memory
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
+                # Write main export data
+                zip_file.writestr("superbrain_export.json", json.dumps(export_payload, default=str))
+            
+            # Reset buffer pointer
+            zip_buffer.seek(0)
+            
+            # Return as streaming response
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"superbrain_export_{timestamp}.zip"
+            
+            return StreamingResponse(
+                iter([zip_buffer.getvalue()]), 
+                media_type="application/zip", 
+                headers={"Content-Disposition": f"attachment; filename={filename}"}
+            )
+        
+        # Default JSON response
+        return export_payload
+    except Exception as e:
+        logger.error(f"Error exporting data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/import")
+async def import_data(
+    data: dict,
+    token: str = Depends(verify_token),
+    mode: str = Query(default="merge", description="merge or replace")
+):
+    """
+    Import data from JSON.
+    - Requires API authentication
+    - mode=merge: Add to existing data (skip duplicates by shortcode)
+    - mode=replace: Replace all data (will clear database first)
+    """
+    return await _process_import_data(data, mode)
+
+@app.post("/import/file")
+async def import_data_file(
+    file: UploadFile = File(...),
+    token: str = Depends(verify_token),
+    mode: str = Query(default="merge", description="merge or replace")
+):
+    """
+    Import data from a ZIP or JSON file.
+    - Requires API authentication
+    - mode=merge or replace
+    """
+    try:
+        content = await file.read()
+        
+        # Check if it's a ZIP file
+        if file.filename.endswith('.zip') or file.content_type == 'application/zip' or content.startswith(b'PK'):
+            try:
+                with zipfile.ZipFile(io.BytesIO(content)) as z:
+                    # Look for superbrain_export.json or any json file
+                    json_files = [name for name in z.namelist() if name.endswith('.json')]
+                    
+                    if not json_files:
+                        raise HTTPException(status_code=400, detail="No JSON file found in the ZIP archive")
+                    
+                    # Prefer superbrain_export.json if it exists
+                    target_file = "superbrain_export.json" if "superbrain_export.json" in json_files else json_files[0]
+                    
+                    with z.open(target_file) as f:
+                        data = json.load(f)
+            except zipfile.BadZipFile:
+                raise HTTPException(status_code=400, detail="Invalid ZIP file")
+        else:
+            # Assume it's a direct JSON file
+            try:
+                data = json.loads(content.decode('utf-8'))
+            except json.JSONDecodeError:
+                raise HTTPException(status_code=400, detail="Invalid JSON file")
+                
+        return await _process_import_data(data, mode)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing import file: {e}")
+        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
+
+async def _process_import_data(data: dict, mode: str):
+    try:
+        # Validate input data structure
+        validated = ImportData.model_validate(data)
+        
+        db = get_db()
+        
+        imported_posts = 0
+        skipped_posts = 0
+        
+        # Handle mode=replace
+        if mode == "replace":
+            logger.warning("Import mode=replace: clearing database first")
+            db.collection.delete_many({})
+            db.collections.delete_many({})
+        
+        # Import posts - validate and filter allowed fields
+        posts = validated.posts or []
+        for post in posts:
+            shortcode = post.get("shortcode")
+            if not shortcode:
+                continue
+            
+            # Filter to only allowed fields (prevent arbitrary field injection)
+            filtered_post = {k: v for k, v in post.items() if k in ALLOWED_POST_FIELDS}
+            
+            # Check if exists (for merge mode)
+            existing = db.collection.find_one({"shortcode": shortcode})
+            if existing and mode == "merge":
+                skipped_posts += 1
+                continue
+            
+            # Add imported timestamp
+            filtered_post["imported_at"] = datetime.now().isoformat()
+            
+            # Upsert
+            db.collection.update_one(
+                {"shortcode": shortcode},
+                {"$set": filtered_post},
+                upsert=True
+            )
+            imported_posts += 1
+        
+        # Import collections - validate and filter allowed fields
+        collections = validated.collections or []
+        imported_collections = 0
+        for coll in collections:
+            coll_id = coll.get("id")
+            if not coll_id:
+                continue
+            
+            if "_id" in coll:
+                del coll["_id"]
+            
+            coll["imported_at"] = datetime.now().isoformat()
+            
+            db.collections.update_one(
+                {"id": coll_id},
+                {"$set": coll},
+                upsert=True
+            )
+            imported_collections += 1
+        
+        logger.info(f"📥 Import complete: {imported_posts} posts, {skipped_posts} skipped, {imported_collections} collections")
+        
+        return {
+            "success": True,
+            "imported_posts": imported_posts,
+            "skipped_posts": skipped_posts,
+            "imported_collections": imported_collections,
+            "mode": mode
+        }
+    except Exception as e:
+        logger.error(f"Error importing data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Settings endpoints for AI Providers and Instagram configuration
+# These manage the .api_keys file and dynamically update the ModelRouter
+
+class ProviderKeyUpdate(BaseModel):
+    provider: str
+    api_key: str
+
+class InstagramCredentials(BaseModel):
+    username: str
+    password: str
+
+def get_config_path(filename: str) -> Path:
+    """Get path to config directory files."""
+    return Path(__file__).parent / "config" / filename
+
+@app.get("/settings/ai-providers")
+async def get_ai_providers(token: str = Depends(verify_token)):
+    """
+    Get available AI providers and their key status.
+    - Requires API authentication
+    """
+    from core.model_router import get_router
+    router = get_router()
+    providers = router.get_available_providers()
+    
+    return {
+        "success": True,
+        "providers": {
+            "groq": {
+                "name": "Groq",
+                "has_key": providers.get("groq", False),
+                "key_hint": "gsk_..." if providers.get("groq") else None
+            },
+            "gemini": {
+                "name": "Google Gemini",
+                "has_key": providers.get("gemini", False),
+                "key_hint": "AIza..." if providers.get("gemini") else None
+            },
+            "openrouter": {
+                "name": "OpenRouter",
+                "has_key": providers.get("openrouter", False),
+                "key_hint": "sk-or-..." if providers.get("openrouter") else None
+            },
+            "ollama": {
+                "name": "Ollama (Local)",
+                "has_key": providers.get("ollama", False),
+                "key_hint": None
+            }
+        }
+    }
+
+@app.post("/settings/ai-providers")
+async def set_ai_provider_key(
+    data: ProviderKeyUpdate,
+    token: str = Depends(verify_token)
+):
+    """
+    Set an API key for an AI provider.
+    - Requires API authentication
+    - provider: groq, gemini, or openrouter
+    """
+    from core.model_router import get_router
+    
+    valid_providers = ["groq", "gemini", "openrouter"]
+    if data.provider.lower() not in valid_providers:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid provider. Must be one of: {', '.join(valid_providers)}"
+        )
+    
+    if not data.api_key or len(data.api_key.strip()) < 5:
+        raise HTTPException(status_code=400, detail="Invalid API key")
+    
+    router = get_router()
+    success = router.set_api_key(data.provider.lower(), data.api_key.strip())
+    
+    if success:
+        logger.info(f"🔑 API key updated for {data.provider}")
+        return {"success": True, "provider": data.provider, "message": "API key updated"}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to save API key")
+
+@app.delete("/settings/ai-providers/{provider}")
+async def delete_ai_provider_key(
+    provider: str,
+    token: str = Depends(verify_token)
+):
+    """
+    Delete an API key for an AI provider.
+    - Requires API authentication
+    """
+    from core.model_router import get_router
+    
+    valid_providers = ["groq", "gemini", "openrouter"]
+    if provider.lower() not in valid_providers:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid provider. Must be one of: {', '.join(valid_providers)}"
+        )
+    
+    router = get_router()
+    success = router.delete_api_key(provider.lower())
+    
+    if success:
+        logger.info(f"🔑 API key deleted for {provider}")
+        return {"success": True, "provider": provider, "message": "API key deleted"}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to delete API key")
+
+@app.get("/settings/instagram")
+async def get_instagram_credentials(token: str = Depends(verify_token)):
+    """
+    Get Instagram credentials (masked).
+    - Requires API authentication
+    """
+    api_keys_file = get_config_path(".api_keys")
+    
+    username = None
+    has_password = False
+    
+    if api_keys_file.exists():
+        with open(api_keys_file, "r") as f:
+            for line in f:
+                if line.startswith("INSTAGRAM_USERNAME="):
+                    username = line.split("=", 1)[1].strip()
+                elif line.startswith("INSTAGRAM_PASSWORD="):
+                    has_password = bool(line.split("=", 1)[1].strip())
+    
+    return {
+        "success": True,
+        "configured": username is not None and username != "",
+        "username": username if username else None,
+        "has_password": has_password
+    }
+
+@app.post("/settings/instagram")
+async def set_instagram_credentials(
+    data: InstagramCredentials,
+    token: str = Depends(verify_token)
+):
+    """
+    Set Instagram credentials.
+    - Requires API authentication
+    """
+    if not data.username or not data.password:
+        raise HTTPException(status_code=400, detail="Username and password required")
+    
+    api_keys_file = get_config_path(".api_keys")
+    
+    # Read existing content
+    lines = []
+    username_found = False
+    password_found = False
+    
+    if api_keys_file.exists():
+        with open(api_keys_file, "r") as f:
+            for line in f:
+                if line.startswith("INSTAGRAM_USERNAME="):
+                    lines.append(f"INSTAGRAM_USERNAME={data.username}\n")
+                    username_found = True
+                elif line.startswith("INSTAGRAM_PASSWORD="):
+                    lines.append(f"INSTAGRAM_PASSWORD={data.password}\n")
+                    password_found = True
+                else:
+                    lines.append(line)
+    
+    if not username_found:
+        lines.append(f"INSTAGRAM_USERNAME={data.username}\n")
+    if not password_found:
+        lines.append(f"INSTAGRAM_PASSWORD={data.password}\n")
+    
+    with open(api_keys_file, "w") as f:
+        f.writelines(lines)
+    
+    logger.info(f"📸 Instagram credentials updated for {data.username}")
+    
+    return {
+        "success": True,
+        "username": data.username,
+        "message": "Instagram credentials updated"
+    }
+
+@app.delete("/settings/instagram")
+async def delete_instagram_credentials(token: str = Depends(verify_token)):
+    """
+    Delete Instagram credentials.
+    - Requires API authentication
+    """
+    api_keys_file = get_config_path(".api_keys")
+    
+    if api_keys_file.exists():
+        lines = []
+        with open(api_keys_file, "r") as f:
+            for line in f:
+                if not line.startswith("INSTAGRAM_USERNAME=") and not line.startswith("INSTAGRAM_PASSWORD="):
+                    lines.append(line)
+        
+        with open(api_keys_file, "w") as f:
+            f.writelines(lines)
+    
+    logger.info("📸 Instagram credentials deleted")
+    
+    return {"success": True, "message": "Instagram credentials deleted"}
 
 
 if __name__ == "__main__":

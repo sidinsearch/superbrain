@@ -118,7 +118,7 @@ async function saveNotifIds(map: Record<string, string[]>): Promise<void> {
 // ─────────────────────────────────────────────
 // Permission + category setup
 // ─────────────────────────────────────────────
-export async function requestNotificationPermission(): Promise<boolean> {
+async function requestNotificationPermission(): Promise<boolean> {
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('watch-later', {
       name: 'Watch Later Reminders',
@@ -306,6 +306,10 @@ export async function rescheduleWatchLaterNotification(): Promise<void> {
 }
 
 // ─────────────────────────────────────────────
+// Debug & Test Functions
+// ─────────────────────────────────────────────
+
+
 // "Mark as Watched" action handler
 // Called when user taps the action button on a notification
 // ─────────────────────────────────────────────

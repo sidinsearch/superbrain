@@ -15,6 +15,9 @@ import PostDetailScreen from './src/screens/PostDetailScreen';
 import CollectionDetailScreen from './src/screens/CollectionDetailScreen';
 import ShareHandlerScreen from './src/screens/ShareHandlerScreen';
 import FailedAnalysisScreen from './src/screens/FailedAnalysisScreen';
+import AIProviderScreen from './src/screens/AIProviderScreen';
+import InstagramScreen from './src/screens/InstagramScreen';
+import DataImportExportScreen from './src/screens/DataImportExportScreen';
 
 // API Service
 import apiService from './src/services/api';
@@ -31,6 +34,9 @@ export type RootStackParamList = {
   CollectionDetail: { collection: Collection };
   ShareHandler: { url?: string };
   FailedAnalysis: undefined;
+  AIProvider: undefined;
+  Instagram: undefined;
+  DataImportExport: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -203,6 +209,21 @@ export default function App() {
           <Stack.Screen
             name="FailedAnalysis"
             component={FailedAnalysisScreen}
+            options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
+            name="AIProvider"
+            component={AIProviderScreen}
+            options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
+            name="Instagram"
+            component={InstagramScreen}
+            options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
+            name="DataImportExport"
+            component={DataImportExportScreen}
             options={{ animation: 'slide_from_right' }}
           />
         </Stack.Navigator>

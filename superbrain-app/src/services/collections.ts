@@ -58,7 +58,6 @@ async function enqueueMutation(mutation: PendingMutation): Promise<void> {
 async function flushPendingMutations(): Promise<void> {
   const pending = await loadPending();
   if (pending.length === 0) return;
-  console.log(`[Collections] flushing ${pending.length} pending mutation(s)`);
   const remaining: PendingMutation[] = [];
   for (const m of pending) {
     try {
@@ -91,7 +90,7 @@ function clean(collections: Collection[]): Collection[] {
 const DEFAULT_WATCH_LATER: Collection = {
   id: 'default_watch_later',
   name: 'Watch Later',
-  icon: '⏰',
+  icon: 'time',
   postIds: [],
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
@@ -190,10 +189,7 @@ class CollectionsService {
    */
   async syncFromBackend(): Promise<void> {
     await flushPendingMutations();
-    const remote = await pullFromBackend();
-    if (remote) {
-      console.log('[Collections] synced from backend:', remote.length, 'collections');
-    }
+    await pullFromBackend();
   }
 
   async getCollections(): Promise<Collection[]> {
@@ -273,4 +269,3 @@ class CollectionsService {
 }
 
 export const collectionsService = new CollectionsService();
-export default collectionsService;

@@ -17,7 +17,7 @@ import { RootStackParamList } from '../../App';
 import { colors } from '../theme/colors';
 import apiService from '../services/api';
 import postsCache from '../services/postsCache';
-import collectionsService from '../services/collections';
+import { collectionsService } from '../services/collections';
 import { sendImmediateWatchLaterNotification, sendImmediateSavedNotification } from '../services/notificationService';
 import { Post, Collection } from '../types';
 import CustomToast from '../components/CustomToast';

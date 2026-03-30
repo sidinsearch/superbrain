@@ -41,7 +41,8 @@ RESET  = _ansi(0);  BOLD   = _ansi(1)
 RED    = _ansi(31); GREEN  = _ansi(32); YELLOW = _ansi(33)
 BLUE   = _ansi(34); CYAN   = _ansi(36); WHITE  = _ansi(37)
 DIM    = _ansi(2)
-MAG    = _ansi(35)
+MAGENTA = _ansi(35)
+MAG    = MAGENTA
 
 def link(url: str, text: str | None = None) -> str:
     """OSC 8 terminal hyperlink — clickable in most modern terminals."""
@@ -901,13 +902,21 @@ def launch_backend():
         ngrok_line = ""
         ngrok_hint = f"         · ngrok      →  https://<your-subdomain>.ngrok-free.app"
 
+    # Read sync code from the file created by api.py
+    sync_code_file = BASE_DIR / "sync_code.txt"
+    sync_code = "NOT_SET"
+    if sync_code_file.exists():
+        content = sync_code_file.read_text().strip()
+        if ":" in content:
+            sync_code = content.split(":")[1]  # Get the sync code part
+
     print(f"""
   {GREEN}{BOLD}Backend is starting up!{RESET}
 
   Local URL    →  {CYAN}http://127.0.0.1:{PORT}{RESET}
   Network URL  →  {CYAN}http://{local_ip}:{PORT}{RESET}
 {(ngrok_line + chr(10)) if ngrok_line else ''}  API docs     →  {CYAN}http://127.0.0.1:{PORT}/docs{RESET}
-  API Token    →  {BOLD}{token}{RESET}
+  Sync Code    →  {BOLD}{MAGENTA}{sync_code}{RESET}
 
   {DIM}Keep this terminal open. Press Ctrl+C to stop the server.{RESET}
 
@@ -918,8 +927,10 @@ def launch_backend():
          · Same WiFi  →  http://{local_ip}:{PORT}
 {ngrok_hint}
          · Port fwd   →  http://<your-public-ip>:{PORT}
-    4. Set {BOLD}API Token{RESET} to: {BOLD}{token}{RESET}
+    4. Set {BOLD}Sync Code{RESET} to: {BOLD}{MAGENTA}{sync_code}{RESET}
     5. Tap {BOLD}Save{RESET} — you're good to go!
+
+  {DIM}Note: The app will automatically connect using the sync code.{RESET}
 """)
 
     os.chdir(BASE_DIR)

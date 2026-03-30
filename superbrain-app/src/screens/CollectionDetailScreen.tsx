@@ -18,7 +18,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { Post } from '../types';
 import { colors } from '../theme/colors';
-import collectionsService from '../services/collections';
+import { collectionsService } from '../services/collections';
 import postsCache from '../services/postsCache';
 import CustomToast from '../components/CustomToast';
 import { cancelPostWatchLaterNotification } from '../services/notificationService';

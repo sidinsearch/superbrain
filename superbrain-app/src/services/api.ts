@@ -29,6 +29,14 @@ class ApiService {
     await AsyncStorage.setItem('apiToken', token);
   }
 
+  async setSyncCode(syncCode: string) {
+    await AsyncStorage.setItem('syncCode', syncCode);
+  }
+
+  async getSyncCode(): Promise<string | null> {
+    return await AsyncStorage.getItem('syncCode');
+  }
+
   async setApiUrl(url: string) {
     this.apiUrl = url;
     await AsyncStorage.setItem('apiUrl', url);
@@ -147,14 +155,11 @@ class ApiService {
     try {
       const headers = await this.getHeaders();
       const baseUrl = await this.getBaseUrl();
-      console.log('API - Analyzing URL:', url);
       const response = await axios.post<ApiResponse>(
         `${baseUrl}/analyze`,
         { url },
         { headers }
       );
-      
-      console.log('API - Response:', response.data);
       
       if (response.data.success && response.data.data) {
         return normalizePost(response.data.data);
@@ -250,6 +255,24 @@ class ApiService {
     }
   }
 
+  async getCategories(): Promise<Array<{ id: string; name: string; count: number }>> {
+    try {
+      const headers = await this.getHeaders();
+      const baseUrl = await this.getBaseUrl();
+      const response = await axios.get<{
+        success: boolean;
+        categories: Array<{ id: string; name: string; count: number }>;
+      }>(
+        `${baseUrl}/categories`,
+        { headers }
+      );
+      return response.data.categories || [];
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      return [];
+    }
+  }
+
   async checkCache(shortcode: string): Promise<Post | null> {
     try {
       const headers = await this.getHeaders();
@@ -268,12 +291,10 @@ class ApiService {
     try {
       const headers = await this.getHeaders();
       const baseUrl = await this.getBaseUrl();
-      console.log(`Fetching stats from ${baseUrl}/stats`);
       const response = await axios.get<{ success: boolean; data: DatabaseStats }>(
         `${baseUrl}/stats`,
         { headers }
       );
-      console.log('Stats fetched:', response.data.data);
       return response.data.data;
     } catch (error: any) {
       console.error('Error fetching stats:', error.response?.status, error.response?.data || error.message);
@@ -284,7 +305,6 @@ class ApiService {
   async testConnection(): Promise<boolean> {
     try {
       const baseUrl = await this.getBaseUrl();
-      // Use /ping — no auth, no DB, instant response even while backend is analyzing
       const response = await axios.get(
         `${baseUrl}/ping`,
         { timeout: 8000 }
@@ -292,6 +312,27 @@ class ApiService {
       return response.status === 200;
     } catch (error) {
       return false;
+    }
+  }
+
+  async connectWithSyncCode(syncCode: string): Promise<{ success: boolean; api_token?: string; sync_code?: string; error?: string }> {
+    try {
+      const baseUrl = await this.getBaseUrl();
+      const response = await axios.post<{ success: boolean; api_token: string; sync_code: string }>(
+        `${baseUrl}/connect`,
+        { sync_code: syncCode },
+        { timeout: 10000 }
+      );
+      if (response.data.success && response.data.api_token) {
+        await this.setApiToken(response.data.api_token);
+        return { success: true, api_token: response.data.api_token, sync_code: response.data.sync_code };
+      }
+      return { success: false, error: 'Invalid response' };
+    } catch (error: any) {
+      if (error.response?.status === 401) {
+        return { success: false, error: 'Invalid sync code' };
+      }
+      return { success: false, error: error.message || 'Connection failed' };
     }
   }
 
@@ -322,6 +363,57 @@ class ApiService {
       return response.data;
     } catch (error) {
       console.error('Error flushing retry queue:', error);
+      throw error;
+    }
+  }
+
+  async resetApiToken(): Promise<{ success: boolean; new_token: string; message: string }> {
+    try {
+      const headers = await this.getHeaders();
+      const baseUrl = await this.getBaseUrl();
+      const response = await axios.post<{ success: boolean; new_token: string; message: string }>(
+        `${baseUrl}/reset/api-token`,
+        {},
+        { headers }
+      );
+      if (response.data.new_token) {
+        await this.setApiToken(response.data.new_token);
+      }
+      return response.data;
+    } catch (error) {
+      console.error('Error resetting API token:', error);
+      throw error;
+    }
+  }
+
+  async resetSyncCode(): Promise<{ success: boolean; sync_code: string; message: string }> {
+    try {
+      const headers = await this.getHeaders();
+      const baseUrl = await this.getBaseUrl();
+      const response = await axios.post<{ success: boolean; sync_code: string; message: string }>(
+        `${baseUrl}/reset/sync-code`,
+        {},
+        { headers }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error resetting sync code:', error);
+      throw error;
+    }
+  }
+
+  async resetDatabase(): Promise<{ success: boolean; deleted_count: number; message: string }> {
+    try {
+      const headers = await this.getHeaders();
+      const baseUrl = await this.getBaseUrl();
+      const response = await axios.post<{ success: boolean; deleted_count: number; message: string }>(
+        `${baseUrl}/reset/database`,
+        { confirm: 'DELETE_ALL' },
+        { headers }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error resetting database:', error);
       throw error;
     }
   }
@@ -427,6 +519,138 @@ class ApiService {
     const headers = await this.getHeaders();
     const baseUrl = await this.getBaseUrl();
     await axios.delete(`${baseUrl}/collections/${collectionId}`, { headers, timeout: 10000 });
+  }
+
+  // ── Settings API ──────────────────────────────────────────────
+
+  async getAiProviders(): Promise<any> {
+    try {
+      const headers = await this.getHeaders();
+      const baseUrl = await this.getBaseUrl();
+      const response = await axios.get(
+        `${baseUrl}/settings/ai-providers`,
+        { headers }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching AI providers:', error);
+      throw error;
+    }
+  }
+
+  async setAiProviderKey(provider: string, apiKey: string): Promise<any> {
+    try {
+      const headers = await this.getHeaders();
+      const baseUrl = await this.getBaseUrl();
+      const response = await axios.post(
+        `${baseUrl}/settings/ai-providers`,
+        { provider, api_key: apiKey },
+        { headers }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error setting AI provider key:', error);
+      throw error;
+    }
+  }
+
+  async deleteAiProviderKey(provider: string): Promise<any> {
+    try {
+      const headers = await this.getHeaders();
+      const baseUrl = await this.getBaseUrl();
+      const response = await axios.delete(
+        `${baseUrl}/settings/ai-providers/${provider}`,
+        { headers }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting AI provider key:', error);
+      throw error;
+    }
+  }
+
+  async getInstagramCredentials(): Promise<any> {
+    try {
+      const headers = await this.getHeaders();
+      const baseUrl = await this.getBaseUrl();
+      const response = await axios.get(
+        `${baseUrl}/settings/instagram`,
+        { headers }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching Instagram credentials:', error);
+      throw error;
+    }
+  }
+
+  async setInstagramCredentials(username: string, password: string): Promise<any> {
+    try {
+      const headers = await this.getHeaders();
+      const baseUrl = await this.getBaseUrl();
+      const response = await axios.post(
+        `${baseUrl}/settings/instagram`,
+        { username, password },
+        { headers }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error setting Instagram credentials:', error);
+      throw error;
+    }
+  }
+
+  async deleteInstagramCredentials(): Promise<any> {
+    try {
+      const headers = await this.getHeaders();
+      const baseUrl = await this.getBaseUrl();
+      const response = await axios.delete(
+        `${baseUrl}/settings/instagram`,
+        { headers }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting Instagram credentials:', error);
+      throw error;
+    }
+  }
+
+  async importData(file: any, mode: 'merge' | 'replace' = 'merge'): Promise<any> {
+    try {
+      const headers = await this.getHeaders();
+      const baseUrl = await this.getBaseUrl();
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await axios.post(
+        `${baseUrl}/import/file?mode=${mode}`,
+        formData,
+        { 
+          headers: {
+            ...headers,
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error importing data:', error);
+      throw error;
+    }
+  }
+
+  async getExportHeaders(): Promise<Headers> {
+    const token = await this.getApiToken();
+    return new Headers({
+      'X-API-Key': token || '',
+    });
+  }
+
+  getExportUrl(format: 'json' | 'zip' = 'json'): Promise<string> {
+    return this.getBaseUrl().then(baseUrl => {
+      return `${baseUrl}/export?format=${format}`;
+    });
   }
 }
 

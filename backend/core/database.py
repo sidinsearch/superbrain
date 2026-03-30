@@ -31,9 +31,9 @@ class Database:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA foreign_keys=ON")
             self._create_tables()
-            print(f"✓ Connected to SQLite database: {self.db_path}")
+            print(f"[OK] Connected to SQLite database: {self.db_path}")
         except Exception as e:
-            print(f"⚠️  SQLite connection failed: {e}")
+            print(f"[WARNING] SQLite connection failed: {e}")
             self._conn = None
 
     def _create_tables(self):
@@ -188,7 +188,7 @@ class Database:
             cur.execute("SELECT * FROM analyses WHERE shortcode = ?", (shortcode,))
             return self._row_to_dict(cur.fetchone())
         except Exception as e:
-            print(f"⚠️  Cache lookup error: {e}")
+            print(f"[WARNING]  Cache lookup error: {e}")
             return None
 
     def save_analysis(self, shortcode, url, username, title, summary, tags, music, category,
@@ -196,7 +196,7 @@ class Database:
                       likes=0, post_date=None, content_type="instagram", thumbnail=""):
         """Insert or update an analysis record. Returns True on success."""
         if not self.is_connected():
-            print("⚠️  Database not connected. Analysis not saved.")
+            print("[WARNING] Database not connected. Analysis not saved.")
             return False
         try:
             print(f"📝 Saving to database with shortcode: {shortcode}")
@@ -229,10 +229,10 @@ class Database:
                   thumbnail, title, summary, tags_json, music, category,
                   visual_analysis, audio_transcription, text_analysis))
             self._conn.commit()
-            print(f"✓ Analysis saved to database ({shortcode})")
+            print(f"[OK] Analysis saved to database ({shortcode})")
             return True
         except Exception as e:
-            print(f"⚠️  Error saving to database: {e}")
+            print(f"[WARNING]  Error saving to database: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -248,7 +248,7 @@ class Database:
             )
             return [self._row_to_dict(r) for r in cur.fetchall()]
         except Exception as e:
-            print(f"⚠️  Error retrieving recent: {e}")
+            print(f"[WARNING]  Error retrieving recent: {e}")
             return []
 
     def get_by_category(self, category, limit=20):
@@ -263,7 +263,7 @@ class Database:
             )
             return [self._row_to_dict(r) for r in cur.fetchall()]
         except Exception as e:
-            print(f"⚠️  Error retrieving by category: {e}")
+            print(f"[WARNING]  Error retrieving by category: {e}")
             return []
 
     def search_tags(self, tags, limit=20):
@@ -289,7 +289,7 @@ class Database:
             )
             return [self._row_to_dict(r) for r in cur.fetchall()]
         except Exception as e:
-            print(f"⚠️  Error searching tags: {e}")
+            print(f"[WARNING]  Error searching tags: {e}")
             return []
 
     def get_stats(self):
@@ -318,8 +318,35 @@ class Database:
                 "capacity_used": "N/A (local SQLite)"
             }
         except Exception as e:
-            print(f"⚠️  Error getting stats: {e}")
+            print(f"[WARNING]  Error getting stats: {e}")
             return {"document_count": 0, "storage_mb": 0, "categories": {}, "capacity_used": "N/A"}
+
+    def get_all_posts(self, limit: int = 50000, offset: int = 0) -> list:
+        """Return all posts for export (excludes soft-deleted)."""
+        if not self.is_connected():
+            return []
+        try:
+            cur = self._conn.cursor()
+            cur.execute(
+                "SELECT * FROM analyses WHERE (is_hidden IS NULL OR is_hidden = 0) ORDER BY analyzed_at DESC LIMIT ? OFFSET ?",
+                (limit, offset)
+            )
+            return [self._row_to_dict(r) for r in cur.fetchall()]
+        except Exception as e:
+            print(f"[WARNING]  Error getting all posts for export: {e}")
+            return []
+
+    def get_all_collections(self) -> list:
+        """Return all collections for export."""
+        if not self.is_connected():
+            return []
+        try:
+            cur = self._conn.cursor()
+            cur.execute("SELECT * FROM collections ORDER BY created_at DESC")
+            return [self._row_to_dict(r) for r in cur.fetchall()]
+        except Exception as e:
+            print(f"[WARNING]  Error getting collections for export: {e}")
+            return []
 
     def close(self):
         if self._conn:
@@ -370,7 +397,7 @@ class Database:
             print(f"⏰ Queued for retry in {retry_hours:.0f}h: {shortcode} ({reason})")
             return True
         except Exception as e:
-            print(f"⚠️  Error queuing for retry: {e}")
+            print(f"[WARNING]  Error queuing for retry: {e}")
             return False
 
     def get_retry_ready(self):
@@ -398,7 +425,7 @@ class Database:
                 for r in cur.fetchall()
             ]
         except Exception as e:
-            print(f"⚠️  Error getting retry-ready items: {e}")
+            print(f"[WARNING]  Error getting retry-ready items: {e}")
             return []
 
     def get_retry_queue(self):
@@ -416,7 +443,7 @@ class Database:
             """)
             return [dict(r) for r in cur.fetchall()]
         except Exception as e:
-            print(f"⚠️  Error getting retry queue: {e}")
+            print(f"[WARNING]  Error getting retry queue: {e}")
             return []
 
     # ==================== QUEUE MANAGEMENT ====================
@@ -456,7 +483,7 @@ class Database:
             self._conn.commit()
             return position
         except Exception as e:
-            print(f"⚠️  Error adding to queue: {e}")
+            print(f"[WARNING]  Error adding to queue: {e}")
             return -1
 
     def get_queue(self):
@@ -474,7 +501,7 @@ class Database:
                 for r in cur.fetchall()
             ]
         except Exception as e:
-            print(f"⚠️  Error getting queue: {e}")
+            print(f"[WARNING]  Error getting queue: {e}")
             return []
 
     def get_processing(self):
@@ -488,7 +515,7 @@ class Database:
             )
             return [r["shortcode"] for r in cur.fetchall()]
         except Exception as e:
-            print(f"⚠️  Error getting processing items: {e}")
+            print(f"[WARNING]  Error getting processing items: {e}")
             return []
 
     def mark_processing(self, shortcode):
@@ -505,7 +532,7 @@ class Database:
             self._conn.commit()
             return True
         except Exception as e:
-            print(f"⚠️  Error marking as processing: {e}")
+            print(f"[WARNING]  Error marking as processing: {e}")
             return False
 
     def remove_from_queue(self, shortcode):
@@ -531,7 +558,7 @@ class Database:
             self._conn.commit()
             return True
         except Exception as e:
-            print(f"⚠️  Error removing from queue: {e}")
+            print(f"[WARNING]  Error removing from queue: {e}")
             return False
 
     def recover_interrupted_items(self):
@@ -564,10 +591,10 @@ class Database:
             self._conn.commit()
 
             if count > 0:
-                print(f"🔄 Recovered {count} interrupted items")
+                print(f"[RECOVERED] Recovered {count} interrupted items")
             return count
         except Exception as e:
-            print(f"⚠️  Error recovering items: {e}")
+            print(f"[WARNING]  Error recovering items: {e}")
             return 0
     
     # ------------------------------------------------------------------
@@ -586,7 +613,7 @@ class Database:
             self._conn.commit()
             return cur.rowcount > 0
         except Exception as e:
-            print(f"⚠️  Error soft-deleting post: {e}")
+            print(f"[WARNING]  Error soft-deleting post: {e}")
             return False
 
     def hard_delete_post(self, shortcode):
@@ -601,7 +628,7 @@ class Database:
             self._conn.commit()
             return cur.rowcount > 0
         except Exception as e:
-            print(f"⚠️  Error hard-deleting post: {e}")
+            print(f"[WARNING]  Error hard-deleting post: {e}")
             return False
 
     def restore_post(self, shortcode):
@@ -616,7 +643,7 @@ class Database:
             self._conn.commit()
             return cur.rowcount > 0
         except Exception as e:
-            print(f"⚠️  Error restoring post: {e}")
+            print(f"[WARNING]  Error restoring post: {e}")
             return False
 
     def update_post(self, shortcode, updates):
@@ -641,12 +668,12 @@ class Database:
             )
             self._conn.commit()
             if cur.rowcount == 0:
-                print(f"⚠️  Post not found: {shortcode}")
+                print(f"[WARNING]  Post not found: {shortcode}")
                 return False
-            print(f"✓ Updated post: {shortcode}")
+            print(f"[OK] Updated post: {shortcode}")
             return True
         except Exception as e:
-            print(f"⚠️  Error updating post: {e}")
+            print(f"[WARNING]  Error updating post: {e}")
             return False
 
     # ------------------------------------------------------------------
@@ -672,7 +699,7 @@ class Database:
             cur.execute("SELECT * FROM collections ORDER BY created_at ASC")
             return [self._collection_row_to_dict(r) for r in cur.fetchall()]
         except Exception as e:
-            print(f"⚠️  Error getting collections: {e}")
+            print(f"[WARNING]  Error getting collections: {e}")
             return []
 
     def get_collection(self, collection_id):
@@ -684,7 +711,7 @@ class Database:
             cur.execute("SELECT * FROM collections WHERE id = ?", (collection_id,))
             return self._collection_row_to_dict(cur.fetchone())
         except Exception as e:
-            print(f"⚠️  Error getting collection: {e}")
+            print(f"[WARNING]  Error getting collection: {e}")
             return None
 
     def upsert_collection(self, collection_id, name, icon, post_ids, created_at=None, updated_at=None):
@@ -709,7 +736,7 @@ class Database:
             self._conn.commit()
             return self.get_collection(collection_id)
         except Exception as e:
-            print(f"⚠️  Error upserting collection: {e}")
+            print(f"[WARNING]  Error upserting collection: {e}")
             return None
 
     def update_collection_posts(self, collection_id, post_ids):
@@ -725,7 +752,7 @@ class Database:
             self._conn.commit()
             return cur.rowcount > 0
         except Exception as e:
-            print(f"⚠️  Error updating collection posts: {e}")
+            print(f"[WARNING]  Error updating collection posts: {e}")
             return False
 
     def delete_collection(self, collection_id):
@@ -737,7 +764,7 @@ class Database:
             self._conn.commit()
             return cur.rowcount > 0
         except Exception as e:
-            print(f"⚠️  Error deleting collection: {e}")
+            print(f"[WARNING]  Error deleting collection: {e}")
             return False
 
 

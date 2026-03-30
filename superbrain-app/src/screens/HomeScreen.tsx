@@ -20,9 +20,10 @@ import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
 import apiService from '../services/api';
 import postsCache from '../services/postsCache';
-import collectionsService from '../services/collections';
+import { collectionsService } from '../services/collections';
 import { scheduleAllWatchLaterNotifications, sendImmediateWatchLaterNotification, sendImmediateSavedNotification } from '../services/notificationService';
 import { Post, Collection } from '../types';
 import { colors } from '../theme/colors';
@@ -34,17 +35,37 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
 
-const CATEGORIES = [
-  { id: 'all', name: 'All', icon: '🌟' },
-  { id: 'product', name: 'Product', icon: '📦' },
-  { id: 'places', name: 'Places', icon: '📍' },
-  { id: 'food', name: 'Food', icon: '🍔' },
-  { id: 'fashion', name: 'Fashion', icon: '👗' },
-  { id: 'fitness', name: 'Fitness', icon: '💪' },
-  { id: 'education', name: 'Education', icon: '📚' },
-  { id: 'entertainment', name: 'Entertainment', icon: '🎬' },
-  { id: 'pets', name: 'Pets', icon: '🐾' },
+// Fallback categories if API fails
+const DEFAULT_CATEGORIES = [
+  { id: 'all', name: 'All', icon: 'star', count: 0 },
+  { id: 'product', name: 'Product', icon: 'cube', count: 0 },
+  { id: 'places', name: 'Places', icon: 'location', count: 0 },
+  { id: 'recipe', name: 'Recipe', icon: 'restaurant', count: 0 },
+  { id: 'software', name: 'Software', icon: 'code-slash', count: 0 },
+  { id: 'book', name: 'Book', icon: 'book', count: 0 },
+  { id: 'workout', name: 'Workout', icon: 'fitness', count: 0 },
+  { id: 'film', name: 'Film', icon: 'film', count: 0 },
+  { id: 'tv shows', name: 'TV Shows', icon: 'tv', count: 0 },
+  { id: 'event', name: 'Event', icon: 'calendar', count: 0 },
+  { id: 'other', name: 'Other', icon: 'pricetag', count: 0 },
 ];
+
+// Map backend category names to SF Symbol icons
+const CATEGORY_ICONS: Record<string, string> = {
+  'product': 'bag.fill',
+  'places': 'map.fill',
+  'recipe': 'fork.knife',
+  'food': 'fork.knife',
+  'software': 'chevron.left.forwardslash.chevron.right',
+  'book': 'book.fill',
+  'workout': 'figure.run',
+  'fitness': 'figure.run',
+  'film': 'film.fill',
+  'tv shows': 'tv.fill',
+  'event': 'calendar',
+  'other': 'tag.fill',
+  'uncategorized': 'questionmark.circle',
+};
 
 const HomeScreen = () => {
   const navigation = useNavigation<NavigationProp>();
@@ -67,6 +88,7 @@ const HomeScreen = () => {
   const prevProcessingRef = useRef<number>(0); // tracks backend processing_count across poll ticks
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
 
   useEffect(() => {
     initializeAndLoad();
@@ -125,21 +147,42 @@ const HomeScreen = () => {
 
   const ONBOARDING_STEPS = [
     {
-      icon: '🧠',
+      iconName: 'planet-outline',
       title: 'Welcome to SuperBrain',
       description: 'Your personal second brain. Save posts from Instagram, YouTube, and Websites — no need to endlessly scroll through your saves. Find anything fast with search and filters.',
     },
     {
-      icon: '↗️',
+      iconName: 'share-outline',
       title: 'Save from Anywhere',
       description: 'Open any Instagram post, YouTube video, or Website → tap Share → select SuperBrain. Done. Your content is saved and analyzed instantly.',
     },
     {
-      icon: '📱',
+      iconName: 'layers-outline',
       title: 'Explore Your Feed',
       description: 'Scroll through your saves, filter by category, or search. Tap a post to see full details. Long-press to select and delete multiple posts at once.',
     },
   ];
+
+  const loadCategories = async () => {
+    try {
+      const cats = await apiService.getCategories();
+      if (cats && cats.length > 0) {
+        // Merge with icons
+        const catsWithIcons = cats.map((c: { id: string; name: string; count: number }) => ({
+          id: c.id.toLowerCase(),
+          name: c.name,
+          icon: CATEGORY_ICONS[c.name.toLowerCase()] || 'tag.fill',
+          count: c.count,
+        }));
+        // Add "All" at the beginning with total count
+        const totalCount = cats.reduce((sum: number, c: { count: number }) => sum + c.count, 0);
+        const allCat = { id: 'all', name: 'All', icon: 'star.fill', count: totalCount };
+        setCategories([allCat, ...catsWithIcons]);
+      }
+    } catch (e) {
+      console.warn('Failed to load categories, using defaults:', e);
+    }
+  };
 
   const initializeAndLoad = async () => {    try {
       await apiService.initialize();
@@ -151,6 +194,8 @@ const HomeScreen = () => {
         return;
       }
       setIsConfigured(true);
+      // Load categories from backend
+      await loadCategories();
       // Await backend sync first, THEN reschedule notifications
       // This ensures fresh-install users get notifications restored after backend pull
       try {
@@ -351,15 +396,19 @@ const HomeScreen = () => {
     const categoryMap: { [key: string]: string } = {
       'product': '📦',
       'places': '📍',
-      'food': '🍔',
-      'fashion': '👗',
+      'recipe': '🍳',
+      'food': '🍳',
+      'software': '💻',
+      'book': '📖',
+      'workout': '💪',
       'fitness': '💪',
-      'education': '📚',
-      'entertainment': '🎬',
-      'pets': '🐾',
-      'other': '📌'
+      'film': '🎬',
+      'tv shows': '📺',
+      'event': '🎪',
+      'other': '📌',
+      'uncategorized': '❓'
     };
-    return categoryMap[category] || '📌';
+    return categoryMap[category?.toLowerCase()] || '📌';
   };
 
   const getPostImageUrl = (post: Post) => {
@@ -694,7 +743,7 @@ const HomeScreen = () => {
 
       <View style={styles.searchContainer}>
         <View style={styles.searchIconContainer}>
-          <Text style={styles.searchIconText}>🔍</Text>
+          <Ionicons name="search" size={20} color={colors.textMuted} />
         </View>
         <TextInput
           style={styles.searchInput}
@@ -705,7 +754,7 @@ const HomeScreen = () => {
         />
         {searchQuery !== '' && (
           <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
-            <Text style={styles.clearIcon}>✕</Text>
+            <Ionicons name="close-circle" size={20} color={colors.textMuted} />
           </TouchableOpacity>
         )}
       </View>
@@ -716,28 +765,36 @@ const HomeScreen = () => {
         style={styles.categoriesContainer}
         contentContainerStyle={styles.categoriesContent}
       >
-        {CATEGORIES.map(category => (
-          <TouchableOpacity
-            key={category.id}
-            style={[
-              styles.categoryChip,
-              selectedCategory === category.id && styles.categoryChipActive,
-            ]}
-            onPress={() => {
-              setSelectedCategory(category.id);
-            }}
-          >
-            <Text style={styles.categoryIcon}>{category.icon}</Text>
-            <Text
+        {categories.map(category => {
+          const categoryColor = getCategoryColor(category.id);
+          const isActive = selectedCategory === category.id;
+          return (
+            <TouchableOpacity
+              key={category.id}
               style={[
-                styles.categoryText,
-                selectedCategory === category.id && styles.categoryTextActive,
+                styles.categoryChip,
+                isActive && { backgroundColor: categoryColor, borderColor: categoryColor },
               ]}
+              onPress={() => {
+                setSelectedCategory(category.id);
+              }}
             >
-              {category.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <Ionicons
+                name={(category.icon || 'star') as any}
+                size={18}
+                color={isActive ? '#fff' : categoryColor}
+              />
+              <Text
+                style={[
+                  styles.categoryText,
+                  isActive && styles.categoryTextActive,
+                ]}
+              >
+                {category.name}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
       {/* Selection Actions */}
@@ -782,9 +839,11 @@ const HomeScreen = () => {
         </View>
       ) : !isConfigured ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>⚙️</Text>
+          <View style={styles.setupIconContainer}>
+            <Ionicons name="settings" size={48} color={colors.primary} />
+          </View>
           <Text style={styles.emptyTitle}>Setup Required</Text>
-          <Text style={styles.emptyText}>Configure your server URL and API token to get started.</Text>
+          <Text style={styles.emptyText}>Enter your 8-character sync code in Settings to get started.</Text>
           <TouchableOpacity
             style={styles.setupButton}
             onPress={() => navigation.navigate('Settings')}
@@ -794,7 +853,9 @@ const HomeScreen = () => {
         </View>
       ) : filteredPosts.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>📭</Text>
+          <View style={[styles.setupIconContainer, { backgroundColor: 'rgba(107, 114, 128, 0.1)' }]}>
+            <Ionicons name="documents-outline" size={48} color={colors.textMuted} />
+          </View>
           <Text style={styles.emptyTitle}>No Posts Found</Text>
           <Text style={styles.emptyText}>
             {searchQuery ? 'Try a different search term' : 'Start analyzing share content to build your library'}
@@ -824,9 +885,7 @@ const HomeScreen = () => {
           style={styles.navItemActive} 
           onPress={() => navigation.navigate('Home')}
         >
-          <View style={styles.navIconContainer}>
-            <Text style={styles.navIconTextActive}>🏠</Text>
-          </View>
+          <Ionicons name="home" size={24} color={colors.primary} />
           <Text style={styles.navLabelActive}>Home</Text>
         </TouchableOpacity>
         
@@ -834,9 +893,7 @@ const HomeScreen = () => {
           style={styles.navItem} 
           onPress={() => navigation.navigate('Library')}
         >
-          <View style={styles.navIconContainer}>
-            <Text style={styles.navIconText}>📚</Text>
-          </View>
+          <Ionicons name="library" size={24} color={colors.textMuted} />
           <Text style={styles.navLabel}>Library</Text>
         </TouchableOpacity>
         
@@ -844,9 +901,7 @@ const HomeScreen = () => {
           style={styles.navItem} 
           onPress={() => navigation.navigate('Settings')}
         >
-          <View style={styles.navIconContainer}>
-            <Text style={styles.navIconText}>⚙️</Text>
-          </View>
+          <Ionicons name="settings" size={24} color={colors.textMuted} />
           <Text style={styles.navLabel}>Settings</Text>
         </TouchableOpacity>
       </View>
@@ -863,7 +918,7 @@ const HomeScreen = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add to Collection</Text>
               <TouchableOpacity onPress={() => setShowCollectionsModal(false)}>
-                <Text style={styles.modalCloseIcon}>✕</Text>
+                <Ionicons name="close" size={24} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
 
@@ -874,7 +929,7 @@ const HomeScreen = () => {
               </View>
             ) : collections.length === 0 ? (
               <View style={styles.emptyCollections}>
-                <Text style={styles.emptyIcon}>📂</Text>
+                <Ionicons name="folder-open" size={64} color={colors.textMuted} />
                 <Text style={styles.emptyCollectionsTitle}>No Collections</Text>
                 <Text style={styles.emptyText}>Create collections in the Library tab first</Text>
                 <TouchableOpacity
@@ -970,7 +1025,12 @@ const HomeScreen = () => {
 
             {/* Step content */}
             <View style={styles.onboardingBody}>
-              <Text style={styles.onboardingIcon}>{ONBOARDING_STEPS[onboardingStep].icon}</Text>
+              <Ionicons 
+                name={ONBOARDING_STEPS[onboardingStep].iconName as any} 
+                size={64} 
+                color={colors.primary} 
+                style={styles.onboardingIcon} 
+              />
               <Text style={styles.onboardingTitle}>{ONBOARDING_STEPS[onboardingStep].title}</Text>
               <Text style={styles.onboardingDesc}>{ONBOARDING_STEPS[onboardingStep].description}</Text>
             </View>
@@ -1090,7 +1150,7 @@ const styles = StyleSheet.create({
   categoryChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     marginRight: 10,
     backgroundColor: colors.backgroundCard,
@@ -1098,16 +1158,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     minHeight: 44,
+    gap: 6,
   },
   categoryChipActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
   categoryIcon: {
-    fontSize: 22,
-    marginRight: 8,
-    lineHeight: 28,
-    includeFontPadding: false,
+    width: 20,
+    height: 20,
+    marginRight: 6,
   },
   categoryText: {
     fontSize: 13,
@@ -1117,6 +1177,20 @@ const styles = StyleSheet.create({
   categoryTextActive: {
     color: '#fff',
     fontWeight: '600',
+  },
+  categoryCountBadge: {
+    marginLeft: 6,
+    backgroundColor: colors.primary + '30',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 20,
+    alignItems: 'center',
+  },
+  categoryCountText: {
+    fontSize: 10,
+    color: colors.primary,
+    fontWeight: '700',
   },
   loadingContainer: {
     flex: 1,
@@ -1145,10 +1219,21 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   emptyText: {
-    fontSize: 14,
-    color: colors.textMuted,
+    fontSize: 15,
+    color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 20,
+    paddingHorizontal: 32,
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  setupIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(99, 102, 241, 0.1)', // Primary color with 10% opacity
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
   },
   setupButton: {
     marginTop: 20,
@@ -1351,6 +1436,11 @@ const styles = StyleSheet.create({
   navIconContainer: {
     marginBottom: 6,
   },
+  navIcon: {
+    width: 24,
+    height: 24,
+    marginBottom: 4,
+  },
   navIconText: {
     fontSize: 26,
     color: colors.textMuted,
@@ -1362,13 +1452,11 @@ const styles = StyleSheet.create({
   navLabel: {
     fontSize: 11,
     color: colors.textMuted,
-    marginTop: 2,
   },
   navLabelActive: {
     fontSize: 11,
     color: colors.primary,
     fontWeight: '600',
-    marginTop: 2,
   },
   cancelButton: {
     paddingHorizontal: 16,
@@ -1551,6 +1639,11 @@ const styles = StyleSheet.create({
     padding: 40,
     alignItems: 'center',
   },
+  emptyCollectionsIconImage: {
+    width: 64,
+    height: 64,
+    marginBottom: 16,
+  },
   emptyCollectionsTitle: {
     fontSize: 18,
     fontWeight: '600',
@@ -1704,7 +1797,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   onboardingIcon: {
-    fontSize: 56,
     marginBottom: 16,
   },
   onboardingTitle: {

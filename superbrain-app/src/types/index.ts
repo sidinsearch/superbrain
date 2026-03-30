@@ -44,12 +44,6 @@ export interface RetryQueueItem {
   attempts: number;
 }
 
-export interface SearchFilters {
-  category?: string;
-  tags?: string[];
-  searchText?: string;
-}
-
 export interface DatabaseStats {
   document_count: number;
   storage_mb: number;

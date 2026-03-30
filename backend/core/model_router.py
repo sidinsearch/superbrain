@@ -535,6 +535,85 @@ class ModelRouter:
     def _key(self, name: str) -> Optional[str]:
         return self._api_keys.get(name) or None
 
+    def reload_api_keys(self):
+        """Reload API keys from environment and .api_keys file."""
+        self._api_keys.clear()
+        self._load_api_keys()
+        logger.info("🔑 API keys reloaded")
+
+    def get_available_providers(self) -> Dict[str, bool]:
+        """Return dict of provider -> has_key."""
+        return {
+            "groq": bool(self._key("GROQ_API_KEY")),
+            "gemini": bool(self._key("GEMINI_API_KEY")),
+            "openrouter": bool(self._key("OPENROUTER_API_KEY")),
+            "ollama": True,  # Always available
+        }
+
+    def set_api_key(self, provider: str, api_key: str) -> bool:
+        """Set an API key for a provider and persist to file."""
+        key_name = f"{provider.upper()}_API_KEY"
+        valid_providers = ["GROQ_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY"]
+        
+        if key_name not in valid_providers:
+            return False
+        
+        # Update in-memory
+        self._api_keys[key_name] = api_key
+        
+        # Persist to file
+        self._persist_api_key(key_name, api_key)
+        return True
+
+    def delete_api_key(self, provider: str) -> bool:
+        """Delete an API key for a provider."""
+        key_name = f"{provider.upper()}_API_KEY"
+        valid_providers = ["GROQ_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY"]
+        
+        if key_name not in valid_providers:
+            return False
+        
+        # Remove from memory
+        self._api_keys.pop(key_name, None)
+        
+        # Remove from file
+        self._remove_api_key(key_name)
+        return True
+
+    def _persist_api_key(self, key_name: str, api_key: str):
+        """Persist an API key to the .api_keys file."""
+        lines = []
+        updated = False
+        
+        if API_KEYS_FILE.exists():
+            with open(API_KEYS_FILE, "r") as f:
+                for line in f:
+                    if line.strip().startswith(f"{key_name}="):
+                        lines.append(f"{key_name}={api_key}\n")
+                        updated = True
+                    else:
+                        lines.append(line)
+        
+        if not updated:
+            lines.append(f"{key_name}={api_key}\n")
+        
+        with open(API_KEYS_FILE, "w") as f:
+            f.writelines(lines)
+
+    def _remove_api_key(self, key_name: str):
+        """Remove an API key from the .api_keys file."""
+        if not API_KEYS_FILE.exists():
+            return
+        
+        lines = []
+        with open(API_KEYS_FILE, "r") as f:
+            for line in f:
+                if not line.strip().startswith(f"{key_name}="):
+                    lines.append(line)
+        
+        with open(API_KEYS_FILE, "w") as f:
+            f.writelines(lines)
+
     # ── Dynamic OpenRouter free-model discovery (FreeRide approach) ────────────
 
     def _default_model_state_dynamic(self, key: str, base_priority: float = 50) -> Dict:
