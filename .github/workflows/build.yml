@@ -2,7 +2,7 @@ name: Build APK (Gradle)
 
 on:
   push:
-    branches: [main]
+    branches: [main, beta]
   workflow_dispatch:
     inputs:
       build_type:
