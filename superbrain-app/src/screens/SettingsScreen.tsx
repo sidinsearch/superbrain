@@ -23,6 +23,7 @@ import { QueueStatus } from '../types';
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const OTP_LENGTH = 8;
+const TAB_ICON_SIZE = 22;
 
 interface DialogState {
   visible: boolean;
@@ -410,17 +411,17 @@ const SettingsScreen = () => {
 
       <View style={styles.bottomNav}>
         <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Home')}>
-          <Ionicons name="home" size={24} color={colors.textMuted} />
+          <Ionicons name="home" size={TAB_ICON_SIZE} color={colors.textMuted} />
           <Text style={styles.navLabel}>Home</Text>
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Library')}>
-          <Ionicons name="library" size={24} color={colors.textMuted} />
+          <Ionicons name="library" size={TAB_ICON_SIZE} color={colors.textMuted} />
           <Text style={styles.navLabel}>Library</Text>
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.navItemActive} onPress={() => navigation.navigate('Settings')}>
-          <Ionicons name="settings" size={24} color={colors.primary} />
+          <Ionicons name="settings" size={TAB_ICON_SIZE} color={colors.primary} />
           <Text style={styles.navLabelActive}>Settings</Text>
         </TouchableOpacity>
       </View>

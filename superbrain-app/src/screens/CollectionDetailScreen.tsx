@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { Post } from '../types';
@@ -27,6 +28,11 @@ type Props = NativeStackScreenProps<RootStackParamList, 'CollectionDetail'>;
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
+
+const getCollectionIconName = (id: string, icon: string) => {
+  if (id === 'default_watch_later') return 'clock';
+  return icon || 'folder';
+};
 
 const CollectionDetailScreen = ({ route, navigation }: Props) => {
   const { collection } = route.params;
@@ -234,7 +240,11 @@ const CollectionDetailScreen = ({ route, navigation }: Props) => {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <View style={styles.headerIconContainer}>
-            <Text style={styles.headerIcon}>{collection.icon}</Text>
+            <Ionicons
+              name={getCollectionIconName(collection.id, collection.icon) as any}
+              size={24}
+              color={colors.primary}
+            />
           </View>
           <View>
             <Text style={styles.headerTitle}>{collection.name}</Text>

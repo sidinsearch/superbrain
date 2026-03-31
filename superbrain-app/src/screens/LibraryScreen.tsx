@@ -32,6 +32,7 @@ import CustomToast from '../components/CustomToast';
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const { width: screenWidth } = Dimensions.get('window');
+const TAB_ICON_SIZE = 22;
 
 const LOCAL_ICON_COLORS: Record<string, string> = {
   'folder': colors.primary || '#6366f1',
@@ -219,8 +220,11 @@ const LibraryScreen = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
     if (selectionMode && selectedCollections.size > 0) {
-      for (const collectionId of Array.from(selectedCollections)) {
-        if (collectionId === 'default_watch_later') continue;
+      const deletableCollectionIds = Array.from(selectedCollections).filter(
+        (collectionId) => collectionId !== 'default_watch_later'
+      );
+
+      for (const collectionId of deletableCollectionIds) {
         await collectionsService.deleteCollection(collectionId);
       }
       setShowDeleteModal(false);
@@ -229,7 +233,7 @@ const LibraryScreen = () => {
       loadCollections();
       setToast({ 
         visible: true, 
-        message: `${selectedCollections.size} collection(s) deleted`, 
+        message: `${deletableCollectionIds.length} collection(s) deleted`, 
         type: 'success' 
       });
     } else if (collectionToDelete) {
@@ -244,6 +248,15 @@ const LibraryScreen = () => {
   const filteredCollections = collections.filter(col =>
     searchQuery === '' || col.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const deletableSelectedCount = Array.from(selectedCollections).filter(
+    (collectionId) => collectionId !== 'default_watch_later'
+  ).length;
+
+  const getCollectionIconName = (collection: Collection) => {
+    if (collection.id === 'default_watch_later') return 'clock';
+    return collection.icon in LOCAL_ICON_COLORS ? collection.icon : 'folder';
+  };
 
   return (
     <View style={styles.container}>
@@ -266,9 +279,9 @@ const LibraryScreen = () => {
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity 
-              style={[styles.deleteButton, selectedCollections.size === 0 && styles.deleteButtonDisabled]}
-              onPress={() => selectedCollections.size > 0 && setShowDeleteModal(true)}
-              disabled={selectedCollections.size === 0}
+              style={[styles.deleteButton, deletableSelectedCount === 0 && styles.deleteButtonDisabled]}
+              onPress={() => deletableSelectedCount > 0 && setShowDeleteModal(true)}
+              disabled={deletableSelectedCount === 0}
             >
               <Text style={styles.deleteButtonText}>Delete</Text>
             </TouchableOpacity>
@@ -337,6 +350,7 @@ const LibraryScreen = () => {
               )}
               {filteredCollections.map((collection) => {
                 const isSelected = selectedCollections.has(collection.id);
+                const isWatchLaterCollection = collection.id === 'default_watch_later';
                 return (
                 <View key={collection.id} style={styles.collectionWrapper}>
                   <TouchableOpacity
@@ -346,11 +360,12 @@ const LibraryScreen = () => {
                     ]}
                     onPress={() => {
                       if (selectionMode) {
-                        if (collection.id === 'default_watch_later') {
+                        if (isWatchLaterCollection) {
                           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
                           return;
                         }
                         const newSelected = new Set(selectedCollections);
+                        newSelected.delete('default_watch_later');
                         if (isSelected) {
                           newSelected.delete(collection.id);
                         } else {
@@ -363,7 +378,7 @@ const LibraryScreen = () => {
                       }
                     }}
                     onLongPress={() => {
-                      if (!selectionMode && collection.id !== 'default_watch_later') {
+                      if (!selectionMode && !isWatchLaterCollection) {
                         setSelectionMode(true);
                         setSelectedCollections(new Set([collection.id]));
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -371,7 +386,7 @@ const LibraryScreen = () => {
                     }}
                     activeOpacity={0.8}
                   >
-                    {selectionMode && (
+                    {selectionMode && !isWatchLaterCollection && (
                       <View style={styles.checkboxContainer}>
                         <View style={[
                           styles.checkbox,
@@ -383,9 +398,9 @@ const LibraryScreen = () => {
                     )}
                     <View style={styles.collectionIconContainer}>
                       <Ionicons 
-                        name={(collection.icon in LOCAL_ICON_COLORS ? collection.icon : 'folder') as any} 
+                        name={getCollectionIconName(collection) as any} 
                         size={32} 
-                        color={LOCAL_ICON_COLORS[collection.icon] || colors.primary} 
+                        color={LOCAL_ICON_COLORS[getCollectionIconName(collection)] || colors.primary} 
                       />
                     </View>
                     <Text style={styles.collectionName} numberOfLines={1}>
@@ -419,17 +434,17 @@ const LibraryScreen = () => {
 
       <View style={styles.bottomNav}>
         <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Home')}>
-          <Ionicons name="home" size={24} color={colors.textMuted} />
+          <Ionicons name="home" size={TAB_ICON_SIZE} color={colors.textMuted} />
           <Text style={styles.navLabel}>Home</Text>
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.navItemActive} onPress={() => navigation.navigate('Library')}>
-          <Ionicons name="library" size={24} color={colors.primary} />
+          <Ionicons name="library" size={TAB_ICON_SIZE} color={colors.primary} />
           <Text style={styles.navLabelActive}>Library</Text>
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Settings')}>
-          <Ionicons name="settings" size={24} color={colors.textMuted} />
+          <Ionicons name="settings" size={TAB_ICON_SIZE} color={colors.textMuted} />
           <Text style={styles.navLabel}>Settings</Text>
         </TouchableOpacity>
       </View>

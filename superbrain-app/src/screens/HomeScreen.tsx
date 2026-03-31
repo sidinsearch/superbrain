@@ -34,6 +34,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
+const TAB_ICON_SIZE = 22;
 
 // Fallback categories if API fails
 const DEFAULT_CATEGORIES = [
@@ -875,7 +876,7 @@ const HomeScreen = () => {
           style={styles.navItemActive} 
           onPress={() => navigation.navigate('Home')}
         >
-          <Ionicons name="home" size={24} color={colors.primary} />
+          <Ionicons name="home" size={TAB_ICON_SIZE} color={colors.primary} />
           <Text style={styles.navLabelActive}>Home</Text>
         </TouchableOpacity>
         
@@ -883,7 +884,7 @@ const HomeScreen = () => {
           style={styles.navItem} 
           onPress={() => navigation.navigate('Library')}
         >
-          <Ionicons name="library" size={24} color={colors.textMuted} />
+          <Ionicons name="library" size={TAB_ICON_SIZE} color={colors.textMuted} />
           <Text style={styles.navLabel}>Library</Text>
         </TouchableOpacity>
         
@@ -891,7 +892,7 @@ const HomeScreen = () => {
           style={styles.navItem} 
           onPress={() => navigation.navigate('Settings')}
         >
-          <Ionicons name="settings" size={24} color={colors.textMuted} />
+          <Ionicons name="settings" size={TAB_ICON_SIZE} color={colors.textMuted} />
           <Text style={styles.navLabel}>Settings</Text>
         </TouchableOpacity>
       </View>
