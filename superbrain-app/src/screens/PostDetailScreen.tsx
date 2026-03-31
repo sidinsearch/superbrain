@@ -12,6 +12,7 @@ import CustomToast from '../components/CustomToast';
 import { collectionsService } from '../services/collections';
 import { Collection } from '../types';
 import { schedulePostWatchLaterNotification, sendImmediateWatchLaterNotification, sendImmediateSavedNotification } from '../services/notificationService';
+import { getCollectionIconName, getCollectionIconColor } from '../constants/icons';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PostDetail'>;
 
@@ -507,7 +508,11 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
                     onPress={() => handleAddToCollection(collection.id)}
                   >
                     <View style={styles.collectionItemLeft}>
-                      <Ionicons name={collection.icon as any} size={28} color={colors.primary} />
+                      <Ionicons
+                        name={getCollectionIconName(collection.id, collection.icon) as any}
+                        size={28}
+                        color={getCollectionIconColor(collection.id, collection.icon)}
+                      />
                       <View>
                         <Text style={styles.collectionItemName}>{collection.name}</Text>
                         <Text style={styles.collectionItemCount}>

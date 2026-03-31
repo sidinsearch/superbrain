@@ -30,6 +30,7 @@ import { colors } from '../theme/colors';
 import { RootStackParamList } from '../../App';
 import CustomToast from '../components/CustomToast';
 import BottomNav from '../components/BottomNav';
+import { getCollectionIconName, getCollectionIconColor } from '../constants/icons';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -918,7 +919,11 @@ const HomeScreen = () => {
                     onPress={() => handleAddToCollection(collection.id)}
                   >
                     <View style={styles.collectionItemLeft}>
-                      <Text style={styles.collectionItemIcon}>{collection.icon}</Text>
+                      <Ionicons
+                        name={getCollectionIconName(collection.id, collection.icon) as any}
+                        size={28}
+                        color={getCollectionIconColor(collection.id, collection.icon)}
+                      />
                       <View>
                         <Text style={styles.collectionItemName}>{collection.name}</Text>
                         <Text style={styles.collectionItemCount}>

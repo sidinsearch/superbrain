@@ -30,7 +30,8 @@ const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
 
 const getCollectionIconName = (id: string, icon: string) => {
-  if (id === 'default_watch_later') return 'clock';
+  if (id === 'default_watch_later') return 'time';
+  if (icon === 'clock') return 'time';
   return icon || 'folder';
 };
 

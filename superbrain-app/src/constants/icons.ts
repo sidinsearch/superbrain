@@ -13,6 +13,7 @@ export const ICON_COLORS: Record<string, string> = {
   heart: '#f43f5e',
   flame: '#f97316',
   pin: '#3b82f6',
+  time: '#64748b',
   clock: '#64748b',
 };
 
@@ -29,5 +30,17 @@ export const ICON_OPTIONS = [
   'heart',
   'flame',
   'pin',
-  'clock',
+  'time',
 ];
+
+export const getCollectionIconName = (collectionId: string, icon?: string): string => {
+  if (collectionId === 'default_watch_later') return 'time';
+  if (icon === 'clock') return 'time';
+  if (icon && icon in ICON_COLORS) return icon;
+  return 'folder';
+};
+
+export const getCollectionIconColor = (collectionId: string, icon?: string): string => {
+  const resolvedIcon = getCollectionIconName(collectionId, icon);
+  return ICON_COLORS[resolvedIcon] || colors.primary;
+};

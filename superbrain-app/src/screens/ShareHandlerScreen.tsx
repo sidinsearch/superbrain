@@ -23,7 +23,7 @@ import { sendImmediateWatchLaterNotification, sendImmediateSavedNotification } f
 import { Post, Collection } from '../types';
 import CustomToast from '../components/CustomToast';
 
-import { ICON_COLORS } from '../constants/icons';
+import { getCollectionIconName, getCollectionIconColor } from '../constants/icons';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ShareHandler'>;
 
@@ -529,9 +529,9 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
                 disabled={isSaving}
               >
                 <Ionicons
-                  name={(collection.icon in ICON_COLORS ? collection.icon : 'folder') as any}
+                  name={getCollectionIconName(collection.id, collection.icon) as any}
                   size={32}
-                  color={ICON_COLORS[collection.icon] || colors.primary}
+                  color={getCollectionIconColor(collection.id, collection.icon)}
                 />
                 <Text style={styles.collectionCardName} numberOfLines={2}>{collection.name}</Text>
                 <Text style={styles.collectionCardCount}>

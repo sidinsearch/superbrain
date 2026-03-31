@@ -47,6 +47,7 @@ const LOCAL_ICON_COLORS: Record<string, string> = {
   'heart': '#f43f5e',
   'flame': '#f97316',
   'pin': '#3b82f6',
+  'time': '#64748b',
   'clock': '#64748b',
 };
 
@@ -254,7 +255,8 @@ const LibraryScreen = () => {
   ).length;
 
   const getCollectionIconName = (collection: Collection) => {
-    if (collection.id === 'default_watch_later') return 'clock';
+    if (collection.id === 'default_watch_later') return 'time';
+    if (collection.icon === 'clock') return 'time';
     return collection.icon in LOCAL_ICON_COLORS ? collection.icon : 'folder';
   };
 
