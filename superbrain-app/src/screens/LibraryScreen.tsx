@@ -20,47 +20,33 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme/colors';
-import { rescheduleWatchLaterNotification } from '../services/notificationService';
 import { RootStackParamList } from '../../App';
+import { colors } from '../theme/colors';
+import { Collection, FailedPost } from '../types';
+import { ICON_OPTIONS } from '../constants/icons';
 import { collectionsService } from '../services/collections';
 import postsCache from '../services/postsCache';
-import { Collection, FailedPost } from '../types';
+import { rescheduleWatchLaterNotification } from '../services/notificationService';
 import CustomToast from '../components/CustomToast';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const ICON_OPTIONS = [
-  'folder',
-  'airplane',
-  'restaurant',
-  'shirt',
-  'fitness',
-  'book',
-  'film',
-  'camera',
-  'star',
-  'heart',
-  'flame',
-  'pin',
-];
-
-const ICON_COLORS: Record<string, string> = {
-  'folder': colors.primary, // Default indigo
-  'airplane': '#0ea5e9', // Sky blue for travel
-  'restaurant': '#ef4444', // Red for food
-  'shirt': '#ec4899', // Pink for fashion
-  'fitness': '#10b981', // Emerald green for health
-  'book': '#b45309', // Brown/amber for books
-  'film': '#8b5cf6', // Violet for entertainment
-  'camera': '#06b6d4', // Cyan for photos
-  'star': '#eab308', // Yellow for favorites
-  'heart': '#f43f5e', // Rose red for likes
-  'flame': '#f97316', // Orange for hot/trending
-  'pin': '#3b82f6', // Blue for locations
-  'time': '#64748b', // Slate gray for history/time
+const LOCAL_ICON_COLORS: Record<string, string> = {
+  'folder': colors.primary || '#6366f1',
+  'airplane': '#0ea5e9',
+  'restaurant': '#ef4444',
+  'shirt': '#ec4899',
+  'fitness': '#10b981',
+  'book': '#b45309',
+  'film': '#8b5cf6',
+  'camera': '#06b6d4',
+  'star': '#eab308',
+  'heart': '#f43f5e',
+  'flame': '#f97316',
+  'pin': '#3b82f6',
+  'clock': '#64748b',
 };
 
 const LibraryScreen = () => {
@@ -397,9 +383,9 @@ const LibraryScreen = () => {
                     )}
                     <View style={styles.collectionIconContainer}>
                       <Ionicons 
-                        name={collection.icon as any} 
+                        name={(collection.icon in LOCAL_ICON_COLORS ? collection.icon : 'folder') as any} 
                         size={32} 
-                        color={ICON_COLORS[collection.icon] || colors.primary} 
+                        color={LOCAL_ICON_COLORS[collection.icon] || colors.primary} 
                       />
                     </View>
                     <Text style={styles.collectionName} numberOfLines={1}>
@@ -500,7 +486,7 @@ const LibraryScreen = () => {
                   <Ionicons
                     name={icon as any}
                     size={24}
-                    color={selectedIcon === icon ? (ICON_COLORS[icon] || colors.primary) : (ICON_COLORS[icon] || colors.textMuted)}
+                    color={selectedIcon === icon ? (LOCAL_ICON_COLORS[icon] || colors.primary) : (LOCAL_ICON_COLORS[icon] || colors.textMuted)}
                   />
                 </TouchableOpacity>
               ))}

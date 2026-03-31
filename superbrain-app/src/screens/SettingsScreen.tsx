@@ -274,6 +274,8 @@ const SettingsScreen = () => {
           <Text style={styles.headerSubtitle}>Configure your SuperBrain</Text>
         </View>
 
+        <View style={styles.headerSpacer} />
+
         {/* Sync Code */}
         <View style={styles.statusCard}>
           <View style={styles.statusHeader}>
@@ -490,6 +492,9 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 14,
     color: colors.textMuted,
+  },
+  headerSpacer: {
+    height: 16,
   },
   content: {
     paddingHorizontal: 20,

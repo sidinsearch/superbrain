@@ -12,35 +12,23 @@ export default function SplashScreen({ navigation }: Props) {
 
   useEffect(() => {
     const initialize = async () => {
-      console.log('SplashScreen - Starting initialization');
-      
       // Check for share intent FIRST before anything else
       const url = await Linking.getInitialURL();
-      console.log('SplashScreen - Initial URL:', url);
-      console.log('SplashScreen - URL type:', typeof url);
       
       if (url) {
-        console.log('SplashScreen - URL detected, checking if share intent...');
-        
         // Check if it's a share URL
         if (url.includes('share')) {
-          console.log('SplashScreen - ✅ SHARE INTENT DETECTED!');
-          
           // Parse the URL to get the shared Instagram URL
           const parsed = Linking.parse(url);
-          console.log('SplashScreen - Parsed URL:', JSON.stringify(parsed, null, 2));
           
           const sharedUrl = parsed.queryParams?.url as string;
-          console.log('SplashScreen - Extracted shared URL:', sharedUrl);
           
           // Navigate directly to ShareHandler immediately
-          console.log('SplashScreen - 🚀 Navigating to ShareHandler NOW');
           navigation.replace('ShareHandler', { url: sharedUrl });
           return; // Exit early, don't continue with normal flow
         }
       }
       
-      console.log('SplashScreen - No share intent, proceeding with normal flow');
       
       // Normal flow - initialize API and show animation
       await ApiService.initialize();

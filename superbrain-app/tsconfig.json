@@ -3,8 +3,14 @@
   "compilerOptions": {
     "strict": true
   },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ],
   "exclude": [
     "node_modules",
-    "backend"
+    "backend",
+    "**/*.test.ts",
+    "**/*.test.tsx"
   ]
 }

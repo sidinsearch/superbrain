@@ -11,6 +11,7 @@ import {
   Dimensions,
   BackHandler,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
@@ -21,6 +22,8 @@ import { collectionsService } from '../services/collections';
 import { sendImmediateWatchLaterNotification, sendImmediateSavedNotification } from '../services/notificationService';
 import { Post, Collection } from '../types';
 import CustomToast from '../components/CustomToast';
+
+import { ICON_COLORS } from '../constants/icons';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ShareHandler'>;
 
@@ -43,47 +46,36 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
 
   const getSharedUrl = async () => {
     try {
-      console.log('ShareHandler - Getting shared URL...');
-      
       // Try to get URL from route params first
       if (route.params?.url) {
-        console.log('ShareHandler - Got URL from route params:', route.params.url);
         const decodedUrl = decodeURIComponent(route.params.url);
-        console.log('ShareHandler - Decoded URL:', decodedUrl);
         setUrl(decodedUrl);
         return;
       }
 
       // Otherwise get from initial URL (share intent)
       const initialUrl = await Linking.getInitialURL();
-      console.log('ShareHandler - Initial URL:', initialUrl);
       
       if (initialUrl) {
         // Extract the actual URL from query param if it exists
         const parsed = Linking.parse(initialUrl);
-        console.log('ShareHandler - Parsed URL:', JSON.stringify(parsed, null, 2));
         
         if (parsed.queryParams?.url) {
           const sharedUrl = decodeURIComponent(parsed.queryParams.url as string);
-          console.log('ShareHandler - Extracted URL from query:', sharedUrl);
           setUrl(sharedUrl);
         } else if (parsed.queryParams?.text) {
           // Handle text content from share intent
           const textContent = decodeURIComponent(parsed.queryParams.text as string);
-          console.log('ShareHandler - Got text content:', textContent);
           // Extract Instagram URL from text
           const urlMatch = textContent.match(/(https?:\/\/[^\s]+)/);
           if (urlMatch) {
-            console.log('ShareHandler - Extracted URL from text:', urlMatch[0]);
             setUrl(urlMatch[0]);
           } else {
             setUrl(textContent);
           }
         } else if (initialUrl.includes('instagram.com')) {
-          console.log('ShareHandler - Direct Instagram URL:', initialUrl);
           setUrl(initialUrl);
         } else {
-          console.log('ShareHandler - Using initial URL as-is:', initialUrl);
           setUrl(initialUrl);
         }
       } else {
@@ -179,17 +171,14 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
 
   const fetchInstagramCaption = async (shortcode: string): Promise<string> => {
     try {
-      console.log('Fetching caption from backend API...');
-      
       // Call backend endpoint to get caption
       const caption = await apiService.getPostInfo(`https://www.instagram.com/p/${shortcode}/`);
       
       if (caption && caption.title && caption.title !== 'Instagram Post') {
-        console.log('Got caption from backend:', caption.title);
         return caption.title;
       }
     } catch (error) {
-      console.log('Backend caption fetch failed:', error);
+      // Fall back to default title
     }
     
     return 'Instagram Post';
@@ -203,7 +192,6 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
 
   const handleUrl = async () => {
     if (!url) {
-      console.log('ShareHandler - No URL to process');
       return;
     }
 
@@ -544,7 +532,11 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
                 onPress={() => handleAddToCollection(collection.id)}
                 disabled={isSaving}
               >
-                <Text style={styles.collectionCardIcon}>{collection.icon}</Text>
+                <Ionicons
+                  name={(collection.icon in ICON_COLORS ? collection.icon : 'folder') as any}
+                  size={32}
+                  color={ICON_COLORS[collection.icon] || colors.primary}
+                />
                 <Text style={styles.collectionCardName} numberOfLines={2}>{collection.name}</Text>
                 <Text style={styles.collectionCardCount}>
                   {collection.postIds.length} {collection.postIds.length === 1 ? 'post' : 'posts'}

@@ -14,7 +14,7 @@ function normalizePost(p: any): Post {
 
 class ApiService {
   private apiToken: string | null = null;
-  private apiUrl: string = 'http://192.168.31.205:5000'; // Laptop hotspot IP
+  private apiUrl: string = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000';
 
   async initialize() {
     this.apiToken = await AsyncStorage.getItem('apiToken');

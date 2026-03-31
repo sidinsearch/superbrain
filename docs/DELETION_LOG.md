@@ -1,5 +1,17 @@
 # Code Deletion Log
 
+## 2026-03-31 Refactor Session (Final)
+
+### Incomplete Test File Removed
+- `superbrain-app/src/__tests__/bottomNavConsistency.test.ts` - Reason: File contained test syntax but project has no Jest configuration. Type definitions for Jest (`@types/jest`) are not installed.
+
+### UI Consistency Fix
+- `superbrain-app/src/screens/SettingsScreen.tsx`:
+  - Added `headerSpacer` style (16px height) to match HomeScreen and LibraryScreen
+  - Prevents bottom navigation flicker due to content height differences
+
+---
+
 ## 2026-03-31 Refactor Session (Continued)
 
 ### Unused Exports Removed

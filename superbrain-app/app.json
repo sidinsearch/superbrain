@@ -12,7 +12,6 @@
       "android",
       "web"
     ],
-    "newArchEnabled": false,
     "entryPoint": "./index.ts",
     "scheme": "superbrain",
     "splash": {

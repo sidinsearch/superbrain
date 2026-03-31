@@ -117,7 +117,6 @@ const HomeScreen = () => {
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       if (isInitialized) {
-        console.log('HomeScreen - Screen focused, refreshing...');
         loadPosts(false); // Don't force refresh, let cache-first strategy work
       }
     });
@@ -239,7 +238,6 @@ const HomeScreen = () => {
       // Always load and display cached posts immediately (non-blocking)
       const cachedPosts = await postsCache.getCachedPosts();
       if (cachedPosts && cachedPosts.length > 0) {
-        console.log('HomeScreen - Loaded from cache:', cachedPosts.length, 'posts');
         setPosts(cachedPosts);
         setLoading(false); // Clear loading immediately when we have cache
         
@@ -260,9 +258,7 @@ const HomeScreen = () => {
       }
       
       // Fetch from server in background (UI already showing if we have cache)
-      console.log('HomeScreen - Fetching from server in background...');
       const fetchedPosts = await apiService.getRecentPosts(50);
-      console.log('HomeScreen - Fetched', fetchedPosts.length, 'posts from server');
       
       // Clear analyzing state for posts that are now done on the server
       const prevAnalyzing = postsCache.getAnalyzingPosts();
@@ -270,7 +266,6 @@ const HomeScreen = () => {
         const serverPost = fetchedPosts.find(p => p.shortcode === shortcode);
         if (serverPost && !serverPost.processing) {
           await postsCache.markAnalysisComplete(shortcode);
-          console.log('HomeScreen - Analysis complete for:', shortcode);
         }
       }
 
@@ -293,10 +288,8 @@ const HomeScreen = () => {
       } else if (hasAnalyzing && cachedPosts && cachedPosts.length > 0) {
         // Server returned empty (busy/error) but we have cached posts — keep them intact
         // DON'T overwrite cache; just make sure UI is showing cached data
-        console.log('HomeScreen - Server returned empty during analysis, keeping cached posts');
         setPosts(cachedPosts);
       } else if (!cachedPosts || cachedPosts.length === 0) {
-        console.log('HomeScreen - No posts found anywhere');
         showToast('No posts yet — share something to get started!', 'info');
       }
 
@@ -305,7 +298,6 @@ const HomeScreen = () => {
         if (hasAnalyzing && !pollIntervalRef.current) {
           // Start a lightweight /queue-status poller instead of calling /recent every tick.
           // Only fires a full loadPosts when backend signals it just finished processing.
-          console.log('HomeScreen - Starting queue-status watcher');
           // Pre-seed synchronously so the FIRST interval tick sees wasActive=true.
           // Without this, prevProcessingRef starts at 0 and the first tick misses
           // the wasActive && nowIdle transition if the backend finishes quickly.
@@ -315,7 +307,6 @@ const HomeScreen = () => {
             if (total === 0) {
               // Backend already finished by the time we seeded — kick a refresh immediately
               // and stop the watcher so we don't loop endlessly.
-              console.log('HomeScreen - Backend already idle on seed, refreshing now');
               clearInterval(pollIntervalRef.current!);
               pollIntervalRef.current = null;
               loadPostsRef.current?.(true);
@@ -335,11 +326,9 @@ const HomeScreen = () => {
 
               if (wasActive && nowIdle) {
                 // Backend just finished — fetch the completed post now
-                console.log('HomeScreen - Backend finished processing, refreshing...');
                 loadPostsRef.current?.(true);
               } else if (nowIdle && postsCache.getAnalyzingPosts().length === 0) {
                 // Nothing left to track — stop watching
-                console.log('HomeScreen - Nothing analyzing, stopping watcher');
                 clearInterval(pollIntervalRef.current!);
                 pollIntervalRef.current = null;
               }
@@ -347,7 +336,6 @@ const HomeScreen = () => {
           }, 2000);
 
         } else if (!hasAnalyzing && pollIntervalRef.current) {
-          console.log('HomeScreen - Stopping watcher, all posts analyzed');
           clearInterval(pollIntervalRef.current);
           pollIntervalRef.current = null;
         }
@@ -360,7 +348,6 @@ const HomeScreen = () => {
       if (!cachedPosts || cachedPosts.length === 0) {
         showToast('Failed to load posts: ' + (error.message || 'Unknown error'), 'error');
       } else {
-        console.log('HomeScreen - Using cached posts after server error');
         setPosts(cachedPosts);
       }
     } finally {

@@ -90,7 +90,7 @@ function clean(collections: Collection[]): Collection[] {
 const DEFAULT_WATCH_LATER: Collection = {
   id: 'default_watch_later',
   name: 'Watch Later',
-  icon: 'time',
+  icon: 'clock',
   postIds: [],
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
