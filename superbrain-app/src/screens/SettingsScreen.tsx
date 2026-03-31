@@ -493,7 +493,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingBottom: 120,
+    paddingBottom: 100,
   },
   statusCard: {
     backgroundColor: colors.backgroundCard,

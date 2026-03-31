@@ -185,7 +185,7 @@ const InstagramScreen = () => {
         <View style={styles.infoCard}>
           <Text style={styles.infoTitle}>Important</Text>
           <Text style={styles.infoText}>
-            • Use a secondary/burner account for scrapping reels/post data{'\n'}
+            • Burner account for scarping{'\n'}
             • Don't use your main personal account{'\n'}
             • Session is cached after first login{'\n'}
             • Your credentials are stored securely

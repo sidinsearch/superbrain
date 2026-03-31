@@ -148,16 +148,19 @@ const HomeScreen = () => {
   const ONBOARDING_STEPS = [
     {
       iconName: 'planet-outline',
+      emoji: '🧠',
       title: 'Welcome to SuperBrain',
       description: 'Your personal second brain. Save posts from Instagram, YouTube, and Websites — no need to endlessly scroll through your saves. Find anything fast with search and filters.',
     },
     {
       iconName: 'share-outline',
+      emoji: '📱',
       title: 'Save from Anywhere',
       description: 'Open any Instagram post, YouTube video, or Website → tap Share → select SuperBrain. Done. Your content is saved and analyzed instantly.',
     },
     {
       iconName: 'layers-outline',
+      emoji: '🔍',
       title: 'Explore Your Feed',
       description: 'Scroll through your saves, filter by category, or search. Tap a post to see full details. Long-press to select and delete multiple posts at once.',
     },
@@ -1025,9 +1028,10 @@ const HomeScreen = () => {
 
             {/* Step content */}
             <View style={styles.onboardingBody}>
+              <Text style={styles.onboardingEmoji}>{ONBOARDING_STEPS[onboardingStep].emoji}</Text>
               <Ionicons 
                 name={ONBOARDING_STEPS[onboardingStep].iconName as any} 
-                size={64} 
+                size={48} 
                 color={colors.primary} 
                 style={styles.onboardingIcon} 
               />
@@ -1234,6 +1238,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
+    marginTop: -10,
   },
   setupButton: {
     marginTop: 20,
@@ -1797,7 +1802,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   onboardingIcon: {
-    marginBottom: 16,
+    marginBottom: 12,
+  },
+  onboardingEmoji: {
+    fontSize: 56,
+    marginBottom: 8,
   },
   onboardingTitle: {
     fontSize: 22,

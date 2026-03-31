@@ -360,6 +360,10 @@ const LibraryScreen = () => {
                     ]}
                     onPress={() => {
                       if (selectionMode) {
+                        if (collection.id === 'default_watch_later') {
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                          return;
+                        }
                         const newSelected = new Set(selectedCollections);
                         if (isSelected) {
                           newSelected.delete(collection.id);
