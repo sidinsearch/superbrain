@@ -142,7 +142,6 @@ const SettingsScreen = () => {
           setQueueStatus(status);
         } else {
           // Token might be invalid - clear it
-          console.log('Token validation failed, clearing...');
           setConnectionStatus('disconnected');
           setApiToken('');
         }

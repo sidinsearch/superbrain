@@ -1,21 +1,121 @@
 version: '3.8'
 
+# ────────────────────────────────────────────────────────────────────────────────
+# SuperBrain Production Docker Compose Configuration
+# ────────────────────────────────────────────────────────────────────────────────
+
 services:
-  superbrain:
-    build: .
-    container_name: superbrain-backend
+
+  # ──── Main SuperBrain API Service ────
+  superbrain-api:
+    image: superbrain:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: superbrain-api
+    
+    # ──── Network & Ports ────
     ports:
-      - "5000:5000"
+      - "${API_PORT:-5000}:5000"
+    networks:
+      - superbrain-network
+    
+    # ──── Environment Variables ────
     environment:
-      - PYTHONUNBUFFERED=1
+      PYTHONUNBUFFERED: 1
+      PYTHONDONTWRITEBYTECODE: 1
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      HOST: 0.0.0.0
+      PORT: 5000
+      WORKERS: ${WORKERS:-4}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      
+      # Database
+      DATABASE_PATH: /app/superbrain.db
+      DATABASE_TIMEOUT: 30
+      
+      # API Keys (load from .env file)
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      
+      # Instagram credentials
+      INSTAGRAM_USERNAME: ${INSTAGRAM_USERNAME}
+      INSTAGRAM_PASSWORD: ${INSTAGRAM_PASSWORD}
+      
+      # AI Configuration
+      WHISPER_MODEL: ${WHISPER_MODEL:-base}
+      WHISPER_USE_CLOUD: ${WHISPER_USE_CLOUD:-true}
+      
+      # Performance
+      MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-52428800}
+      REQUEST_TIMEOUT: ${REQUEST_TIMEOUT:-60}
+      ANALYSIS_TIMEOUT: ${ANALYSIS_TIMEOUT:-120}
+    
+    # ──── Volumes ────
     volumes:
-      - ./config:/app/config
-      - ./temp:/app/temp
-      - ./superbrain.db:/app/superbrain.db
+      # Database persistence
+      - superbrain-db:/app/superbrain.db
+      # Configuration persistence
+      - superbrain-config:/app/config
+      # Temporary files
+      - superbrain-temp:/app/temp
+      # Uploads
+      - superbrain-uploads:/app/static/uploads
+      # Logs
+      - superbrain-logs:/app/logs
+    
+    # ──── Restart Policy ────
     restart: unless-stopped
+    
+    # ──── Health Check ────
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/ping"]
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    
+    # ──── Resource Limits (optional, enable for production) ────
+    # uncomment to enable
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 2G
+    #     reservations:
+    #       cpus: '1'
+    #       memory: 1G
+    
+    # ──── Security Options ────
+    security_opt:
+      - no-new-privileges:true
+    read_only_root_filesystem: false
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+
+# ────────────────────────────────────────────────────────────────────────────────
+# Networks
+# ────────────────────────────────────────────────────────────────────────────────
+
+networks:
+  superbrain-network:
+    driver: bridge
+
+# ────────────────────────────────────────────────────────────────────────────────
+# Volumes for data persistence
+# ────────────────────────────────────────────────────────────────────────────────
+
+volumes:
+  superbrain-db:
+    driver: local
+  superbrain-config:
+    driver: local
+  superbrain-temp:
+    driver: local
+  superbrain-uploads:
+    driver: local
+  superbrain-logs:
+    driver: local

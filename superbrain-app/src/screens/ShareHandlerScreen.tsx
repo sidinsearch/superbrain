@@ -196,13 +196,11 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
     }
 
     try {
-      console.log('ShareHandler - Processing URL:', url);
       setError(null);
 
       const urlType = detectUrlType(url);
       const ytId = urlType === 'youtube' ? extractYouTubeVideoId(url) : null;
       const shortcode = buildShortcode(url, urlType, ytId);
-      console.log('ShareHandler - type=%s shortcode=%s', urlType, shortcode);
 
       if (!shortcode) {
         setError('Could not parse this URL');
@@ -262,7 +260,6 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
     try {
       setLoadingCollections(true);
       const data = await collectionsService.getCollections();
-      console.log('ShareHandler - Raw collections data:', data);
       
       // Filter: only show collections with both name and id, and that are not "All Posts"
       const userCollections = data.filter(c => 
@@ -273,7 +270,6 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
         c.name !== 'Instagram Posts'
       );
       
-      console.log('ShareHandler - Filtered collections:', userCollections);
       setCollections(userCollections);
     } catch (error) {
       console.error('Error loading collections:', error);
