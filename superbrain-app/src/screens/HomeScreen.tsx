@@ -29,12 +29,12 @@ import { Post, Collection } from '../types';
 import { colors } from '../theme/colors';
 import { RootStackParamList } from '../../App';
 import CustomToast from '../components/CustomToast';
+import BottomNav from '../components/BottomNav';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
-const TAB_ICON_SIZE = 22;
 
 // Fallback categories if API fails
 const DEFAULT_CATEGORIES = [
@@ -871,31 +871,7 @@ const HomeScreen = () => {
         </ScrollView>
       )}
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity 
-          style={styles.navItemActive} 
-          onPress={() => navigation.navigate('Home')}
-        >
-          <Ionicons name="home" size={TAB_ICON_SIZE} color={colors.primary} />
-          <Text style={styles.navLabelActive}>Home</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.navItem} 
-          onPress={() => navigation.navigate('Library')}
-        >
-          <Ionicons name="library" size={TAB_ICON_SIZE} color={colors.textMuted} />
-          <Text style={styles.navLabel}>Library</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.navItem} 
-          onPress={() => navigation.navigate('Settings')}
-        >
-          <Ionicons name="settings" size={TAB_ICON_SIZE} color={colors.textMuted} />
-          <Text style={styles.navLabel}>Settings</Text>
-        </TouchableOpacity>
-      </View>
+      <BottomNav activeTab="Home" />
 
       {/* Collections Modal */}
       <Modal
@@ -1403,29 +1379,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textSecondary,
   },
-  bottomNav: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    backgroundColor: colors.backgroundCard,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingBottom: 24,
-    paddingTop: 16,
-    height: 80,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navItemActive: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   navIconContainer: {
     marginBottom: 6,
   },
@@ -1441,15 +1394,6 @@ const styles = StyleSheet.create({
   navIconTextActive: {
     fontSize: 26,
     color: colors.primary,
-  },
-  navLabel: {
-    fontSize: 11,
-    color: colors.textMuted,
-  },
-  navLabelActive: {
-    fontSize: 11,
-    color: colors.primary,
-    fontWeight: '600',
   },
   cancelButton: {
     paddingHorizontal: 16,

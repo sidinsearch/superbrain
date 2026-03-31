@@ -28,11 +28,11 @@ import { collectionsService } from '../services/collections';
 import postsCache from '../services/postsCache';
 import { rescheduleWatchLaterNotification } from '../services/notificationService';
 import CustomToast from '../components/CustomToast';
+import BottomNav from '../components/BottomNav';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const { width: screenWidth } = Dimensions.get('window');
-const TAB_ICON_SIZE = 22;
 
 const LOCAL_ICON_COLORS: Record<string, string> = {
   'folder': colors.primary || '#6366f1',
@@ -432,22 +432,7 @@ const LibraryScreen = () => {
         <Ionicons name="add" size={32} color="#fff" />
       </TouchableOpacity>
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Home')}>
-          <Ionicons name="home" size={TAB_ICON_SIZE} color={colors.textMuted} />
-          <Text style={styles.navLabel}>Home</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.navItemActive} onPress={() => navigation.navigate('Library')}>
-          <Ionicons name="library" size={TAB_ICON_SIZE} color={colors.primary} />
-          <Text style={styles.navLabelActive}>Library</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Settings')}>
-          <Ionicons name="settings" size={TAB_ICON_SIZE} color={colors.textMuted} />
-          <Text style={styles.navLabel}>Settings</Text>
-        </TouchableOpacity>
-      </View>
+      <BottomNav activeTab="Library" />
 
       <Modal
         visible={showCreateModal}
@@ -898,40 +883,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-  },
-  bottomNav: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    backgroundColor: colors.backgroundCard,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingBottom: 24,
-    paddingTop: 16,
-    height: 80,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navItemActive: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navLabel: {
-    fontSize: 11,
-    color: colors.textMuted,
-    marginTop: 4,
-  },
-  navLabelActive: {
-    fontSize: 11,
-    color: colors.primary,
-    fontWeight: '600',
-    marginTop: 4,
   },
   modalOverlay: {
     flex: 1,

@@ -19,11 +19,11 @@ import apiService from '../services/api';
 import CustomToast from '../components/CustomToast';
 import { RootStackParamList } from '../../App';
 import { QueueStatus } from '../types';
+import BottomNav from '../components/BottomNav';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const OTP_LENGTH = 8;
-const TAB_ICON_SIZE = 22;
 
 interface DialogState {
   visible: boolean;
@@ -409,22 +409,7 @@ const SettingsScreen = () => {
         </View>
       </ScrollView>
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Home')}>
-          <Ionicons name="home" size={TAB_ICON_SIZE} color={colors.textMuted} />
-          <Text style={styles.navLabel}>Home</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Library')}>
-          <Ionicons name="library" size={TAB_ICON_SIZE} color={colors.textMuted} />
-          <Text style={styles.navLabel}>Library</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.navItemActive} onPress={() => navigation.navigate('Settings')}>
-          <Ionicons name="settings" size={TAB_ICON_SIZE} color={colors.primary} />
-          <Text style={styles.navLabelActive}>Settings</Text>
-        </TouchableOpacity>
-      </View>
+      <BottomNav activeTab="Settings" />
 
       <CustomToast
         visible={toast.visible}
@@ -667,40 +652,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.primary,
     fontWeight: '500',
-  },
-  bottomNav: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    backgroundColor: colors.backgroundCard,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingBottom: 24,
-    paddingTop: 16,
-    height: 80,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  navItemActive: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  navLabel: {
-    fontSize: 11,
-    color: colors.textMuted,
-    marginTop: 4,
-  },
-  navLabelActive: {
-    fontSize: 11,
-    color: colors.primary,
-    fontWeight: '600',
-    marginTop: 4,
   },
   dialogOverlay: {
     flex: 1,
