@@ -341,7 +341,7 @@ const SettingsScreen = () => {
             icon="logo-instagram"
             iconColor="#e4405f"
             title="Instagram"
-            subtitle="Burner account for downloading"
+            subtitle="Burner Account for Instagram Post Scraping"
             onPress={() => navigation.navigate('Instagram')}
           />
           

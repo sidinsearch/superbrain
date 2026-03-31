@@ -11,8 +11,8 @@ import os
 from pathlib import Path
 from datetime import datetime
 
-# Database file lives at the backend root
-DB_PATH = Path(__file__).resolve().parent.parent / 'superbrain.db'
+# Database file path can be overridden for Docker deployments
+DB_PATH = Path(os.getenv("DATABASE_PATH", str(Path(__file__).resolve().parent.parent / 'superbrain.db')))
 
 
 class Database:
@@ -147,9 +147,18 @@ class Database:
             now = datetime.utcnow().isoformat()
             self._conn.execute(
                 "INSERT INTO collections (id, name, icon, post_ids, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                ('default_watch_later', 'Watch Later', '⏰', '[]', now, now)
+                ('default_watch_later', 'Watch Later', 'time', '[]', now, now)
             )
             self._conn.commit()
+
+        # Migration: normalize Watch Later icon to Ionicons-safe name
+        try:
+            self._conn.execute(
+                "UPDATE collections SET icon = 'time' WHERE id = 'default_watch_later' AND (icon IS NULL OR icon = '' OR icon = '⏰' OR icon = 'clock')"
+            )
+            self._conn.commit()
+        except sqlite3.OperationalError:
+            pass
 
     # ------------------------------------------------------------------
     # Helpers
@@ -295,12 +304,22 @@ class Database:
     def get_stats(self):
         """Return basic statistics about the database."""
         if not self.is_connected():
-            return {"document_count": 0, "storage_mb": 0, "categories": {}, "capacity_used": "N/A"}
+            return {
+                "document_count": 0,
+                "total_posts": 0,
+                "total_collections": 0,
+                "storage_mb": 0,
+                "categories": {},
+                "capacity_used": "N/A",
+            }
         try:
             cur = self._conn.cursor()
 
             cur.execute("SELECT COUNT(*) FROM analyses")
             total = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM collections")
+            total_collections = cur.fetchone()[0]
 
             cur.execute(
                 "SELECT COALESCE(category,'Uncategorized') as cat, COUNT(*) as cnt "
@@ -313,13 +332,22 @@ class Database:
 
             return {
                 "document_count": total,
+                "total_posts": total,
+                "total_collections": total_collections,
                 "storage_mb": storage_mb,
                 "categories": category_counts,
                 "capacity_used": "N/A (local SQLite)"
             }
         except Exception as e:
             print(f"[WARNING]  Error getting stats: {e}")
-            return {"document_count": 0, "storage_mb": 0, "categories": {}, "capacity_used": "N/A"}
+            return {
+                "document_count": 0,
+                "total_posts": 0,
+                "total_collections": 0,
+                "storage_mb": 0,
+                "categories": {},
+                "capacity_used": "N/A",
+            }
 
     def get_all_posts(self, limit: int = 50000, offset: int = 0) -> list:
         """Return all posts for export (excludes soft-deleted)."""

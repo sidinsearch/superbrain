@@ -235,7 +235,7 @@ python start.py
 ngrok http 5000
 
 # 4. Install the APK on your Android phone
-#    Open Settings in the app → enter the ngrok URL + token from backend/token.txt
+#    Open Settings in the app → enter the ngrok URL + Sync Code shown in backend console
 ```
 
 **See it in action:**
@@ -256,6 +256,70 @@ https://github.com/user-attachments/assets/9769681b-5494-4093-b1bf-2c60c20e1673
 
 On subsequent runs it simply starts the server. Use `python start.py --reset` to re-run the wizard.
 
+### Backend Setup with Docker
+
+From the backend folder:
+
+```bash
+cd superbrain/backend
+cp .env.example .env
+```
+
+Edit `.env` and set at least:
+
+- `GEMINI_API_KEY` (recommended)
+- `GROQ_API_KEY` (optional but useful)
+- `OPENROUTER_API_KEY` (optional fallback)
+
+Then build and run:
+
+```bash
+docker compose up -d --build
+docker compose logs -f superbrain-api
+```
+
+Health check:
+
+```bash
+curl http://localhost:5000/health
+```
+
+Notes:
+
+- The app must connect using the **Sync Code** printed by backend logs / console.
+- If you run backend on your laptop for phone access, expose port 5000 with ngrok:
+  `ngrok http 5000`
+
+### Backend Setup (Manual)
+
+#### Windows (PowerShell)
+
+```powershell
+cd superbrain\backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python start.py
+```
+
+#### Linux / macOS
+
+```bash
+cd superbrain/backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python start.py
+```
+
+Manual direct API start (without setup wizard):
+
+```bash
+python api.py
+```
+
+This starts API on `http://localhost:5000`.
+
 ### Manual Setup
 
 <details>
@@ -274,7 +338,7 @@ cp config/.api_keys.example config/.api_keys
 python api.py
 ```
 
-The server starts on `http://localhost:5000`. A unique API token is auto-generated and saved to `backend/token.txt`.
+The server starts on `http://localhost:5000`. Use the **Sync Code** shown in backend logs/console when connecting the Android app.
 
 </details>
 
@@ -284,7 +348,7 @@ The server starts on `http://localhost:5000`. A unique API token is auto-generat
 ngrok http 5000
 ```
 
-Copy the `https://xxxx.ngrok-free.app` URL and enter it in the app's **Settings** screen along with the token from `backend/token.txt`.
+Copy the `https://xxxx.ngrok-free.app` URL and enter it in the app's **Settings** screen along with the Sync Code shown by backend.
 
 > **Tip:** Run `ngrok config add-authtoken YOUR_TOKEN` for a stable URL that persists across restarts.
 
@@ -420,7 +484,7 @@ Saving to any non-Watch Later collection fires an instant **"Saved to SuperBrain
 
 ## API Reference
 
-All endpoints require the `X-API-Key` header with the token from `backend/token.txt`.
+All endpoints require the `X-API-Key` header with either the Sync Code (recommended for mobile setup) or the full API token.
 
 | Method | Endpoint | Description |
 |---|---|---|

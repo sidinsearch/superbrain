@@ -31,12 +31,12 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       
       # Database
-      DATABASE_PATH: /app/superbrain.db
+      DATABASE_PATH: /app/data/superbrain.db
       DATABASE_TIMEOUT: 30
       
       # API Keys (load from .env file)
       GROQ_API_KEY: ${GROQ_API_KEY}
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       
       # Instagram credentials
@@ -55,7 +55,7 @@ services:
     # ──── Volumes ────
     volumes:
       # Database persistence
-      - superbrain-db:/app/superbrain.db
+      - superbrain-db:/app/data
       # Configuration persistence
       - superbrain-config:/app/config
       # Temporary files

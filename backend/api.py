@@ -1214,10 +1214,22 @@ async def reset_database(
     
     try:
         db = get_db()
-        
-        # Delete all posts
-        result = db.collection.delete_many({})
-        deleted_count = result.deleted_count
+
+        # Delete all posts/collections/queue entries in SQLite
+        conn = db._conn
+        cur_posts = conn.execute("DELETE FROM analyses")
+        conn.execute("DELETE FROM collections")
+        conn.execute("DELETE FROM processing_queue")
+
+        # Recreate default Watch Later collection
+        now = datetime.utcnow().isoformat()
+        conn.execute(
+            "INSERT INTO collections (id, name, icon, post_ids, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+            ('default_watch_later', 'Watch Later', 'time', '[]', now, now)
+        )
+        conn.commit()
+
+        deleted_count = cur_posts.rowcount
         
         logger.warning(f"🗑️ Database was reset by a client. Deleted {deleted_count} posts.")
         
@@ -1358,45 +1370,65 @@ async def _process_import_data(data: dict, mode: str):
     try:
         # Validate input data structure
         validated = ImportData.model_validate(data)
-        
+
+        if mode not in {"merge", "replace"}:
+            raise HTTPException(status_code=400, detail="Invalid import mode. Use 'merge' or 'replace'.")
+
         db = get_db()
-        
+
         imported_posts = 0
         skipped_posts = 0
-        
+
         # Handle mode=replace
         if mode == "replace":
             logger.warning("Import mode=replace: clearing database first")
-            db.collection.delete_many({})
-            db.collections.delete_many({})
-        
+            conn = db._conn
+            conn.execute("DELETE FROM analyses")
+            conn.execute("DELETE FROM collections")
+            conn.execute("DELETE FROM processing_queue")
+            # Ensure default Watch Later exists even if import has no collections
+            now = datetime.utcnow().isoformat()
+            conn.execute(
+                "INSERT INTO collections (id, name, icon, post_ids, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                ('default_watch_later', 'Watch Later', 'time', '[]', now, now)
+            )
+            conn.commit()
+
         # Import posts - validate and filter allowed fields
         posts = validated.posts or []
         for post in posts:
             shortcode = post.get("shortcode")
             if not shortcode:
                 continue
-            
+
             # Filter to only allowed fields (prevent arbitrary field injection)
             filtered_post = {k: v for k, v in post.items() if k in ALLOWED_POST_FIELDS}
-            
+
             # Check if exists (for merge mode)
-            existing = db.collection.find_one({"shortcode": shortcode})
+            existing = db.check_cache(shortcode)
             if existing and mode == "merge":
                 skipped_posts += 1
                 continue
-            
-            # Add imported timestamp
-            filtered_post["imported_at"] = datetime.now().isoformat()
-            
-            # Upsert
-            db.collection.update_one(
-                {"shortcode": shortcode},
-                {"$set": filtered_post},
-                upsert=True
+
+            db.save_analysis(
+                shortcode=shortcode,
+                url=filtered_post.get("url", ""),
+                username=filtered_post.get("username", ""),
+                title=filtered_post.get("title", ""),
+                summary=filtered_post.get("summary", ""),
+                tags=filtered_post.get("tags", []),
+                music=filtered_post.get("music", ""),
+                category=filtered_post.get("category", "other"),
+                visual_analysis=filtered_post.get("visual_analysis", ""),
+                audio_transcription=filtered_post.get("audio_transcription", ""),
+                text_analysis=filtered_post.get("text_analysis", ""),
+                likes=filtered_post.get("likes", 0),
+                post_date=filtered_post.get("post_date"),
+                content_type=filtered_post.get("content_type", "instagram"),
+                thumbnail=filtered_post.get("thumbnail", ""),
             )
             imported_posts += 1
-        
+
         # Import collections - validate and filter allowed fields
         collections = validated.collections or []
         imported_collections = 0
@@ -1404,21 +1436,23 @@ async def _process_import_data(data: dict, mode: str):
             coll_id = coll.get("id")
             if not coll_id:
                 continue
-            
-            if "_id" in coll:
-                del coll["_id"]
-            
-            coll["imported_at"] = datetime.now().isoformat()
-            
-            db.collections.update_one(
-                {"id": coll_id},
-                {"$set": coll},
-                upsert=True
+
+            post_ids = coll.get("post_ids")
+            if post_ids is None:
+                post_ids = coll.get("postIds", [])
+
+            db.upsert_collection(
+                collection_id=coll_id,
+                name=coll.get("name", "Untitled"),
+                icon=coll.get("icon", "folder"),
+                post_ids=post_ids if isinstance(post_ids, list) else [],
+                created_at=coll.get("created_at") or coll.get("createdAt"),
+                updated_at=coll.get("updated_at") or coll.get("updatedAt"),
             )
             imported_collections += 1
-        
+
         logger.info(f"📥 Import complete: {imported_posts} posts, {skipped_posts} skipped, {imported_collections} collections")
-        
+
         return {
             "success": True,
             "imported_posts": imported_posts,
