@@ -796,11 +796,6 @@ def _start_localtunnel(port: int, timeout: int = 25) -> str | None:
     """Start localtunnel in the background and wait for the public URL."""
     import time as _time
 
-    # Already have a recent URL in logs?
-    url = _find_localtunnel_url_from_log()
-    if url:
-        return url
-
     npx_exec = shutil.which("npx") or shutil.which("npx.cmd")
     if not npx_exec:
         return None
@@ -976,6 +971,32 @@ def _clear_port_listeners(port: int, attempts: int = 6) -> bool:
 
     return _check_port(port) is None
 
+
+def _detect_local_ip() -> str:
+    """Best-effort LAN IP detection for same-network mobile access."""
+    import socket
+
+    # Most reliable route-based detection.
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        if ip and not ip.startswith("127."):
+            return ip
+    except Exception:
+        pass
+
+    # Hostname fallback.
+    try:
+        ip = socket.gethostbyname(socket.gethostname())
+        if ip and not ip.startswith("127."):
+            return ip
+    except Exception:
+        pass
+
+    return "127.0.0.1"
+
 def launch_backend():
     h1("Launching SuperBrain Backend")
 
@@ -1078,13 +1099,9 @@ def launch_backend():
             sys.exit(1)
 
     token = TOKEN_FILE.read_text().strip() if TOKEN_FILE.exists() else "—"
-    try:
-        import socket
-        local_ip = socket.gethostbyname(socket.gethostname())
-    except Exception:
-        local_ip = "127.0.0.1"
+    local_ip = _detect_local_ip()
 
-    localtunnel_enabled = bool(shutil.which("npx"))
+    localtunnel_enabled = bool(shutil.which("npx") or shutil.which("npx.cmd"))
 
     localtunnel_url: str | None = None
     if localtunnel_enabled:
