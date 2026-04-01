@@ -37,65 +37,50 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Sync Code management - single code for both auth and server discovery
-SYNC_CODE_FILE = Path(__file__).parent / "sync_code.txt"
-
-def generate_sync_code(length=8):
-    """Generate a random 8-character sync code"""
-    alphabet = string.ascii_letters + string.digits
+def generate_api_token(length=8):
+    """Generate an 8-character alphanumeric Access Token."""
+    alphabet = string.ascii_uppercase + string.digits
     return ''.join(secrets.choice(alphabet) for _ in range(length))
 
-def generate_api_token(length=32):
-    """Generate a random API token (internal)"""
-    alphabet = string.ascii_letters + string.digits
-    return ''.join(secrets.choice(alphabet) for _ in range(length))
 
-def create_sync_code():
-    """Create sync code containing both API token and server URL info"""
-    api_token = generate_api_token()
-    # Encode info: sync_code will be just the short code, actual token stored separately
-    return api_token, api_token[:8].upper()
+def is_valid_api_token_format(token: str) -> bool:
+    """Validate token format: exactly 8 alphanumeric chars."""
+    return len(token) == 8 and token.isalnum()
 
-def load_or_create_sync_code():
-    """Load existing sync code or create new one"""
-    if SYNC_CODE_FILE.exists():
-        with open(SYNC_CODE_FILE, 'r') as f:
-            content = f.read().strip()
-            if content:
-                parts = content.split(':')
-                if len(parts) == 2:
-                    api_token, sync_code = parts
-                    logger.info("="*80)
-                    logger.info(f"🔐 Sync Code: {sync_code}")
-                    logger.info("="*80)
-                    return api_token, sync_code
-    
-    # Create new sync code
-    api_token, sync_code = create_sync_code()
-    with open(SYNC_CODE_FILE, 'w') as f:
-        f.write(f"{api_token}:{sync_code}")
-    
-    logger.info("="*80)
-    logger.info(f"🔐 Sync Code (NEW): {sync_code}")
-    logger.info("="*80)
-    
-    return api_token, sync_code
+TOKEN_FILE = Path(__file__).parent / "token.txt"
 
-# Load sync code
-API_TOKEN, SYNC_CODE = load_or_create_sync_code()
+def load_or_create_api_token():
+    """Load existing API token or create one if missing."""
+    if TOKEN_FILE.exists():
+        content = TOKEN_FILE.read_text().strip()
+        if content and is_valid_api_token_format(content):
+            logger.info("=" * 80)
+            logger.info(f"🔐 API Token: {content}")
+            logger.info("=" * 80)
+            return content
 
-async def verify_token(request: Request, x_api_key: str = Header(..., description="API authentication key")):
+        if content:
+            logger.warning("Existing token format is legacy/invalid. Regenerating 8-character Access Token.")
+
+    token = generate_api_token()
+    TOKEN_FILE.write_text(token)
+
+    logger.info("=" * 80)
+    logger.info(f"🔐 API Token (NEW): {token}")
+    logger.info("=" * 80)
+    return token
+
+API_TOKEN = load_or_create_api_token()
+
+async def verify_token(request: Request, x_api_key: str = Header(..., description="Access Token for authentication")):
     """
-    Verify authentication - accepts either:
-    1. Full API token (for programmatic access)
-    2. Sync code (for mobile app connection)
+    Verify authentication using Access Token.
     """
-    # Accept both API_TOKEN and SYNC_CODE for authentication
-    if x_api_key != API_TOKEN and x_api_key.upper() != SYNC_CODE.upper():
-        logger.warning("Invalid API key attempt from IP: %s", request.client.host if hasattr(request, 'client') else 'unknown')
+    if x_api_key != API_TOKEN:
+        logger.warning("Invalid Access Token attempt from IP: %s", request.client.host if hasattr(request, 'client') else 'unknown')
         raise HTTPException(
             status_code=401,
-            detail="Invalid API key. Use sync code from server console."
+            detail="Invalid Access Token. Use the token from backend/token.txt."
         )
     return x_api_key
 
@@ -311,10 +296,9 @@ async def root():
         "name": "SuperBrain Instagram Analyzer API",
         "version": "1.02",
         "status": "operational",
-        "authentication": "Required - Use sync code from server console with X-API-Key header",
-        "message": "Run start.py on the server to get the sync code",
+        "authentication": "Required - Use Access Token with X-API-Key header",
+        "message": "Run start.py on the server and use the token from token.txt.",
         "endpoints": {
-            "POST /connect": "Connect with sync code to validate",
             "POST /analyze": "Analyze content (requires auth)",
             "GET /caption": "Get post caption quickly (requires auth)",
             "GET /cache/{shortcode}": "Check cache (requires auth)",
@@ -849,75 +833,25 @@ async def status():
     return {
         "status": "online",
         "version": "1.02",
-        "message": "Server is running. Use sync code from server console to connect."
+        "message": "Server is running. Configure app with server URL and Access Token from token.txt."
     }
 
 
 class ConnectRequest(BaseModel):
-    """Request model for /connect endpoint."""
-    sync_code: str
+    """Request model for deprecated /connect endpoint."""
+    api_key: Optional[str] = None
 
 
 @app.post("/connect")
 async def connect(request: ConnectRequest):
     """
-    Connect using sync code. 
-    
-    Returns the API token for the app to use. 
-    The sync code can also be used directly as the authentication token.
-    
-    No auth required - this is for initial setup.
+    Deprecated endpoint kept for backward compatibility.
+    Use direct Server URL + API key configuration in app settings.
     """
-    sync_code = request.sync_code
-    
-    # Validate sync_code is alphanumeric (should always be, but double-check)
-    if not sync_code.isalnum():
-        raise HTTPException(status_code=400, detail="Sync code must be alphanumeric (letters and numbers only).")
-    
-    if sync_code.upper() != SYNC_CODE.upper():
-        raise HTTPException(status_code=401, detail="Invalid sync code. Check the code shown in the server console.")
-    
-    return {
-        "success": True,
-        "sync_code": SYNC_CODE,  # Can be used directly as API key
-        "message": "Connection successful! Use the sync code as your API key."
-    }
-
-
-# ─────────────────────────────────────────────────────────────────
-# Sync code management
-# ─────────────────────────────────────────────────────────────────
-
-@app.post("/reset/sync-code")
-async def reset_sync_code(token: str = Depends(verify_token)):
-    """
-    Reset the sync code. A new sync code will be generated.
-    - Requires API authentication
-    """
-    global API_TOKEN, SYNC_CODE
-    
-    try:
-        # Generate new sync code
-        api_token, sync_code = create_sync_code()
-        
-        # Save to file
-        with open(SYNC_CODE_FILE, 'w') as f:
-            f.write(f"{api_token}:{sync_code}")
-        
-        # Update globals
-        API_TOKEN = api_token
-        SYNC_CODE = sync_code
-        
-        logger.warning(f"🔐 Sync code was reset by a client. New code: {sync_code}")
-        
-        return {
-            "success": True,
-            "sync_code": sync_code,
-            "message": "Sync code has been reset. Update this code in your mobile app."
-        }
-    except Exception as e:
-        logger.error(f"Error resetting sync code: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(
+        status_code=410,
+        detail="Deprecated. Configure Server URL and Access Token directly in app Settings."
+    )
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -1167,8 +1101,6 @@ async def flush_retry_queue(token: str = Depends(verify_token)):
 # Reset endpoints (admin only)
 # ─────────────────────────────────────────────────────────────────
 
-TOKEN_FILE = Path(__file__).parent / "token.txt"
-
 @app.post("/reset/api-token")
 async def reset_api_token(token: str = Depends(verify_token)):
     """
@@ -1178,8 +1110,8 @@ async def reset_api_token(token: str = Depends(verify_token)):
     """
     global API_TOKEN
     try:
-        # Generate new token
-        new_token = secrets.token_urlsafe(32)
+        # Generate new 8-character alphanumeric token
+        new_token = generate_api_token()
         
         # Save to file
         TOKEN_FILE.write_text(new_token)

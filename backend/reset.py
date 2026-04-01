@@ -167,6 +167,29 @@ def reset_setup_flag():
     """Always called as part of full reset — re-triggers the start.py wizard."""
     _remove_file(SETUP_DONE, "setup flag (.setup_done)")
 
+def export_database():
+    h1("Backup — Export Database")
+    info("This creates a safe backup of your database without deleting anything.")
+    
+    if not DB_FILE.exists():
+        warn("No database found — nothing to export.")
+        return
+    
+    import shutil
+    from datetime import datetime
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_name = f"superbrain_backup_{timestamp}.db"
+    backup_path = BASE_DIR / backup_name
+    
+    try:
+        shutil.copy2(DB_FILE, backup_path)
+        ok(f"Database backed up to: {BOLD}{backup_name}{RESET}")
+        info(f"Size: {backup_path.stat().st_size / (1024*1024):.1f} MB")
+        info(f"Restore by copying this file back to: {BOLD}superbrain.db{RESET}")
+    except Exception as e:
+        err(f"Backup failed: {e}")
+
 def full_reset():
     h1("Full Reset — Wipe Everything")
     nl()
@@ -210,12 +233,13 @@ def full_reset():
 MENU_ITEMS = [
     ("1", "API Keys          (config/.api_keys)  — all keys + Instagram"),
     ("2", "ngrok Token        (config/ngrok_token.txt)"),
-    ("3", "API Token          (token.txt)"),
+    ("3", "Access Token       (token.txt)"),
     ("4", "Database           (superbrain.db)  ⚠ all posts & collections"),
     ("5", "Temporary Files    (temp/)"),
     ("6", "Instagram Session  (force fresh login)"),
     ("7", "Virtual Environment (.venv/)  ⚠ must reinstall packages"),
-    ("8", f"{RED}{BOLD}Full Reset{RESET}          — wipe everything listed above"),
+    ("8", "✓ Backup Database  (create timestamped backup)"),
+    ("9", f"{RED}{BOLD}Full Reset{RESET}          — wipe everything listed above"),
     ("q", "Quit"),
 ]
 
@@ -227,7 +251,8 @@ ACTIONS = {
     "5": reset_temp,
     "6": reset_instagram_session,
     "7": reset_venv,
-    "8": full_reset,
+    "8": export_database,
+    "9": full_reset,
 }
 
 def menu():
@@ -241,7 +266,7 @@ def menu():
         else:
             print(f"    {BOLD}{key}{RESET}  {label}")
     nl()
-    choice = input(f"  {BOLD}Choose [1-8 / q]{RESET}: ").strip().lower()
+    choice = input(f"  {BOLD}Choose [1-9 / q]{RESET}: ").strip().lower()
     return choice
 
 def main():

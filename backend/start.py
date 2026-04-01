@@ -719,19 +719,21 @@ def setup_token_and_db():
     # Token
     if TOKEN_FILE.exists():
         token = TOKEN_FILE.read_text().strip()
-        if token:
-            ok(f"API token already exists: {BOLD}{token}{RESET}")
-            if not ask_yn("Generate a new token?", default=False):
+        if token and len(token) == 8 and token.isalnum():
+            ok(f"Access Token already exists: {BOLD}{token}{RESET}")
+            if not ask_yn("Generate a new Access Token?", default=False):
                 return
+        elif token:
+            warn("Existing token uses old format. A new 8-character Access Token will be generated.")
     else:
         token = None
 
-    alphabet = string.ascii_letters + string.digits
-    new_token = ''.join(secrets.choice(alphabet) for _ in range(32))
+    alphabet = string.ascii_uppercase + string.digits
+    new_token = ''.join(secrets.choice(alphabet) for _ in range(8))
     TOKEN_FILE.write_text(new_token)
-    ok(f"API token saved: {BOLD}{GREEN}{new_token}{RESET}")
+    ok(f"Access Token saved: {BOLD}{GREEN}{new_token}{RESET}")
     nl()
-    print(f"  {YELLOW}Copy this token into the mobile app → Settings → API Token.{RESET}")
+    print(f"  {YELLOW}Copy this token into the mobile app → Settings → Access Token.{RESET}")
 
     # DB is auto-created on first backend start; just let the user know
     nl()
@@ -818,6 +820,33 @@ def _check_port(port: int) -> int | None:
         pass
     return -1   # busy but PID unknown
 
+
+def _find_pids_on_port(port: int) -> list[int]:
+    """Return all PIDs listening on a given port."""
+    pids: set[int] = set()
+    try:
+        if IS_WINDOWS:
+            out = run_q(["netstat", "-ano"]).stdout
+            for line in out.splitlines():
+                if f":{port}" in line and "LISTENING" in line:
+                    parts = line.strip().split()
+                    if parts:
+                        try:
+                            pids.add(int(parts[-1]))
+                        except ValueError:
+                            pass
+        else:
+            out = run_q(["lsof", "-ti", f"TCP:{port}", "-sTCP:LISTEN"]).stdout.strip()
+            if out:
+                for row in out.splitlines():
+                    try:
+                        pids.add(int(row.strip()))
+                    except ValueError:
+                        pass
+    except Exception:
+        pass
+    return sorted(pids)
+
 def launch_backend():
     h1("Launching SuperBrain Backend")
 
@@ -850,30 +879,78 @@ def launch_backend():
 
         # Kill it
         try:
+            import signal as _sig
             if pid and pid > 0:
                 if IS_WINDOWS:
                     run(["taskkill", "/PID", str(pid), "/F"])
                 else:
-                    import signal as _sig
                     os.kill(pid, _sig.SIGTERM)
                 time.sleep(1)
                 # If still alive, SIGKILL
-                try:
-                    os.kill(pid, 0)   # check if process exists
-                    os.kill(pid, _sig.SIGKILL)
-                    time.sleep(0.5)
-                except ProcessLookupError:
-                    pass
-                ok(f"Process {pid} stopped")
+                if not IS_WINDOWS:
+                    try:
+                        os.kill(pid, 0)   # check if process exists
+                        os.kill(pid, _sig.SIGKILL)
+                        time.sleep(0.5)
+                    except ProcessLookupError:
+                        pass
+
+                # Verify port is free; if not, kill all listeners we can detect
+                if _check_port(PORT) is not None:
+                    extra_pids = _find_pids_on_port(PORT)
+                    for ep in extra_pids:
+                        try:
+                            if IS_WINDOWS:
+                                run(["taskkill", "/PID", str(ep), "/F"])
+                            else:
+                                os.kill(ep, _sig.SIGKILL)
+                        except Exception:
+                            pass
+                    time.sleep(0.8)
+
+                if _check_port(PORT) is None:
+                    ok(f"Process {pid} stopped")
+                else:
+                    err(f"Port {PORT} is still in use after kill attempt.")
+                    if IS_WINDOWS:
+                        info(f"Run manually:  netstat -ano | findstr :{PORT}")
+                        info("Then:         taskkill /PID <pid> /F")
+                    else:
+                        info(f"Run:  lsof -ti TCP:{PORT} -sTCP:LISTEN | xargs kill -9")
+                    sys.exit(1)
             else:
-                # Unknown PID — ask user to do it
-                err("Cannot determine PID automatically.")
-                info(f"Run:  lsof -ti TCP:{PORT} -sTCP:LISTEN | xargs kill -9")
-                info("Then re-run:  python start.py")
-                sys.exit(1)
+                # Unknown PID — try to kill all listeners we can find
+                extra_pids = _find_pids_on_port(PORT)
+                if not extra_pids:
+                    err("Cannot determine PID automatically.")
+                    if IS_WINDOWS:
+                        info(f"Run manually:  netstat -ano | findstr :{PORT}")
+                        info("Then:         taskkill /PID <pid> /F")
+                    else:
+                        info(f"Run:  lsof -ti TCP:{PORT} -sTCP:LISTEN | xargs kill -9")
+                    info("Then re-run:  python start.py")
+                    sys.exit(1)
+
+                for ep in extra_pids:
+                    try:
+                        if IS_WINDOWS:
+                            run(["taskkill", "/PID", str(ep), "/F"])
+                        else:
+                            os.kill(ep, _sig.SIGKILL)
+                    except Exception:
+                        pass
+                time.sleep(0.8)
+                if _check_port(PORT) is None:
+                    ok(f"Cleared port {PORT} by terminating PID(s): {', '.join(str(x) for x in extra_pids)}")
+                else:
+                    err(f"Port {PORT} is still busy.")
+                    sys.exit(1)
         except Exception as e:
             err(f"Failed to kill process: {e}")
-            info(f"Try manually:  kill -9 {pid}")
+            if IS_WINDOWS:
+                info(f"Try manually:  taskkill /PID {pid} /F")
+            else:
+                info(f"Try manually:  kill -9 {pid}")
             sys.exit(1)
 
     token = TOKEN_FILE.read_text().strip() if TOKEN_FILE.exists() else "—"
@@ -902,35 +979,33 @@ def launch_backend():
         ngrok_line = ""
         ngrok_hint = f"         · ngrok      →  https://<your-subdomain>.ngrok-free.app"
 
-    # Read sync code from the file created by api.py
-    sync_code_file = BASE_DIR / "sync_code.txt"
-    sync_code = "NOT_SET"
-    if sync_code_file.exists():
-        content = sync_code_file.read_text().strip()
-        if ":" in content:
-            sync_code = content.split(":")[1]  # Get the sync code part
-
     print(f"""
   {GREEN}{BOLD}Backend is starting up!{RESET}
 
   Local URL    →  {CYAN}http://127.0.0.1:{PORT}{RESET}
   Network URL  →  {CYAN}http://{local_ip}:{PORT}{RESET}
 {(ngrok_line + chr(10)) if ngrok_line else ''}  API docs     →  {CYAN}http://127.0.0.1:{PORT}/docs{RESET}
-  Sync Code    →  {BOLD}{MAGENTA}{sync_code}{RESET}
+    Access Token   →  {BOLD}{MAGENTA}{token}{RESET}
 
   {DIM}Keep this terminal open. Press Ctrl+C to stop the server.{RESET}
 
   {YELLOW}Mobile app setup:{RESET}
     1. Build / install the SuperBrain APK on your Android device.
-    2. Open the app → tap the ⚙ settings icon.
+    2. Open the app  →  tap the ⚙ settings icon.
     3. Set {BOLD}Server URL{RESET} to:
          · Same WiFi  →  http://{local_ip}:{PORT}
 {ngrok_hint}
          · Port fwd   →  http://<your-public-ip>:{PORT}
-    4. Set {BOLD}Sync Code{RESET} to: {BOLD}{MAGENTA}{sync_code}{RESET}
-    5. Tap {BOLD}Save{RESET} — you're good to go!
+    4. Set {BOLD}Access Token{RESET} to: {BOLD}{MAGENTA}{token}{RESET}
+    5. Tap {BOLD}Save{RESET}  →  Connected!
 
-  {DIM}Note: The app will automatically connect using the sync code.{RESET}
+  {YELLOW}Data Management:{RESET}
+    • {BOLD}Export:{RESET}   In app Settings  →  Data Import/Export  →  choose format (JSON/ZIP)
+    • {BOLD}Import:{RESET}   Upload backup file in app  →  Data Import/Export  →  select file
+    • {BOLD}Reset:{RESET}    Run  {BOLD}python reset.py{RESET}  for safe data cleanup options
+
+  {DIM}Security Note: Keep token.txt private. Anyone with this token can use your API.{RESET}
+  {DIM}The app securely stores your Access Token locally — it's never transmitted anywhere but your server.{RESET}
 """)
 
     os.chdir(BASE_DIR)

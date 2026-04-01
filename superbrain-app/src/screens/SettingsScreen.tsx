@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Linking,
-  Alert,
   Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,8 +21,6 @@ import { QueueStatus } from '../types';
 import BottomNav from '../components/BottomNav';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-
-const OTP_LENGTH = 8;
 
 interface DialogState {
   visible: boolean;
@@ -62,24 +59,28 @@ const SettingsItem = ({ icon, iconColor = colors.primary, title, subtitle, onPre
   </TouchableOpacity>
 );
 
+const ACCESS_TOKEN_LENGTH = 8;
+const sanitizeAccessToken = (value: string) => value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
 const SettingsScreen = () => {
   const navigation = useNavigation<NavigationProp>();
+  const tokenInputRefs = useRef<Array<TextInput | null>>([]);
+  // Start with truly empty; loadSettings will populate from storage if they exist
+  const [serverUrl, setServerUrl] = useState('');
   const [apiToken, setApiToken] = useState('');
-  const [otpValues, setOtpValues] = useState<string[]>(Array(OTP_LENGTH).fill(''));
-  const otpInputRefs = useRef<(TextInput | null)[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
   const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
   const [flushingRetry, setFlushingRetry] = useState(false);
+  const [resettingDb, setResettingDb] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'info' as 'success' | 'error' | 'warning' | 'info' });
   const [resettingToken, setResettingToken] = useState(false);
-  const [resettingDb, setResettingDb] = useState(false);
   const [dialog, setDialog] = useState<DialogState>({
     visible: false,
     title: '',
     message: '',
-    confirmText: '',
+    confirmText: 'OK',
     destructive: false,
     onConfirm: () => {},
   });
@@ -88,66 +89,33 @@ const SettingsScreen = () => {
     loadSettings();
   }, []);
 
-  // Reload settings when screen regains focus (e.g., navigating back from Library)
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      loadSettings();
-    });
-    
-    return unsubscribe;
-  }, [navigation]);
-
-  useEffect(() => {
-    if (apiToken.length === OTP_LENGTH) {
-      const chars = apiToken.split('');
-      setOtpValues(chars);
-    }
-  }, [apiToken]);
-
-  const handleOtpChange = (value: string, index: number) => {
-    const newValues = [...otpValues];
-    newValues[index] = value.toUpperCase();
-    setOtpValues(newValues);
-    
-    const newToken = newValues.join('');
-    setApiToken(newToken);
-    
-    if (value && index < OTP_LENGTH - 1) {
-      otpInputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleOtpKeyPress = (e: any, index: number) => {
-    if (e.nativeEvent.key === 'Backspace' && !otpValues[index] && index > 0) {
-      otpInputRefs.current[index - 1]?.focus();
-    }
-  };
-
   const loadSettings = async () => {
     try {
-      // Always initialize first to ensure API service has latest state
-      await apiService.initialize();
       const token = await apiService.getApiToken();
-      const syncCode = await apiService.getSyncCode();
+      const baseUrl = await apiService.getBaseUrl();
       
-      // If we have a token, verify it's valid by checking connection
+      // Only populate if values exist in storage; otherwise keep empty
+      if (baseUrl) {
+        setServerUrl(baseUrl);
+      }
       if (token) {
-        setConnectionStatus('connected');
-        
-        // Restore the sync code for display (falls back to token if not stored separately)
-        setApiToken(syncCode || token);
-        
-        // Try to get queue status to verify token is valid
-        const status = await apiService.getQueueStatus();
-        if (status !== null) {
-          setQueueStatus(status);
-        } else {
-          // Token might be invalid - clear it
+        setApiToken(sanitizeAccessToken(token).slice(0, ACCESS_TOKEN_LENGTH));
+      }
+
+      // Only attempt to validate connection if both are configured
+      if (token && baseUrl) {
+        try {
+          const status = await apiService.getQueueStatus();
+          if (status !== null) {
+            setConnectionStatus('connected');
+            setQueueStatus(status);
+          } else {
+            setConnectionStatus('disconnected');
+          }
+        } catch {
           setConnectionStatus('disconnected');
-          setApiToken('');
         }
       } else {
-        setApiToken('');
         setConnectionStatus('disconnected');
       }
     } catch (error) {
@@ -159,35 +127,103 @@ const SettingsScreen = () => {
   };
 
   const handleSave = async () => {
-    if (!apiToken.trim()) {
-      setToast({ visible: true, message: 'Please enter a sync code', type: 'warning' });
+    if (!serverUrl.trim()) {
+      setToast({ visible: true, message: 'Please enter server URL', type: 'warning' });
+      return;
+    }
+
+    const normalizedToken = sanitizeAccessToken(apiToken);
+
+    if (!normalizedToken) {
+      setToast({ visible: true, message: 'Please enter Access Token', type: 'warning' });
+      return;
+    }
+
+    if (normalizedToken.length !== ACCESS_TOKEN_LENGTH) {
+      setToast({ visible: true, message: 'Access Token must be 8 characters', type: 'warning' });
       return;
     }
 
     try {
       setSaving(true);
-      
-      const syncCode = apiToken.trim().toUpperCase();
-      const connectResult = await apiService.connectWithSyncCode(syncCode);
-      
-      if (connectResult.success && connectResult.api_token) {
+
+      const normalizedUrl = serverUrl.trim().replace(/\/+$/, '');
+      await apiService.setApiUrl(normalizedUrl);
+      await apiService.setApiToken(normalizedToken);
+
+      const reachable = await apiService.testConnection();
+      if (!reachable) {
+        setConnectionStatus('disconnected');
+        setToast({ visible: true, message: 'Cannot reach server URL', type: 'error' });
+        return;
+      }
+
+      const status = await apiService.getQueueStatus();
+      if (status !== null) {
         setConnectionStatus('connected');
-        // Store the sync code separately so it persists for display
-        await apiService.setSyncCode(connectResult.sync_code || syncCode);
-        setApiToken(connectResult.sync_code || syncCode);
-        apiService.getQueueStatus().then(s => setQueueStatus(s)).catch(() => {});
-        setToast({ 
-          visible: true, 
-          message: `Connected! Sync code: ${connectResult.sync_code}`, 
-          type: 'success' 
-        });
+        setQueueStatus(status);
+        setToast({ visible: true, message: 'Connected successfully', type: 'success' });
       } else {
-        setToast({ visible: true, message: connectResult.error || 'Connection failed', type: 'error' });
+        setConnectionStatus('disconnected');
+        setToast({ visible: true, message: 'Invalid Access Token', type: 'error' });
       }
     } catch (error: any) {
+      setConnectionStatus('disconnected');
       setToast({ visible: true, message: error.message || 'Connection failed', type: 'error' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTokenDigitChange = (index: number, text: string) => {
+    const sanitized = sanitizeAccessToken(text);
+
+    if (!sanitized) {
+      const chars = apiToken.padEnd(ACCESS_TOKEN_LENGTH, ' ').split('');
+      chars[index] = ' ';
+      setApiToken(chars.join('').trimEnd());
+      return;
+    }
+
+    const chars = apiToken.padEnd(ACCESS_TOKEN_LENGTH, ' ').split('');
+
+    // Support paste of full/partial token in any box
+    if (sanitized.length > 1) {
+      let writeIndex = index;
+      for (let i = 0; i < sanitized.length && writeIndex < ACCESS_TOKEN_LENGTH; i += 1) {
+        chars[writeIndex] = sanitized[i];
+        writeIndex += 1;
+      }
+      setApiToken(chars.join('').trimEnd());
+      const focusIndex = Math.min(writeIndex, ACCESS_TOKEN_LENGTH - 1);
+      tokenInputRefs.current[focusIndex]?.focus();
+      return;
+    }
+
+    chars[index] = sanitized[0];
+    setApiToken(chars.join('').trimEnd());
+
+    if (index < ACCESS_TOKEN_LENGTH - 1) {
+      tokenInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleTokenKeyPress = (index: number, key: string) => {
+    if (key !== 'Backspace') {
+      return;
+    }
+
+    const chars = apiToken.padEnd(ACCESS_TOKEN_LENGTH, ' ').split('');
+    if (chars[index]?.trim()) {
+      chars[index] = ' ';
+      setApiToken(chars.join('').trimEnd());
+      return;
+    }
+
+    if (index > 0) {
+      chars[index - 1] = ' ';
+      setApiToken(chars.join('').trimEnd());
+      tokenInputRefs.current[index - 1]?.focus();
     }
   };
 
@@ -211,24 +247,22 @@ const SettingsScreen = () => {
     }
   };
 
-  const handleResetSyncCode = () => {
+  const handleResetApiToken = () => {
     setDialog({
       visible: true,
-      title: 'Reset Sync Code',
-      message: 'This will generate a new sync code. You will need to update it in your app settings. Continue?',
+      title: 'Reset Access Token',
+      message: 'This will generate a new Access Token. You will need to update it in your app settings. Continue?',
       confirmText: 'Reset',
       destructive: true,
       onConfirm: async () => {
         setDialog(prev => ({ ...prev, visible: false }));
         try {
           setResettingToken(true);
-          const result = await apiService.resetSyncCode();
-          // Store the new sync code for persistence
-          await apiService.setSyncCode(result.sync_code);
-          setApiToken(result.sync_code);
-          setToast({ visible: true, message: `New sync code: ${result.sync_code}`, type: 'success' });
+          const result = await apiService.resetApiToken();
+          setApiToken(result.new_token);
+          setToast({ visible: true, message: 'New Access Token generated', type: 'success' });
         } catch {
-          setToast({ visible: true, message: 'Failed to reset sync code', type: 'error' });
+          setToast({ visible: true, message: 'Failed to reset Access Token', type: 'error' });
         } finally {
           setResettingToken(false);
         }
@@ -276,12 +310,12 @@ const SettingsScreen = () => {
 
         <View style={styles.headerSpacer} />
 
-        {/* Sync Code */}
+        {/* Server and Access Token */}
         <View style={styles.statusCard}>
           <View style={styles.statusHeader}>
             <View style={styles.statusTitleRow}>
               <Ionicons name="sync" size={18} color={colors.primary} style={{ marginRight: 8 }} />
-              <Text style={styles.statusTitle}>Sync Code</Text>
+              <Text style={styles.statusTitle}>Connection</Text>
             </View>
             <View style={[styles.statusBadge, connectionStatus === 'connected' ? styles.statusConnected : styles.statusDisconnected]}>
               <Ionicons 
@@ -295,22 +329,42 @@ const SettingsScreen = () => {
             </View>
           </View>
           
-          <View style={styles.otpContainer}>
-            {otpValues.map((value, index) => (
+          <Text style={styles.inputLabel}>Server URL</Text>
+          <TextInput
+            style={styles.apiInput}
+            value={serverUrl}
+            onChangeText={setServerUrl}
+            autoCapitalize="none"
+            autoCorrect={false}
+            placeholder="e.g., http://localhost:8000 or https://api.example.com"
+            placeholderTextColor={colors.textMuted}
+            editable={!saving}
+          />
+
+          <Text style={styles.inputLabel}>Access Token</Text>
+          <View style={styles.tokenInputRow}>
+            {Array.from({ length: ACCESS_TOKEN_LENGTH }).map((_, index) => (
               <TextInput
-                key={index}
-                ref={(ref) => { otpInputRefs.current[index] = ref; }}
-                style={[styles.otpInput, value && styles.otpInputFilled]}
-                value={value}
-                onChangeText={(text) => handleOtpChange(text, index)}
-                onKeyPress={(e) => handleOtpKeyPress(e, index)}
-                keyboardType="default"
+                key={`token-${index}`}
+                ref={(ref) => {
+                  tokenInputRefs.current[index] = ref;
+                }}
+                style={styles.tokenDigitInput}
+                value={apiToken[index] || ''}
+                onChangeText={(text) => handleTokenDigitChange(index, text)}
+                onKeyPress={({ nativeEvent }) => handleTokenKeyPress(index, nativeEvent.key)}
                 autoCapitalize="characters"
-                maxLength={1}
+                autoCorrect={false}
+                editable={!saving}
+                maxLength={8}
+                textAlign="center"
+                keyboardType="default"
+                placeholder="•"
                 placeholderTextColor={colors.textMuted}
               />
             ))}
           </View>
+          <Text style={styles.tokenHint}>8-character alphanumeric Access Token</Text>
 
           <TouchableOpacity
             style={[styles.saveButton, saving && { opacity: 0.7 }]}
@@ -341,7 +395,7 @@ const SettingsScreen = () => {
             icon="logo-instagram"
             iconColor="#e4405f"
             title="Instagram"
-            subtitle="Burner Account for Instagram Post Scraping"
+            subtitle="Optional login for reliable Instagram downloads"
             onPress={() => navigation.navigate('Instagram')}
           />
           
@@ -378,9 +432,9 @@ const SettingsScreen = () => {
           <SettingsItem
             icon="key-outline"
             iconColor="#6366f1"
-            title="Reset Sync Code"
-            subtitle="Generate a new sync code"
-            onPress={handleResetSyncCode}
+            title="Reset Access Token"
+            subtitle="Generate a new Access Token"
+            onPress={handleResetApiToken}
           />
           
           <SettingsItem
@@ -532,27 +586,42 @@ const styles = StyleSheet.create({
   statusTextDisconnected: {
     color: '#dc3545',
   },
-  otpContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 16,
+  inputLabel: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginBottom: 6,
   },
-  otpInput: {
-    width: 36,
-    height: 44,
+  apiInput: {
     backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 8,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '600',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     color: colors.text,
+    fontSize: 15,
+    marginBottom: 14,
   },
-  otpInputFilled: {
-    borderColor: colors.primary,
-    backgroundColor: `${colors.primary}10`,
+  tokenInputRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  tokenDigitInput: {
+    width: 34,
+    height: 46,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  tokenHint: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginBottom: 14,
   },
   saveButton: {
     backgroundColor: colors.primary,

@@ -47,6 +47,17 @@ const DataImportExportScreen = () => {
   const handleExport = async (format: 'json' | 'zip') => {
     try {
       setExporting(true);
+
+      const reachable = await apiService.testConnection();
+      if (!reachable) {
+        setToast({
+          visible: true,
+          message: 'Backend is not connected. Check server URL and Access Token in Settings.',
+          type: 'error',
+        });
+        return;
+      }
+
       const baseUrl = await apiService.getBaseUrl();
       const token = await apiService.getApiToken();
       
@@ -83,7 +94,14 @@ const DataImportExportScreen = () => {
       }
     } catch (error: any) {
       console.error('Export error:', error);
-      setToast({ visible: true, message: error.message || 'Export failed', type: 'error' });
+      const status = error?.response?.status;
+      if (status === 401) {
+        setToast({ visible: true, message: 'Invalid Access Token. Reconnect in Settings.', type: 'error' });
+      } else if (status === 0 || error?.message?.toLowerCase?.().includes('network')) {
+        setToast({ visible: true, message: 'Cannot reach backend. Ensure server is running and URL is correct.', type: 'error' });
+      } else {
+        setToast({ visible: true, message: error.message || 'Export failed', type: 'error' });
+      }
     } finally {
       setExporting(false);
     }

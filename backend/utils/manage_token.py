@@ -10,10 +10,15 @@ import string
 
 TOKEN_FILE = Path(__file__).parent.parent / "token.txt"
 
-def generate_token(length=32):
-    """Generate a random API token"""
-    alphabet = string.ascii_letters + string.digits
+def generate_token(length=8):
+    """Generate an 8-character alphanumeric Access Token"""
+    alphabet = string.ascii_uppercase + string.digits
     return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+
+def is_valid_token(token: str) -> bool:
+    """Validate token format: exactly 8 alphanumeric characters."""
+    return len(token) == 8 and token.isalnum()
 
 def load_token():
     """Load existing token"""
@@ -30,7 +35,7 @@ def save_token(token):
 
 def main():
     print("\n" + "="*80)
-    print("🔐 SuperBrain API Token Manager")
+    print("🔐 SuperBrain Access Token Manager")
     print("="*80)
     
     current_token = load_token()
@@ -57,9 +62,9 @@ def main():
         print("\n⚠️  Restart the API server for changes to take effect!")
         
     elif choice == "2":
-        custom_token = input("\nEnter custom token: ").strip()
-        if len(custom_token) < 16:
-            print("\n❌ Token too short! Minimum 16 characters.")
+        custom_token = input("\nEnter custom 8-character token: ").strip().upper()
+        if not is_valid_token(custom_token):
+            print("\n❌ Invalid token! Use exactly 8 alphanumeric characters.")
             return
         save_token(custom_token)
         print(f"\n🔑 Token set to: {custom_token}")

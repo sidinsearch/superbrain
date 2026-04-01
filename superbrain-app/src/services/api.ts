@@ -2,6 +2,19 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Post, ApiResponse, QueueStatus, DatabaseStats, RetryQueueItem, Collection } from '../types';
 
+const ACCESS_TOKEN_LENGTH = 8;
+
+function normalizeAccessToken(token: string | null): string | null {
+  if (!token) {
+    return null;
+  }
+  const sanitized = token.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  if (sanitized.length !== ACCESS_TOKEN_LENGTH) {
+    return null;
+  }
+  return sanitized;
+}
+
 /** Normalise a raw API post so that thumbnail_url always resolves to an image. */
 function normalizePost(p: any): Post {
   const post = { ...p } as Post;
@@ -14,27 +27,32 @@ function normalizePost(p: any): Post {
 
 class ApiService {
   private apiToken: string | null = null;
-  private apiUrl: string = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000';
+  // Default only for development/fallback; user must explicitly configure for production use
+  private apiUrl: string = '';
 
   async initialize() {
-    this.apiToken = await AsyncStorage.getItem('apiToken');
+    const storedToken = await AsyncStorage.getItem('apiToken');
+    const normalizedToken = normalizeAccessToken(storedToken);
+    this.apiToken = normalizedToken;
+    if (storedToken && !normalizedToken) {
+      await AsyncStorage.removeItem('apiToken');
+    }
     const savedUrl = await AsyncStorage.getItem('apiUrl');
     if (savedUrl) {
       this.apiUrl = savedUrl;
+    } else {
+      // Use env var if set, otherwise empty for first-time setup
+      this.apiUrl = process.env.EXPO_PUBLIC_API_URL || '';
     }
   }
 
   async setApiToken(token: string) {
-    this.apiToken = token;
-    await AsyncStorage.setItem('apiToken', token);
-  }
-
-  async setSyncCode(syncCode: string) {
-    await AsyncStorage.setItem('syncCode', syncCode);
-  }
-
-  async getSyncCode(): Promise<string | null> {
-    return await AsyncStorage.getItem('syncCode');
+    const normalizedToken = normalizeAccessToken(token);
+    if (!normalizedToken) {
+      throw new Error('Access Token must be 8 alphanumeric characters');
+    }
+    this.apiToken = normalizedToken;
+    await AsyncStorage.setItem('apiToken', normalizedToken);
   }
 
   async setApiUrl(url: string) {
@@ -44,7 +62,12 @@ class ApiService {
 
   async getApiToken(): Promise<string | null> {
     if (!this.apiToken) {
-      this.apiToken = await AsyncStorage.getItem('apiToken');
+      const storedToken = await AsyncStorage.getItem('apiToken');
+      const normalizedToken = normalizeAccessToken(storedToken);
+      this.apiToken = normalizedToken;
+      if (storedToken && !normalizedToken) {
+        await AsyncStorage.removeItem('apiToken');
+      }
     }
     return this.apiToken;
   }
@@ -60,7 +83,7 @@ class ApiService {
   private async getHeaders() {
     const token = await this.getApiToken();
     if (!token) {
-      throw new Error('API token not configured');
+      throw new Error('Access Token not configured');
     }
     return {
       'X-API-Key': token,
@@ -315,26 +338,6 @@ class ApiService {
     }
   }
 
-  async connectWithSyncCode(syncCode: string): Promise<{ success: boolean; api_token?: string; sync_code?: string; error?: string }> {
-    try {
-      const baseUrl = await this.getBaseUrl();
-      const response = await axios.post<{ success: boolean; api_token: string; sync_code: string }>(
-        `${baseUrl}/connect`,
-        { sync_code: syncCode },
-        { timeout: 10000 }
-      );
-      if (response.data.success && response.data.api_token) {
-        await this.setApiToken(response.data.api_token);
-        return { success: true, api_token: response.data.api_token, sync_code: response.data.sync_code };
-      }
-      return { success: false, error: 'Invalid response' };
-    } catch (error: any) {
-      if (error.response?.status === 401) {
-        return { success: false, error: 'Invalid sync code' };
-      }
-      return { success: false, error: error.message || 'Connection failed' };
-    }
-  }
 
   async getRetryQueue(): Promise<RetryQueueItem[]> {
     try {
@@ -382,22 +385,6 @@ class ApiService {
       return response.data;
     } catch (error) {
       console.error('Error resetting API token:', error);
-      throw error;
-    }
-  }
-
-  async resetSyncCode(): Promise<{ success: boolean; sync_code: string; message: string }> {
-    try {
-      const headers = await this.getHeaders();
-      const baseUrl = await this.getBaseUrl();
-      const response = await axios.post<{ success: boolean; sync_code: string; message: string }>(
-        `${baseUrl}/reset/sync-code`,
-        {},
-        { headers }
-      );
-      return response.data;
-    } catch (error) {
-      console.error('Error resetting sync code:', error);
       throw error;
     }
   }

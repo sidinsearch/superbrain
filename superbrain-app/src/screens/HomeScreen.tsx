@@ -136,7 +136,9 @@ const HomeScreen = () => {
         await AsyncStorage.setItem('@superbrain_onboarded', '1');
         return;
       }
-      setTimeout(() => setShowOnboarding(true), 700);
+      // Show onboarding only after app is fully initialized (configuration loaded)
+      // Delay to ensure SettingsScreen navigation works smoothly
+      setTimeout(() => setShowOnboarding(true), 1200);
     } catch { /* ignore */ }
   };
 
@@ -188,7 +190,8 @@ const HomeScreen = () => {
     }
   };
 
-  const initializeAndLoad = async () => {    try {
+  const initializeAndLoad = async () => {
+    try {
       await apiService.initialize();
       const token = await apiService.getApiToken();
       if (!token) {
@@ -832,10 +835,10 @@ const HomeScreen = () => {
       ) : !isConfigured ? (
         <View style={styles.emptyContainer}>
           <View style={styles.setupIconContainer}>
-            <Ionicons name="settings" size={48} color={colors.primary} />
+            <Ionicons name="key-outline" size={48} color={colors.primary} />
           </View>
           <Text style={styles.emptyTitle}>Setup Required</Text>
-          <Text style={styles.emptyText}>Enter your 8-character sync code in Settings to get started.</Text>
+          <Text style={styles.emptyText}>Configure your Access Token and server URL to continue.</Text>
           <TouchableOpacity
             style={styles.setupButton}
             onPress={() => navigation.navigate('Settings')}
@@ -997,13 +1000,16 @@ const HomeScreen = () => {
 
             {/* Step content */}
             <View style={styles.onboardingBody}>
-              <Text style={styles.onboardingEmoji}>{ONBOARDING_STEPS[onboardingStep].emoji}</Text>
-              <Ionicons 
-                name={ONBOARDING_STEPS[onboardingStep].iconName as any} 
-                size={48} 
-                color={colors.primary} 
-                style={styles.onboardingIcon} 
-              />
+              {onboardingStep === 0 ? (
+                <Text style={styles.onboardingEmoji}>🧠</Text>
+              ) : (
+                <Ionicons
+                  name={ONBOARDING_STEPS[onboardingStep].iconName as any}
+                  size={48}
+                  color={colors.primary}
+                  style={styles.onboardingIcon}
+                />
+              )}
               <Text style={styles.onboardingTitle}>{ONBOARDING_STEPS[onboardingStep].title}</Text>
               <Text style={styles.onboardingDesc}>{ONBOARDING_STEPS[onboardingStep].description}</Text>
             </View>
@@ -1039,7 +1045,7 @@ const HomeScreen = () => {
                 }}
               >
                 <Text style={styles.onboardingBtnPrimaryText}>
-                  {onboardingStep < ONBOARDING_STEPS.length - 1 ? 'Next →' : 'Get Started 🚀'}
+                  {onboardingStep < ONBOARDING_STEPS.length - 1 ? 'Next' : 'Get Started'}
                 </Text>
               </TouchableOpacity>
             </View>

@@ -235,7 +235,7 @@ python start.py
 ngrok http 5000
 
 # 4. Install the APK on your Android phone
-#    Open Settings in the app → enter the ngrok URL + Sync Code shown in backend console
+#    Open Settings in the app -> enter the ngrok URL + Access Token shown in backend console
 ```
 
 **See it in action:**
@@ -286,7 +286,7 @@ curl http://localhost:5000/health
 
 Notes:
 
-- The app must connect using the **Sync Code** printed by backend logs / console.
+- The app connects using the **Access Token** printed by backend logs / console.
 - If you run backend on your laptop for phone access, expose port 5000 with ngrok:
   `ngrok http 5000`
 
@@ -338,7 +338,7 @@ cp config/.api_keys.example config/.api_keys
 python api.py
 ```
 
-The server starts on `http://localhost:5000`. Use the **Sync Code** shown in backend logs/console when connecting the Android app.
+The server starts on `http://localhost:5000`. Use the **Access Token** shown in backend logs/console when connecting the Android app.
 
 </details>
 
@@ -348,7 +348,7 @@ The server starts on `http://localhost:5000`. Use the **Sync Code** shown in bac
 ngrok http 5000
 ```
 
-Copy the `https://xxxx.ngrok-free.app` URL and enter it in the app's **Settings** screen along with the Sync Code shown by backend.
+Copy the `https://xxxx.ngrok-free.app` URL and enter it in the app's **Settings** screen along with the Access Token shown by backend.
 
 > **Tip:** Run `ngrok config add-authtoken YOUR_TOKEN` for a stable URL that persists across restarts.
 
@@ -484,7 +484,7 @@ Saving to any non-Watch Later collection fires an instant **"Saved to SuperBrain
 
 ## API Reference
 
-All endpoints require the `X-API-Key` header with either the Sync Code (recommended for mobile setup) or the full API token.
+All endpoints require the `X-API-Key` header with the Access Token.
 
 | Method | Endpoint | Description |
 |---|---|---|

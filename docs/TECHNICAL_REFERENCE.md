@@ -50,41 +50,35 @@ curl http://localhost:5000/ping
 
 ## API Authentication
 
-### Sync Code Flow
-1. **Backend Startup**: Generates `sync_code.txt` with:
-   ```
-   <full-api-token>:<8-char-sync-code>
-   ```
-   Sync code visible in console (cyan):
-   ```
-   ════════════════════════════════════════════════════════════════════════════
-   🔐 Sync Code: ABCD1234
-   ════════════════════════════════════════════════════════════════════════════
-   ```
+### Access Token Flow
+1. **Backend Startup**: Generates/loads `token.txt` with an 8-character alphanumeric Access Token.
+    ```
+    ABCD1234
+    ```
 
-2. **Mobile App**: User enters sync code in Settings → API
-   - Stored in AsyncStorage: `apiToken` = sync code
-   
+2. **Mobile App**: User enters server URL + Access Token in Settings.
+    - Stored in AsyncStorage: `apiUrl`, `apiToken`
+    - Invalid/legacy token formats are cleaned automatically by the app service.
+
 3. **Request Header**:
-   ```http
-   X-API-Key: ABCD1234
-   ```
-   (Or full API token if using programmatic access)
+    ```http
+    X-API-Key: ABCD1234
+    ```
 
 4. **Validation** (`api.py verify_token`):
-   ```python
-   if x_api_key != API_TOKEN and x_api_key.upper() != SYNC_CODE.upper():
-       raise HTTPException(401, "Invalid API key")
-   ```
+    ```python
+    if x_api_key != API_TOKEN:
+         raise HTTPException(401, "Invalid Access Token")
+    ```
 
 ### Token Rotation
 ```bash
 # Backend endpoint
-POST /reset/sync-code
+POST /reset/api-token
 Headers: X-API-Key: <current-token>
 
 # Response
-{"sync_code": "NEWCD5678", "detail": "Sync code reset successfully"}
+{"success": true, "new_token": "WXYZ6789", "message": "..."}
 ```
 
 ---

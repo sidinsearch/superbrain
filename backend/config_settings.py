@@ -41,8 +41,8 @@ class Settings:
     # Security & Authentication
     # ──────────────────────────────────────────────────────────────────────────
     
-    # API Key from environment or config file
-    SYNC_CODE_FILE: str = os.getenv("SYNC_CODE_FILE", "sync_code.txt")
+    # API key file path
+    TOKEN_FILE: str = os.getenv("TOKEN_FILE", "token.txt")
     API_KEY_HEADER: str = "X-API-Key"
     
     # CORS Configuration

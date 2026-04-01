@@ -18,7 +18,6 @@ backend/.mongodb_config
 backend/.instagram_session.json
 backend/.instaloader_session
 backend/token.txt
-backend/sync_code.txt
 backend/config/ngrok_token.txt
 backend/.setup_done
 
