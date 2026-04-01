@@ -52,21 +52,22 @@ const DEFAULT_CATEGORIES = [
   { id: 'other', name: 'Other', icon: 'pricetag', count: 0 },
 ];
 
-// Map backend category names to SF Symbol icons
+// Map backend categories to Ionicons names used by chips
 const CATEGORY_ICONS: Record<string, string> = {
-  'product': 'bag.fill',
-  'places': 'map.fill',
-  'recipe': 'fork.knife',
-  'food': 'fork.knife',
-  'software': 'chevron.left.forwardslash.chevron.right',
-  'book': 'book.fill',
-  'workout': 'figure.run',
-  'fitness': 'figure.run',
-  'film': 'film.fill',
-  'tv shows': 'tv.fill',
-  'event': 'calendar',
-  'other': 'tag.fill',
-  'uncategorized': 'questionmark.circle',
+  'all': 'star',
+  'product': 'cube-outline',
+  'places': 'location-outline',
+  'recipe': 'restaurant-outline',
+  'food': 'restaurant-outline',
+  'software': 'code-slash-outline',
+  'book': 'book-outline',
+  'workout': 'fitness-outline',
+  'fitness': 'fitness-outline',
+  'film': 'film-outline',
+  'tv shows': 'tv-outline',
+  'event': 'calendar-outline',
+  'other': 'pricetag-outline',
+  'uncategorized': 'help-circle-outline',
 };
 
 const HomeScreen = () => {
@@ -91,6 +92,7 @@ const HomeScreen = () => {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const lastFocusRefreshRef = useRef(0);
 
   useEffect(() => {
     initializeAndLoad();
@@ -119,6 +121,11 @@ const HomeScreen = () => {
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       if (isInitialized) {
+        const now = Date.now();
+        if (now - lastFocusRefreshRef.current < 5000) {
+          return;
+        }
+        lastFocusRefreshRef.current = now;
         loadPosts(false); // Don't force refresh, let cache-first strategy work
       }
     });
@@ -173,17 +180,27 @@ const HomeScreen = () => {
     try {
       const cats = await apiService.getCategories();
       if (cats && cats.length > 0) {
-        // Merge with icons
-        const catsWithIcons = cats.map((c: { id: string; name: string; count: number }) => ({
-          id: c.id.toLowerCase(),
-          name: c.name,
-          icon: CATEGORY_ICONS[c.name.toLowerCase()] || 'tag.fill',
-          count: c.count,
-        }));
-        // Add "All" at the beginning with total count
-        const totalCount = cats.reduce((sum: number, c: { count: number }) => sum + c.count, 0);
-        const allCat = { id: 'all', name: 'All', icon: 'star.fill', count: totalCount };
-        setCategories([allCat, ...catsWithIcons]);
+        // Always keep full default pill set visible, then overlay live counts from backend.
+        const mergedById = new Map(
+          DEFAULT_CATEGORIES
+            .filter(c => c.id !== 'all')
+            .map(c => [c.id, { ...c, count: 0 }])
+        );
+
+        for (const c of cats) {
+          const id = c.id.toLowerCase();
+          const existing = mergedById.get(id);
+          mergedById.set(id, {
+            id,
+            name: existing?.name || c.name,
+            icon: existing?.icon || CATEGORY_ICONS[c.name.toLowerCase()] || 'pricetag-outline',
+            count: c.count,
+          });
+        }
+
+        const merged = Array.from(mergedById.values());
+        const totalCount = merged.reduce((sum, c) => sum + c.count, 0);
+        setCategories([{ id: 'all', name: 'All', icon: 'star', count: totalCount }, ...merged]);
       }
     } catch (e) {
       console.warn('Failed to load categories, using defaults:', e);

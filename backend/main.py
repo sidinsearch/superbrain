@@ -583,7 +583,7 @@ def main():
 
     if not instagram_url:
         print("❌ No link provided!")
-        return
+        sys.exit(1)
 
     # Step 2: Validate link & detect type
     print_section("🔍 Step 1: Validating Link")
@@ -593,7 +593,7 @@ def main():
     if not validation['valid']:
         print(f"❌ Invalid link!")
         print(f"   Error: {validation['error']}")
-        return
+        sys.exit(1)
 
     content_type = validation['content_type']
     shortcode    = validation['shortcode']
@@ -663,13 +663,18 @@ def main():
         
         if download_result is None:
             print("❌ Download failed!")
-            return
+            sys.exit(1)
         
         download_folder = download_result
         print(f"\n✓ Content downloaded to: {download_folder}")
 
     except RetryableDownloadError as e:
-        print(f"⏰ Instagram download blocked — {e}")
+        msg = str(e)
+        print(f"⏰ Instagram download blocked — {msg}")
+        if "login required" in msg.lower():
+            print("❌ Instagram now requires login for this post.")
+            print("   Add INSTAGRAM_USERNAME and INSTAGRAM_PASSWORD in setup (Step 3) and retry.")
+            sys.exit(1)
         db.queue_for_retry(shortcode, instagram_url, 'instagram', 'instagram_rate_limit', retry_hours=24)
         print("⏰ Queued for retry in 24 hours.")
         sys.exit(2)
@@ -678,7 +683,7 @@ def main():
         print(f"❌ Download error: {e}")
         import traceback
         traceback.print_exc()
-        return
+        sys.exit(1)
     
     # Step 4: Find downloaded files
     print_section("📂 Step 3: Locating Files")
@@ -687,7 +692,7 @@ def main():
     
     if not folder_path.exists():
         print(f"❌ Folder not found: {download_folder}")
-        return
+        sys.exit(1)
     
     # Find files
     mp4_files = list(folder_path.glob("*.mp4"))

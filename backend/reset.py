@@ -20,7 +20,8 @@ from pathlib import Path
 BASE_DIR   = Path(__file__).parent.resolve()
 VENV_DIR   = BASE_DIR / ".venv"
 API_KEYS   = BASE_DIR / "config" / ".api_keys"
-NGROK_CFG  = BASE_DIR / "config" / "ngrok_token.txt"
+LOCALTUNNEL_ENABLED = BASE_DIR / "config" / "localtunnel_enabled.txt"
+LOCALTUNNEL_LOG     = BASE_DIR / "config" / "localtunnel.log"
 TOKEN_FILE = BASE_DIR / "token.txt"
 SETUP_DONE = BASE_DIR / ".setup_done"
 DB_FILE    = BASE_DIR / "superbrain.db"
@@ -108,21 +109,22 @@ def reset_api_keys():
     _remove_file(API_KEYS, "API keys file (config/.api_keys)")
     ok("Run  python start.py --reset  to re-enter keys.")
 
-def reset_ngrok():
-    h1("Reset — ngrok Token")
-    warn("This removes the saved ngrok authtoken.")
+def reset_localtunnel():
+    h1("Reset — localtunnel State")
+    warn("This removes localtunnel startup state and cached log output.")
     if not ask_yn("Continue?", default=False):
         info("Skipped.")
         return
-    _remove_file(NGROK_CFG, "ngrok token (config/ngrok_token.txt)")
+    _remove_file(LOCALTUNNEL_ENABLED, "localtunnel state (config/localtunnel_enabled.txt)")
+    _remove_file(LOCALTUNNEL_LOG, "localtunnel log (config/localtunnel.log)")
 
 def reset_api_token():
-    h1("Reset — API Token")
+    h1("Reset — Access Token")
     warn("All mobile devices will lose access until you update the token in their Settings.")
     if not ask_yn("Continue?", default=False):
         info("Skipped.")
         return
-    _remove_file(TOKEN_FILE, "API token (token.txt)")
+    _remove_file(TOKEN_FILE, "Access Token (token.txt)")
     ok("A new token will be generated next time you run  python start.py.")
 
 def reset_database():
@@ -195,8 +197,8 @@ def full_reset():
     nl()
     print(f"  This will delete:")
     print(f"    {RED}·{RESET}  API keys  (config/.api_keys)")
-    print(f"    {RED}·{RESET}  ngrok token  (config/ngrok_token.txt)")
-    print(f"    {RED}·{RESET}  API token  (token.txt)")
+    print(f"    {RED}·{RESET}  localtunnel state/log  (config/localtunnel_*)")
+    print(f"    {RED}·{RESET}  Access Token  (token.txt)")
     print(f"    {RED}·{RESET}  Database  (superbrain.db)")
     print(f"    {RED}·{RESET}  Temporary media files  (temp/)")
     print(f"    {RED}·{RESET}  Instagram session")
@@ -212,8 +214,9 @@ def full_reset():
 
     for path, label in [
         (API_KEYS,   "API keys"),
-        (NGROK_CFG,  "ngrok token"),
-        (TOKEN_FILE, "API token"),
+        (LOCALTUNNEL_ENABLED, "localtunnel state"),
+        (LOCALTUNNEL_LOG, "localtunnel log"),
+        (TOKEN_FILE, "Access Token"),
     ]:
         _remove_file(path, label)
 
@@ -232,7 +235,7 @@ def full_reset():
 # ── Interactive menu ──────────────────────────────────────────────────────────
 MENU_ITEMS = [
     ("1", "API Keys          (config/.api_keys)  — all keys + Instagram"),
-    ("2", "ngrok Token        (config/ngrok_token.txt)"),
+    ("2", "localtunnel state  (config/localtunnel_enabled.txt + .log)"),
     ("3", "Access Token       (token.txt)"),
     ("4", "Database           (superbrain.db)  ⚠ all posts & collections"),
     ("5", "Temporary Files    (temp/)"),
@@ -245,7 +248,7 @@ MENU_ITEMS = [
 
 ACTIONS = {
     "1": reset_api_keys,
-    "2": reset_ngrok,
+    "2": reset_localtunnel,
     "3": reset_api_token,
     "4": reset_database,
     "5": reset_temp,

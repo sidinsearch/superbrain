@@ -21,6 +21,7 @@ import secrets
 import string
 import textwrap
 import time
+import importlib
 from pathlib import Path
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
@@ -65,7 +66,7 @@ def banner():
   ██████╔╝██║  ██║██║  ██║██║██║ ╚████║
   ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝
 {RESET}"""
-    credit = (f"  {DIM}made with {RESET}{MAG}❤{RESET}{DIM} by "
+    credit = (f"    {DIM}made with {RESET}{MAG}❤{RESET}{DIM}  by "
               f"{link('https://github.com/sidinsearch', f'{BOLD}sidinsearch{RESET}{DIM}')}"
               f"{RESET}\n")
     print(art + credit)
@@ -115,6 +116,33 @@ def run(cmd, **kwargs):
 def run_q(cmd, **kwargs):
     """Run a command silently, capture output."""
     return subprocess.run(cmd, check=True, capture_output=True, text=True, **kwargs)
+
+
+def ensure_runtime_dependencies():
+    """Install must-have runtime packages if missing in the active venv."""
+    required = [
+        ("multipart", "python-multipart"),
+    ]
+    missing: list[str] = []
+
+    for module_name, package_name in required:
+        try:
+            importlib.import_module(module_name)
+        except Exception:
+            missing.append(package_name)
+
+    if not missing:
+        return
+
+    warn(f"Missing runtime package(s): {', '.join(missing)}")
+    info("Installing missing runtime package(s) automatically …")
+    try:
+        run([str(VENV_PYTHON), "-m", "pip", "install", *missing])
+        ok("Runtime dependencies installed")
+    except Exception as e:
+        err(f"Failed to install runtime dependencies: {e}")
+        info(f"Run manually: {VENV_PYTHON} -m pip install {' '.join(missing)}")
+        sys.exit(1)
 
 # ── Helpers for live output displays ───────────────────────────────────────────────
 BAR_WIDTH = 36
@@ -321,7 +349,7 @@ def _check_and_report(name: str, key: str, validator) -> str:
 # Step 3 — API Keys
 # ══════════════════════════════════════════════════════════════════════════════
 def setup_api_keys():
-    h1("Step 3 of 7 — AI Provider API Keys")
+    h1("Step 3 of 7 — AI Provider Keys")
 
     print(f"""
   SuperBrain uses AI providers to analyse your saved content.
@@ -636,12 +664,13 @@ def setup_whisper():
         err(f"Pre-download failed — Whisper will download '{model}' automatically on first use.")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Step 6 — ngrok / Port Forwarding
+# Step 6 — Remote Access / Port Forwarding
 # ══════════════════════════════════════════════════════════════════════════════
-NGROK_CONFIG = BASE_DIR / "config" / "ngrok_token.txt"
+LOCALTUNNEL_ENABLED = BASE_DIR / "config" / "localtunnel_enabled.txt"
+LOCALTUNNEL_LOG = BASE_DIR / "config" / "localtunnel.log"
 
-def setup_ngrok():
-    h1("Step 6 of 7 — Remote Access (ngrok / Port Forwarding)")
+def setup_remote_access():
+    h1("Step 6 of 7 — Remote Access (localtunnel / Port Forwarding)")
 
     print(f"""
   The SuperBrain backend runs on {BOLD}port 5000{RESET} on your machine.
@@ -649,11 +678,10 @@ def setup_ngrok():
 
   You have two options:
 
-  {BOLD}Option A — ngrok (easiest){RESET}
-    ngrok creates a public HTTPS URL that tunnels to your local port 5000.
-    Free tier: 1 static domain, unlimited restarts.
-    Sign up at {CYAN}https://ngrok.com{RESET} and get your authtoken from
-    {CYAN}https://dashboard.ngrok.com/get-started/your-authtoken{RESET}
+    {BOLD}Option A — localtunnel (easiest + free){RESET}
+        localtunnel creates a public HTTPS URL that tunnels to your local port 5000.
+        No account required.
+        Official site: {CYAN}https://theboroer.github.io/localtunnel-www/{RESET}
 
   {BOLD}Option B — Your own port forwarding (advanced){RESET}
     Forward {BOLD}TCP port 5000{RESET} on your router to your machine's local IP.
@@ -669,52 +697,39 @@ def setup_ngrok():
   the same network. Use your PC's local IP (e.g. 192.168.x.x) in the app.{RESET}
 """)
 
-    choice = ask_yn("Set up ngrok authtoken?", default=True)
+    choice = ask_yn("Enable localtunnel on startup?", default=True)
     if not choice:
-        warn("Skipping ngrok. Use either your own port forwarding or local WiFi.")
+        LOCALTUNNEL_ENABLED.unlink(missing_ok=True)
+        warn("Skipping localtunnel. Use either your own port forwarding or local WiFi.")
         info("Remember: set the correct server URL in the mobile app Settings.")
         return
 
-    if not shutil.which("ngrok"):
+    if not shutil.which("npx"):
         print(f"""
-  {YELLOW}ngrok is not installed.{RESET}
+    {YELLOW}npx is not installed / not on PATH.{RESET}
 
-  Install it:
-    Linux   →  {CYAN}curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc \\
-                | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null \\
-                && echo "deb https://ngrok-agent.s3.amazonaws.com buster main" \\
-                | sudo tee /etc/apt/sources.list.d/ngrok.list \\
-                && sudo apt update && sudo apt install ngrok{RESET}
-    macOS   →  {CYAN}brew install ngrok/ngrok/ngrok{RESET}
-    Windows →  Download from {CYAN}https://ngrok.com/download{RESET}
+    Install it:
+        Linux   →  {CYAN}Install Node.js (includes npm + npx){RESET}
+        macOS   →  {CYAN}brew install node{RESET}
+        Windows →  Install Node.js LTS from {CYAN}https://nodejs.org/{RESET}
 
-  After installing, re-run {BOLD}python start.py{RESET} to add your token.
+    After installing, re-run {BOLD}python start.py{RESET}.
 """)
-        warn("Skipping ngrok token setup.")
+        warn("Skipping localtunnel setup.")
         return
 
-    ok("ngrok binary found")
-    token = ask("ngrok authtoken (from dashboard.ngrok.com/get-started/your-authtoken)", paste=True)
-    if not token:
-        warn("No token entered — skipping ngrok configuration.")
-        return
-
-    try:
-        run(["ngrok", "config", "add-authtoken", token])
-        NGROK_CONFIG.parent.mkdir(parents=True, exist_ok=True)
-        NGROK_CONFIG.write_text(token)
-        ok("ngrok authtoken saved")
-        nl()
-        info("ngrok will be started automatically every time you run start.py.")
-    except subprocess.CalledProcessError:
-        err("Failed to configure ngrok token.")
-        warn("Run manually:  ngrok config add-authtoken <YOUR_TOKEN>")
+    ok("npx binary found")
+    LOCALTUNNEL_ENABLED.parent.mkdir(parents=True, exist_ok=True)
+    LOCALTUNNEL_ENABLED.write_text("enabled")
+    ok("localtunnel auto-start enabled")
+    nl()
+    info("localtunnel will be started automatically every time you run start.py.")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Step 6 — API Token & Database
+# Step 6 — Access Token & Database
 # ══════════════════════════════════════════════════════════════════════════════
 def setup_token_and_db():
-    h1("Step 7 of 7 — API Token & Database")
+    h1("Step 7 of 7 — Access Token & Database")
 
     # Token
     if TOKEN_FILE.exists():
@@ -743,59 +758,113 @@ def setup_token_and_db():
 # ══════════════════════════════════════════════════════════════════════════════
 # Launch Backend
 # ══════════════════════════════════════════════════════════════════════════════
-def _get_ngrok_url(port: int = 5000) -> str | None:
-    """Return the live ngrok public HTTPS URL for `port`, or None."""
+def _extract_localtunnel_url(text: str) -> str | None:
+    """Extract first localtunnel public URL from text."""
+    import re
+    m = re.search(r"https://[\w.-]+\.loca\.lt\b", text)
+    return m.group(0) if m else None
+
+
+def _find_localtunnel_url_from_log() -> str | None:
+    """Read local tunnel log and return detected public URL if available."""
     try:
-        import urllib.request as _req, json as _json
-        with _req.urlopen("http://127.0.0.1:4040/api/tunnels", timeout=1) as r:
-            data = _json.loads(r.read())
-        for t in data.get("tunnels", []):
-            if t.get("proto") == "https":
-                addr = t.get("config", {}).get("addr", "")
-                if str(port) in addr:
-                    return t["public_url"]
-        # Fallback: return first https tunnel if port match fails
-        for t in data.get("tunnels", []):
-            if t.get("proto") == "https":
-                return t["public_url"]
+        if not LOCALTUNNEL_LOG.exists():
+            return None
+        text = LOCALTUNNEL_LOG.read_text(encoding="utf-8", errors="ignore")
+        return _extract_localtunnel_url(text)
+    except Exception:
+        return None
+
+
+def _stop_localtunnel_processes():
+    """Stop existing localtunnel processes so only one tunnel remains active."""
+    try:
+        if IS_WINDOWS:
+            script = (
+                "Get-CimInstance Win32_Process "
+                "| Where-Object { $_.CommandLine -match 'localtunnel|\\.loca\\.lt' } "
+                "| ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+            )
+            subprocess.run(["powershell", "-NoProfile", "-Command", script], check=False)
+        else:
+            subprocess.run(["pkill", "-f", "localtunnel"], check=False)
     except Exception:
         pass
-    return None
 
-def _start_ngrok(port: int, timeout: int = 12) -> str | None:
-    """Start ngrok http <port> in the background and wait for the tunnel URL."""
+
+def _start_localtunnel(port: int, timeout: int = 25) -> str | None:
+    """Start localtunnel in the background and wait for the public URL."""
     import time as _time
 
-    # Already running?
-    url = _get_ngrok_url(port)
+    # Already have a recent URL in logs?
+    url = _find_localtunnel_url_from_log()
     if url:
         return url
 
-    if not shutil.which("ngrok"):
+    npx_exec = shutil.which("npx") or shutil.which("npx.cmd")
+    if not npx_exec:
         return None
 
-    info("Starting ngrok tunnel in background …")
+    # Clean stale localtunnel processes.
+    _stop_localtunnel_processes()
+    _time.sleep(0.8)
+
+    info("Starting localtunnel in background …")
     try:
-        # Detach so the process survives os.execv replacing this Python process
-        kwargs = {"start_new_session": True,
-                  "stdout": subprocess.DEVNULL,
-                  "stderr": subprocess.DEVNULL}
-        subprocess.Popen(["ngrok", "http", str(port)], **kwargs)
+        LOCALTUNNEL_LOG.parent.mkdir(parents=True, exist_ok=True)
+        LOCALTUNNEL_LOG.write_text("")
+
+        log_handle = open(LOCALTUNNEL_LOG, "a", encoding="utf-8", buffering=1)
+        kwargs = {
+            "start_new_session": True,
+            "stdout": log_handle,
+            "stderr": subprocess.STDOUT,
+            "text": True,
+        }
+        if IS_WINDOWS and npx_exec.lower().endswith(".cmd"):
+            cmd = ["cmd", "/c", npx_exec, "-y", "localtunnel", "--port", str(port)]
+        else:
+            cmd = [npx_exec, "-y", "localtunnel", "--port", str(port)]
+        subprocess.Popen(cmd, **kwargs)
     except Exception as e:
-        warn(f"Could not start ngrok: {e}")
+        warn(f"Could not start localtunnel: {e}")
         return None
 
-    # Poll until the local API is up
+    # Poll log output until URL is emitted.
     deadline = _time.time() + timeout
     while _time.time() < deadline:
         _time.sleep(1)
-        url = _get_ngrok_url(port)
+        url = _find_localtunnel_url_from_log()
         if url:
-            ok(f"ngrok tunnel active  →  {GREEN}{BOLD}{url}{RESET}")
+            ok(f"localtunnel active  →  {GREEN}{BOLD}{url}{RESET}")
             return url
 
-    warn("ngrok started but URL not available yet — check ngrok status manually.")
+    warn("localtunnel started but URL is not available yet.")
+    info(f"Check tunnel logs in: {LOCALTUNNEL_LOG}")
     return None
+
+
+def _get_windows_pids_on_port(port: int) -> list[int]:
+    """Return listener PIDs on Windows using Get-NetTCPConnection when available."""
+    pids: set[int] = set()
+    try:
+        ps_cmd = (
+            f"Get-NetTCPConnection -LocalPort {port} -State Listen -ErrorAction SilentlyContinue "
+            "| Select-Object -ExpandProperty OwningProcess -Unique"
+        )
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_cmd],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        for row in (result.stdout or "").splitlines():
+            row = row.strip()
+            if row.isdigit():
+                pids.add(int(row))
+    except Exception:
+        pass
+    return sorted(pids)
 
 def _check_port(port: int) -> int | None:
     """Return the PID occupying `port`, or None if free."""
@@ -810,8 +879,11 @@ def _check_port(port: int) -> int | None:
         if IS_WINDOWS:
             out = run_q(["netstat", "-ano"]).stdout
             for line in out.splitlines():
-                if f":{port}" in line and "LISTENING" in line:
-                    return int(line.strip().split()[-1])
+                parts = line.strip().split()
+                if len(parts) >= 5 and parts[0].upper() == "TCP" and parts[3].upper() == "LISTENING":
+                    local_addr = parts[1]
+                    if local_addr.endswith(f":{port}"):
+                        return int(parts[-1])
         else:
             out = run_q(["lsof", "-ti", f"TCP:{port}", "-sTCP:LISTEN"]).stdout.strip()
             if out:
@@ -826,11 +898,15 @@ def _find_pids_on_port(port: int) -> list[int]:
     pids: set[int] = set()
     try:
         if IS_WINDOWS:
+            for pid in _get_windows_pids_on_port(port):
+                pids.add(pid)
+
             out = run_q(["netstat", "-ano"]).stdout
             for line in out.splitlines():
-                if f":{port}" in line and "LISTENING" in line:
-                    parts = line.strip().split()
-                    if parts:
+                parts = line.strip().split()
+                if len(parts) >= 5 and parts[0].upper() == "TCP" and parts[3].upper() == "LISTENING":
+                    local_addr = parts[1]
+                    if local_addr.endswith(f":{port}"):
                         try:
                             pids.add(int(parts[-1]))
                         except ValueError:
@@ -847,8 +923,64 @@ def _find_pids_on_port(port: int) -> list[int]:
         pass
     return sorted(pids)
 
+
+def _kill_pid_windows(pid: int) -> bool:
+    """Best-effort kill for a Windows PID. Returns True if command succeeded."""
+    try:
+        result = subprocess.run(
+            ["taskkill", "/PID", str(pid), "/T", "/F"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            return True
+
+        # Fallback for cases where taskkill can't resolve a rapidly-exiting process.
+        ps = subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                f"Stop-Process -Id {pid} -Force -ErrorAction SilentlyContinue",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        return ps.returncode == 0
+    except Exception:
+        return False
+
+
+def _clear_port_listeners(port: int, attempts: int = 6) -> bool:
+    """Try multiple passes to free a busy port by killing all listeners."""
+    for _ in range(attempts):
+        if _check_port(port) is None:
+            return True
+
+        pids = _find_pids_on_port(port)
+        if not pids:
+            time.sleep(0.8)
+            continue
+
+        for ep in pids:
+            try:
+                if IS_WINDOWS:
+                    _kill_pid_windows(ep)
+                else:
+                    os.kill(ep, 9)
+            except Exception:
+                pass
+        time.sleep(0.8)
+
+    return _check_port(port) is None
+
 def launch_backend():
     h1("Launching SuperBrain Backend")
+
+    # Ensure upload endpoints won't crash FastAPI at import time.
+    ensure_runtime_dependencies()
 
     # ── Port conflict check ───────────────────────────────────────────────────
     PORT = 5000
@@ -882,7 +1014,9 @@ def launch_backend():
             import signal as _sig
             if pid and pid > 0:
                 if IS_WINDOWS:
-                    run(["taskkill", "/PID", str(pid), "/F"])
+                    killed = _kill_pid_windows(pid)
+                    if not killed:
+                        warn(f"PID {pid} is no longer active. Trying current listeners on port {PORT} …")
                 else:
                     os.kill(pid, _sig.SIGTERM)
                 time.sleep(1)
@@ -895,18 +1029,8 @@ def launch_backend():
                     except ProcessLookupError:
                         pass
 
-                # Verify port is free; if not, kill all listeners we can detect
-                if _check_port(PORT) is not None:
-                    extra_pids = _find_pids_on_port(PORT)
-                    for ep in extra_pids:
-                        try:
-                            if IS_WINDOWS:
-                                run(["taskkill", "/PID", str(ep), "/F"])
-                            else:
-                                os.kill(ep, _sig.SIGKILL)
-                        except Exception:
-                            pass
-                    time.sleep(0.8)
+                # Verify port is free; if not, keep clearing listeners until stable.
+                _clear_port_listeners(PORT)
 
                 if _check_port(PORT) is None:
                     ok(f"Process {pid} stopped")
@@ -914,7 +1038,8 @@ def launch_backend():
                     err(f"Port {PORT} is still in use after kill attempt.")
                     if IS_WINDOWS:
                         info(f"Run manually:  netstat -ano | findstr :{PORT}")
-                        info("Then:         taskkill /PID <pid> /F")
+                        info("Then:         taskkill /PID <pid> /T /F")
+                        info("Or inspect:    powershell Get-NetTCPConnection -LocalPort 5000 -State Listen")
                     else:
                         info(f"Run:  lsof -ti TCP:{PORT} -sTCP:LISTEN | xargs kill -9")
                     sys.exit(1)
@@ -931,24 +1056,23 @@ def launch_backend():
                     info("Then re-run:  python start.py")
                     sys.exit(1)
 
-                for ep in extra_pids:
-                    try:
-                        if IS_WINDOWS:
-                            run(["taskkill", "/PID", str(ep), "/F"])
-                        else:
-                            os.kill(ep, _sig.SIGKILL)
-                    except Exception:
-                        pass
-                time.sleep(0.8)
+                _clear_port_listeners(PORT)
                 if _check_port(PORT) is None:
                     ok(f"Cleared port {PORT} by terminating PID(s): {', '.join(str(x) for x in extra_pids)}")
                 else:
                     err(f"Port {PORT} is still busy.")
+                    if IS_WINDOWS:
+                        info(f"Run manually:  netstat -ano | findstr :{PORT}")
+                        info("Then:         taskkill /PID <pid> /T /F")
+                    else:
+                        info(f"Run:  lsof -ti TCP:{PORT} -sTCP:LISTEN | xargs kill -9")
                     sys.exit(1)
         except Exception as e:
             err(f"Failed to kill process: {e}")
             if IS_WINDOWS:
-                info(f"Try manually:  taskkill /PID {pid} /F")
+                if pid and pid > 0:
+                    info(f"Try manually:  taskkill /PID {pid} /F")
+                info(f"Or list listeners:  netstat -ano | findstr :{PORT}")
             else:
                 info(f"Try manually:  kill -9 {pid}")
             sys.exit(1)
@@ -960,31 +1084,30 @@ def launch_backend():
     except Exception:
         local_ip = "127.0.0.1"
 
-    ngrok_configured = NGROK_CONFIG.exists() and NGROK_CONFIG.read_text().strip()
+    localtunnel_enabled = bool(shutil.which("npx"))
 
-    # Auto-start ngrok if token is configured
-    ngrok_url: str | None = None
-    if ngrok_configured:
-        ngrok_url = _start_ngrok(PORT)
+    localtunnel_url: str | None = None
+    if localtunnel_enabled:
+        localtunnel_url = _start_localtunnel(PORT)
     else:
-        ngrok_url = _get_ngrok_url(PORT)  # maybe user started it manually
+        localtunnel_url = _find_localtunnel_url_from_log()
 
-    if ngrok_url:
-        ngrok_line = f"  ngrok URL    →  {GREEN}{BOLD}{ngrok_url}{RESET}  {DIM}(live){RESET}"
-        ngrok_hint = f"         · ngrok      →  {GREEN}{ngrok_url}{RESET}"
-    elif ngrok_configured:
-        ngrok_line = f"  ngrok URL    →  {YELLOW}(failed to start — run manually: ngrok http {PORT}){RESET}"
-        ngrok_hint = f"         · ngrok      →  run:  {DIM}ngrok http {PORT}{RESET}  then copy the URL"
+    if localtunnel_url:
+        tunnel_line = f"    Public URL   →  {GREEN}{BOLD}{localtunnel_url}{RESET}  {DIM}(localtunnel){RESET}"
+        tunnel_hint = f"         · public     →  {GREEN}{localtunnel_url}{RESET}"
+    elif localtunnel_enabled:
+        tunnel_line = f"    Public URL   →  {YELLOW}(starting — URL pending, check localtunnel.log){RESET}"
+        tunnel_hint = f"         · public     →  run:  {DIM}npx localtunnel --port {PORT}{RESET}"
     else:
-        ngrok_line = ""
-        ngrok_hint = f"         · ngrok      →  https://<your-subdomain>.ngrok-free.app"
+        tunnel_line = ""
+        tunnel_hint = f"         · public     →  install Node.js first, then run: {DIM}npx localtunnel --port {PORT}{RESET}"
 
     print(f"""
   {GREEN}{BOLD}Backend is starting up!{RESET}
 
-  Local URL    →  {CYAN}http://127.0.0.1:{PORT}{RESET}
-  Network URL  →  {CYAN}http://{local_ip}:{PORT}{RESET}
-{(ngrok_line + chr(10)) if ngrok_line else ''}  API docs     →  {CYAN}http://127.0.0.1:{PORT}/docs{RESET}
+    Local URL      →  {CYAN}http://127.0.0.1:{PORT}{RESET}
+    Network URL    →  {CYAN}http://{local_ip}:{PORT}{RESET}
+{(tunnel_line + chr(10)) if tunnel_line else ''}    API docs       →  {CYAN}http://127.0.0.1:{PORT}/docs{RESET}
     Access Token   →  {BOLD}{MAGENTA}{token}{RESET}
 
   {DIM}Keep this terminal open. Press Ctrl+C to stop the server.{RESET}
@@ -994,7 +1117,7 @@ def launch_backend():
     2. Open the app  →  tap the ⚙ settings icon.
     3. Set {BOLD}Server URL{RESET} to:
          · Same WiFi  →  http://{local_ip}:{PORT}
-{ngrok_hint}
+{tunnel_hint}
          · Port fwd   →  http://<your-public-ip>:{PORT}
     4. Set {BOLD}Access Token{RESET} to: {BOLD}{MAGENTA}{token}{RESET}
     5. Tap {BOLD}Save{RESET}  →  Connected!
@@ -1033,11 +1156,11 @@ def main():
 
     1 · Create Python virtual environment
     2 · Install all required packages
-    3 · Configure AI API keys + Instagram credentials
+    3 · Configure AI provider keys + Instagram credentials
     4 · Set up an offline AI model via Ollama  (qwen3-vl:4b)
     5 · Set up offline audio transcription     (Whisper + ffmpeg)
-    6 · Configure remote access (ngrok or port forwarding)
-    7 · Generate API token & initialise database
+    6 · Configure remote access (localtunnel or port forwarding)
+    7 · Generate Access Token & initialise database
 
   Press {BOLD}Enter{RESET} to accept defaults shown in [{DIM}brackets{RESET}].
   You can re-run this wizard any time with:  {BOLD}python start.py --reset{RESET}
@@ -1050,7 +1173,7 @@ def main():
         setup_api_keys()
         setup_ollama()
         setup_whisper()
-        setup_ngrok()
+        setup_remote_access()
         setup_token_and_db()
     except KeyboardInterrupt:
         nl()

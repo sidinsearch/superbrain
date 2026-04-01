@@ -43,15 +43,17 @@ except ImportError:
 BACKEND_DIR     = pathlib.Path(__file__).parent.parent
 TEMP_DIR        = BACKEND_DIR / "temp"
 IL_SESSION_FILE = BACKEND_DIR / ".instaloader_session"
-API_KEYS_FILE   = BACKEND_DIR / ".api_keys"
+API_KEYS_FILE   = BACKEND_DIR / "config" / ".api_keys"
+LEGACY_API_KEYS_FILE = BACKEND_DIR / ".api_keys"
 
 
 # ── Credential loader ─────────────────────────────────────────────────────────
 def _load_credentials() -> tuple[str, str]:
     """Read INSTAGRAM_USERNAME / INSTAGRAM_PASSWORD from .api_keys or env."""
     creds: dict[str, str] = {}
-    if API_KEYS_FILE.exists():
-        for line in API_KEYS_FILE.read_text(encoding="utf-8").splitlines():
+    key_file = API_KEYS_FILE if API_KEYS_FILE.exists() else LEGACY_API_KEYS_FILE
+    if key_file.exists():
+        for line in key_file.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if "=" in line and not line.startswith("#"):
                 k, _, v = line.partition("=")
@@ -147,6 +149,8 @@ def _download_via_instaloader(url: str) -> str | None:
 
     # Load saved instaloader session if one exists (set up by instagram_login.py)
     username, _ = _load_credentials()
+    if not username and not IL_SESSION_FILE.exists():
+        print("  ℹ No Instagram credentials/session found — anonymous mode may fail for some posts.")
     if IL_SESSION_FILE.exists() and username:
         try:
             L.load_session_from_file(username, str(IL_SESSION_FILE))
