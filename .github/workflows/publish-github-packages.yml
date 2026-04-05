@@ -28,19 +28,16 @@ jobs:
         run: node scripts/build.js
         working-directory: superbrain-cli
 
-      - name: Set scoped package name and release version
+      - name: Set release version and dist-tag
         id: meta
         shell: bash
         run: |
-          OWNER_LC="${GITHUB_REPOSITORY_OWNER,,}"
           VERSION="${GITHUB_REF_NAME#v}"
           REPO_URL="https://github.com/${GITHUB_REPOSITORY}.git"
 
           cd superbrain-cli
-          npm pkg set "name=@${OWNER_LC}/superbrain-server"
           npm pkg set "repository.type=git"
           npm pkg set "repository.url=${REPO_URL}"
-          npm pkg set "publishConfig.registry=https://npm.pkg.github.com"
           npm version "$VERSION" --no-git-tag-version
 
           if [[ "$VERSION" == *"-beta"* || "$VERSION" == *"-beta."* ]]; then
@@ -49,14 +46,13 @@ jobs:
             DIST_TAG="latest"
           fi
 
-          echo "scope=@${OWNER_LC}" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Configure npm scope registry mapping
         shell: bash
         run: |
-          echo "${{ steps.meta.outputs.scope }}:registry=https://npm.pkg.github.com" > ~/.npmrc
+          echo "@sidinsearch:registry=https://npm.pkg.github.com" > ~/.npmrc
           echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" >> ~/.npmrc
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

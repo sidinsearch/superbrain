@@ -1,5 +1,5 @@
 {
-  "name": "superbrain-server",
+  "name": "@sidinsearch/superbrain-server",
   "version": "1.0.2-beta.1",
   "description": "1-Line Auto-Installer and Server Execution wrapper for SuperBrain",
   "main": "index.js",
@@ -20,6 +20,9 @@
   "homepage": "https://github.com/sidinsearch/superbrain#readme",
   "author": "sidinsearch",
   "license": "MIT",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "dependencies": {},
   "files": [
     "bin/",
