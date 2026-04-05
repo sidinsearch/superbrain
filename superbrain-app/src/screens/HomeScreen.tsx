@@ -97,6 +97,7 @@ const HomeScreen = () => {
   const loadPostsRef = useRef<(forceRefresh?: boolean) => Promise<void>>(undefined);
   const prevProcessingRef = useRef<number>(0); // tracks backend processing_count across poll ticks
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [shouldShowOnboardingOnInit, setShouldShowOnboardingOnInit] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   const lastFocusRefreshRef = useRef(0);
@@ -116,6 +117,15 @@ const HomeScreen = () => {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!isInitialized || !shouldShowOnboardingOnInit) {
+      return;
+    }
+
+    const t = setTimeout(() => setShowOnboarding(true), 450);
+    return () => clearTimeout(t);
+  }, [isInitialized, shouldShowOnboardingOnInit]);
 
   // Exit app when back is pressed on HomeScreen (it is the root screen)
   useFocusEffect(
@@ -151,13 +161,39 @@ const HomeScreen = () => {
       // Existing install upgrading — user already has data, skip tutorial
       const existingPosts = await AsyncStorage.getItem('@superbrain_posts_cache');
       const existingCollections = await AsyncStorage.getItem('@superbrain_collections');
-      if (existingPosts || existingCollections) {
+
+      const hasExistingPosts = (() => {
+        if (!existingPosts) return false;
+        try {
+          const parsed = JSON.parse(existingPosts);
+          return Array.isArray(parsed) && parsed.length > 0;
+        } catch {
+          return true;
+        }
+      })();
+
+      const hasMeaningfulCollections = (() => {
+        if (!existingCollections) return false;
+        try {
+          const parsed = JSON.parse(existingCollections);
+          if (!Array.isArray(parsed)) return false;
+          return parsed.some((c: any) => {
+            const hasPosts = Array.isArray(c?.postIds) && c.postIds.length > 0;
+            const isDefaultWatchLater = c?.id === 'default_watch_later';
+            return hasPosts || !isDefaultWatchLater;
+          });
+        } catch {
+          return true;
+        }
+      })();
+
+      if (hasExistingPosts || hasMeaningfulCollections) {
         await AsyncStorage.setItem('@superbrain_onboarded', '1');
         return false;
       }
-      // Show onboarding only after app is fully initialized (configuration loaded)
-      // Delay to ensure SettingsScreen navigation works smoothly
-      setTimeout(() => setShowOnboarding(true), 1200);
+
+      // Mark to show onboarding once app initialization completes.
+      setShouldShowOnboardingOnInit(true);
       return true;
     } catch { /* ignore */ }
     return false;
@@ -166,6 +202,7 @@ const HomeScreen = () => {
   const dismissOnboarding = async () => {
     try { await AsyncStorage.setItem('@superbrain_onboarded', '1'); } catch { /* ignore */ }
     setShowOnboarding(false);
+    setShouldShowOnboardingOnInit(false);
     setOnboardingStep(0);
 
     // Prompt for notifications only after onboarding walkthrough is finished.
@@ -175,10 +212,9 @@ const HomeScreen = () => {
 
   const ONBOARDING_STEPS = [
     {
-      iconName: 'planet-outline',
-      emoji: '🧠',
+      iconName: 'sparkles-outline',
       title: 'Welcome to SuperBrain',
-      description: 'Your personal second brain. Save posts from Instagram, YouTube, and Websites — no need to endlessly scroll through your saves. Find anything fast with search and filters.',
+      description: 'Save from Instagram, YouTube, and web in one place, then find everything fast with search and filters.',
     },
     {
       iconName: 'share-outline',
@@ -1048,16 +1084,12 @@ const HomeScreen = () => {
 
             {/* Step content */}
             <View style={styles.onboardingBody}>
-              {ONBOARDING_STEPS[onboardingStep].emoji ? (
-                <Text style={styles.onboardingEmoji}>{ONBOARDING_STEPS[onboardingStep].emoji}</Text>
-              ) : (
-                <Ionicons
-                  name={ONBOARDING_STEPS[onboardingStep].iconName as any}
-                  size={48}
-                  color={colors.primary}
-                  style={styles.onboardingIcon}
-                />
-              )}
+              <Ionicons
+                name={ONBOARDING_STEPS[onboardingStep].iconName as any}
+                size={48}
+                color={colors.primary}
+                style={styles.onboardingIcon}
+              />
               <Text style={styles.onboardingTitle}>{ONBOARDING_STEPS[onboardingStep].title}</Text>
               <Text style={styles.onboardingDesc}>{ONBOARDING_STEPS[onboardingStep].description}</Text>
             </View>
