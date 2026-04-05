@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Linking from 'expo-linking';
 import { Platform, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Screens
 import SplashScreen from './src/screens/SplashScreen';
@@ -61,7 +62,25 @@ export default function App() {
         await handleMarkAsWatched(shortcode);
       } else if (actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER) {
         // User tapped the notification itself — navigate to Home so they see the post
-        if (navigationRef.current) {
+        if (shortcode) {
+          setTimeout(async () => {
+            try {
+              const cachedJson = await AsyncStorage.getItem('@superbrain_posts_cache');
+              let fullPost = null;
+              if (cachedJson) {
+                const posts = JSON.parse(cachedJson);
+                fullPost = posts.find((p: any) => p.shortcode === shortcode);
+              }
+              if (fullPost && navigationRef.current) {
+                navigationRef.current.navigate('PostDetail', { post: fullPost });
+              } else if (navigationRef.current) {
+                navigationRef.current.navigate('Home');
+              }
+            } catch (e) {
+              if (navigationRef.current) navigationRef.current.navigate('Home');
+            }
+          }, 300);
+        } else if (navigationRef.current) {
           navigationRef.current.navigate('Home');
         }
       }
@@ -124,8 +143,26 @@ export default function App() {
           await handleMarkAsWatched(shortcode);
         } else if (actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER) {
           // Tapped notification body — navigate to Home after app loads
-          setTimeout(() => {
-            if (navigationRef.current) navigationRef.current.navigate('Home');
+          setTimeout(async () => {
+            if (shortcode) {
+              try {
+                const cachedJson = await AsyncStorage.getItem('@superbrain_posts_cache');
+                let fullPost = null;
+                if (cachedJson) {
+                  const posts = JSON.parse(cachedJson);
+                  fullPost = posts.find((p: any) => p.shortcode === shortcode);
+                }
+                if (fullPost && navigationRef.current) {
+                  navigationRef.current.navigate('PostDetail', { post: fullPost });
+                } else if (navigationRef.current) {
+                  navigationRef.current.navigate('Home');
+                }
+              } catch (e) {
+                if (navigationRef.current) navigationRef.current.navigate('Home');
+              }
+            } else if (navigationRef.current) {
+              navigationRef.current.navigate('Home');
+            }
           }, 500);
         }
       }

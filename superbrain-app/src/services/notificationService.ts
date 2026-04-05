@@ -56,38 +56,38 @@ function _buildContent(
 
   if (variant === 'urgent') {
     return {
-      title: "⚠️ Don't miss the deadline!",
-      body: `"${name}" might have a deadline coming up — act today!`,
+      title: "🚨 You're missing something crucial!",
+      body: `"${name}" has a deadline approaching. Don't say we didn't warn you!`,
     };
   }
 
   if (post.content_type === 'youtube') {
     if (cat.includes('film') || cat.includes('movie') || cat.includes('entertain'))
-      return { title: '🎬 Perfect for this weekend', body: `"${name}" is still waiting in your Watch Later!` };
+      return { title: '🍿 Popcorn is getting cold!', body: `You saved "${name}" — time for a movie break?` };
     if (cat.includes('educat') || cat.includes('tutorial') || cat.includes('learn'))
-      return { title: '📚 Level up today', body: `You saved "${name}" to learn from — ready when you are.` };
-    return { title: '▶️ Still in your Watch Later', body: `Don't let "${name}" collect dust — give it a watch!` };
+      return { title: '🤓 Brain gains await!', body: `Your tutorial "${name}" is collecting dust. Let's learn!` };
+    return { title: '▶️ You are missing something', body: `"${name}" is still waiting in your Watch Later.` };
   }
 
   if (post.content_type === 'webpage') {
     if (isDeadlinePost(post))
-      return { title: '📅 Time-sensitive reminder', body: `You saved "${name}" — don't miss any deadlines!` };
+      return { title: '⏰ Tick-tock!', body: `"${name}" needs your attention before it's too late!` };
     if (cat.includes('job') || cat.includes('career') || cat.includes('opportun'))
-      return { title: "💼 Don't miss this opportunity", body: `"${name}" — act before it closes!` };
+      return { title: "💼 Your future is calling!", body: `Don't ignore "${name}" — it could be your big break!` };
     if (cat.includes('tool') || cat.includes('product') || cat.includes('software'))
-      return { title: '🛠️ Have you tried this yet?', body: `You saved "${name}" to check out. Later is now!` };
-    return { title: '🌐 You saved something important', body: `"${name}" is still in your Watch Later.` };
+      return { title: '🛠️ Magic tools inside!', body: `You wanted to try "${name}". What are you waiting for?` };
+    return { title: '👀 You are missing something', body: `"${name}" is feeling neglected in your Watch Later.` };
   }
 
   if (cat.includes('food') || cat.includes('recipe'))
-    return { title: '🍳 Cook something new?', body: `You saved a recipe: "${name}" — perfect for today!` };
+    return { title: '🤤 We are hungry too!', body: `That recipe for "${name}" isn't going to cook itself!` };
   if (cat.includes('fitness') || cat.includes('workout'))
-    return { title: '💪 Your body called', body: `Time to try that workout you saved: "${name}"` };
+    return { title: '💪 No excuses today!', body: `Your muscles called. They want you to do "${name}".` };
 
   const fallbacks = [
-    { title: "⏰ You're missing out!", body: `"${name}" is still in your Watch Later.` },
-    { title: '💡 Remember this?', body: `You saved "${name}" — time to check it out!` },
-    { title: '📌 Still on your list', body: `Don't forget: "${name}" in Watch Later.` },
+    { title: "👀 You are missing something", body: `"${name}" is still in your Watch Later.` },
+    { title: '🫣 Secret stash!', body: `Did you forget you saved "${name}"? Time to check it out!` },
+    { title: '🚨 Warning: Boredom detected', body: `Cure it by checking out "${name}" in Watch Later.` },
   ];
   return fallbacks[simpleHash(post.shortcode ?? name) % fallbacks.length];
 }
