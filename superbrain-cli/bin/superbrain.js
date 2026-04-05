@@ -38,19 +38,47 @@ function errorOut(msg) {
   process.exit(1);
 }
 
+function parsePythonVersion(rawText) {
+  const match = (rawText || '').match(/Python\s+(\d+)\.(\d+)\.(\d+)/i);
+  if (!match) return null;
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+  };
+}
+
+function isSupportedPython(version) {
+  if (!version) return false;
+  if (version.major > 3) return true;
+  return version.major === 3 && version.minor >= 10;
+}
+
 // Check if Python binaries are accessible
 function getPythonCommand() {
-  const candidates = os.platform() === 'win32' ? ['python', 'py', 'python3'] : ['python3', 'python'];
+  const candidates = os.platform() === 'win32'
+    ? [
+      { cmd: 'py', args: ['-3', '--version'], execPrefix: ['-3'] },
+      { cmd: 'python', args: ['--version'], execPrefix: [] },
+      { cmd: 'python3', args: ['--version'], execPrefix: [] },
+    ]
+    : [
+      { cmd: 'python3', args: ['--version'], execPrefix: [] },
+      { cmd: 'python', args: ['--version'], execPrefix: [] },
+    ];
   
-  for (const cmd of candidates) {
+  for (const candidate of candidates) {
     try {
-      const res = spawnSync(cmd, ['--version'], { encoding: 'utf-8', timeout: 3000 });
-      if (res.status === 0 && res.stdout) {
-        // Windows Store python wrapper aliases execute but return no text, wait, they actually popup the store.
-        // Usually, a valid python prints "Python 3.X.Y".
-        if (res.stdout.toLowerCase().includes('python 3.')) {
-           return cmd;
-        }
+      const res = spawnSync(candidate.cmd, candidate.args, { encoding: 'utf-8', timeout: 5000 });
+      const combinedOutput = `${res.stdout || ''}\n${res.stderr || ''}`.trim();
+      const version = parsePythonVersion(combinedOutput);
+
+      if (res.status === 0 && isSupportedPython(version)) {
+        return {
+          command: candidate.cmd,
+          execPrefix: candidate.execPrefix,
+          version,
+        };
       }
     } catch (e) {
       // Command missing
@@ -116,9 +144,9 @@ function checkUpgrades() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // 1. Python check
-const pyCommand = getPythonCommand();
-if (!pyCommand) {
-  errorOut('Could not find Python >= 3.9 on this system. Please install Python to run SuperBrain.');
+const pythonInfo = getPythonCommand();
+if (!pythonInfo) {
+  errorOut('Could not find Python >= 3.10 on this system. Please install Python 3.10+ to run SuperBrain.');
 }
 
 // 2. Safe unpack/upgrade
@@ -148,8 +176,8 @@ if (userArgs.length > 0) {
 }
 
 // 4. Execution
-log(`Spinning up Python Engine via ${targetScript}...`);
-const child = spawn(pyCommand, [targetScript, ...finalArgs], {
+log(`Spinning up Python Engine via ${targetScript} (Python ${pythonInfo.version.major}.${pythonInfo.version.minor}.${pythonInfo.version.patch})...`);
+const child = spawn(pythonInfo.command, [...pythonInfo.execPrefix, targetScript, ...finalArgs], {
   cwd: TARGET_DIR,
   stdio: 'inherit'
 });

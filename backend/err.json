@@ -1,1 +1,0 @@
-{"detail":"Traceback (most recent call last):\n  File \"D:\\superbrain\\backend\\main.py\", line 912, in <module>\n    main()\n  File \"D:\\superbrain\\backend\\main.py\", line 632, in main\n    result = run_youtube_analysis("}

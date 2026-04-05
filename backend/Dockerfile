@@ -46,7 +46,8 @@ COPY --from=builder /root/.local /root/.local
 ENV PATH=/root/.local/bin:$PATH \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    ENVIRONMENT=production
+    ENVIRONMENT=production \
+    WORKERS=2
 
 # ──── Copy application code ────
 COPY . .
@@ -69,9 +70,4 @@ USER appuser
 EXPOSE 5000
 
 # ──── Run the application ────
-CMD ["python", "-m", "uvicorn", "api:app", \
-     "--host", "0.0.0.0", \
-     "--port", "5000", \
-     "--workers", "4", \
-     "--loop", "uvloop", \
-     "--no-access-log"]
+CMD ["sh", "-c", "python -m uvicorn api:app --host 0.0.0.0 --port 5000 --workers ${WORKERS:-2} --loop uvloop --no-access-log"]

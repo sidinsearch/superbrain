@@ -1,0 +1,45 @@
+# Git and local metadata
+.git
+.gitignore
+
+# Python caches and virtual environments
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+
+# Local runtime data
+superbrain.db
+superbrain.db-shm
+superbrain.db-wal
+token.txt
+.setup_done
+.env
+*.env
+
+# Secrets/config generated at runtime
+.api_keys
+config/.api_keys
+config/ngrok_token.txt
+config/test_credentials.txt
+config/localtunnel.log
+
+# Logs and transient artifacts
+logs/
+temp/
+error_log_utf8.txt
+failures.txt
+final_test.txt
+test_results.txt
+yt_error.txt
+err.json
+
+# Build outputs
+*.apk
+
+# Optional local uploads
+static/uploads/

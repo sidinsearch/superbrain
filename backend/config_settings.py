@@ -66,6 +66,7 @@ class Settings:
     GROQ_API_KEY: Optional[str] = os.getenv("GROQ_API_KEY")
     
     # Google Gemini API
+    GEMINI_API_KEY: Optional[str] = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     GOOGLE_API_KEY: Optional[str] = os.getenv("GOOGLE_API_KEY")
     
     # OpenRouter API (for model fallback)

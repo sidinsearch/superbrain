@@ -27,11 +27,15 @@ if ! command -v docker &> /dev/null; then
 fi
 echo -e "${GREEN}✓ Docker found${NC}"
 
-if ! command -v docker-compose &> /dev/null; then
+if docker compose version &> /dev/null; then
+    COMPOSE_CMD="docker compose"
+elif command -v docker-compose &> /dev/null; then
+    COMPOSE_CMD="docker-compose"
+else
     echo -e "${RED}✗ Docker Compose is not installed${NC}"
     exit 1
 fi
-echo -e "${GREEN}✓ Docker Compose found${NC}"
+echo -e "${GREEN}✓ Docker Compose found (${COMPOSE_CMD})${NC}"
 
 # ──── Check environment file ────
 echo -e "\n${YELLOW}→ Checking environment configuration...${NC}"
@@ -53,9 +57,9 @@ fi
 # ──── Check required API keys ────
 source .env
 
-if [ -z "$GROQ_API_KEY" ] && [ -z "$GOOGLE_API_KEY" ] && [ -z "$OPENROUTER_API_KEY" ]; then
+if [ -z "$GROQ_API_KEY" ] && [ -z "$GEMINI_API_KEY" ] && [ -z "$GOOGLE_API_KEY" ] && [ -z "$OPENROUTER_API_KEY" ]; then
     echo -e "${YELLOW}⚠ Warning: No AI provider API keys configured${NC}"
-    echo -e "${YELLOW}  Set at least one of: GROQ_API_KEY, GOOGLE_API_KEY, OPENROUTER_API_KEY${NC}"
+    echo -e "${YELLOW}  Set at least one of: GROQ_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY${NC}"
 fi
 
 # ──── Create necessary directories ────
@@ -69,14 +73,14 @@ echo -e "${GREEN}✓ Directories created${NC}"
 # ──── Build Docker image ────
 echo -e "\n${YELLOW}→ Building Docker image...${NC}"
 
-docker-compose build --no-cache
+${COMPOSE_CMD} build --no-cache
 
 echo -e "${GREEN}✓ Docker image built successfully${NC}"
 
 # ──── Start services ────
 echo -e "\n${YELLOW}→ Starting SuperBrain API...${NC}"
 
-docker-compose up -d
+${COMPOSE_CMD} up -d
 
 echo -e "${GREEN}✓ Containers started${NC}"
 
@@ -84,14 +88,14 @@ echo -e "${GREEN}✓ Containers started${NC}"
 echo -e "\n${YELLOW}→ Waiting for API to become healthy...${NC}"
 
 for i in {1..30}; do
-    if docker-compose exec -T superbrain-api curl -s http://localhost:5000/health > /dev/null 2>&1; then
+    if ${COMPOSE_CMD} exec -T superbrain-api curl -s http://localhost:5000/health > /dev/null 2>&1; then
         echo -e "${GREEN}✓ API is healthy${NC}"
         break
     fi
     
     if [ $i -eq 30 ]; then
         echo -e "${RED}✗ API failed to start after 30 seconds${NC}"
-        docker-compose logs superbrain-api
+        ${COMPOSE_CMD} logs superbrain-api
         exit 1
     fi
     
@@ -105,7 +109,7 @@ echo -e "${BLUE}║                    Startup Complete! ✓                    
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
 
 echo -e "\n${GREEN}Services running:${NC}"
-docker-compose ps
+${COMPOSE_CMD} ps
 
 echo -e "\n${GREEN}API Information:${NC}"
 echo -e "  📡 Endpoint: http://localhost:${API_PORT:-5000}"
@@ -113,9 +117,9 @@ echo -e "  📚 Documentation: http://localhost:${API_PORT:-5000}/docs"
 echo -e "  🏥 Health Check: http://localhost:${API_PORT:-5000}/health"
 
 echo -e "\n${GREEN}Useful commands:${NC}"
-echo -e "  View logs:     ${YELLOW}docker-compose logs -f superbrain-api${NC}"
-echo -e "  Stop services: ${YELLOW}docker-compose down${NC}"
-echo -e "  Restart:       ${YELLOW}docker-compose restart${NC}"
-echo -e "  Status:        ${YELLOW}docker-compose ps${NC}"
+echo -e "  View logs:     ${YELLOW}${COMPOSE_CMD} logs -f superbrain-api${NC}"
+echo -e "  Stop services: ${YELLOW}${COMPOSE_CMD} down${NC}"
+echo -e "  Restart:       ${YELLOW}${COMPOSE_CMD} restart${NC}"
+echo -e "  Status:        ${YELLOW}${COMPOSE_CMD} ps${NC}"
 
 echo -e "\n"

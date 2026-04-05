@@ -172,6 +172,11 @@ superbrain/
     │   ├── types/index.ts
     │   └── theme/colors.ts
     └── android/                  # Native Android project (Gradle)
+
+  └── superbrain-cli/               # npm wrapper for one-line backend install
+    ├── bin/superbrain.js         # Cross-platform launcher (downloads/runs backend)
+    ├── scripts/build.js          # Payload packager for npm release
+    └── payload/                  # Bundled backend template shipped to users
 ```
 
 ---
@@ -216,26 +221,32 @@ Free AI APIs have rate limits, downtime, and variable speed. SuperBrain solves t
 | Requirement | Install | Required? |
 |---|---|---|
 | Python 3.10+ | [python.org](https://python.org) | ✅ Yes |
-| ffmpeg | `sudo apt install ffmpeg` / `brew install ffmpeg` | ✅ Yes |
-| Node.js 20+ | [nodejs.org](https://nodejs.org) | Only for building the app |
+| ffmpeg | `sudo apt install ffmpeg` / `brew install ffmpeg` / `winget install Gyan.FFmpeg` | ✅ Yes |
+| Node.js 20+ | [nodejs.org](https://nodejs.org) | Required for one-line backend install |
 | ngrok | [ngrok.com](https://ngrok.com) | Only if backend runs on your PC |
 
 ### Quick Start (Recommended)
 
-Start the SuperBrain backend instantly anywhere on your system using zero configuration:
+Install and run the backend from any directory on Windows, macOS, or Linux:
 
 ```bash
-# 1. Install and boot the backend seamlessly
-npx superbrain-server
+# 1) One-line backend install + run (recommended)
+npx -y superbrain-server@latest
 
-# 2. Expose the server to the internet (if running on your local machine)
+# 2) Optional: install globally for repeated usage
+npm install -g superbrain-server
+superbrain-server
+
+# 3) Expose the server to the internet (if running on your local machine)
 ngrok http 5000
 
-# 3. Install the APK on your Android phone
+# 4) Install the APK on your Android phone
 #    Open Settings in the app -> enter the ngrok URL + Access Token shown in backend console
 ```
 
-When you trigger the NPM command, SuperBrain safely downloads the Python engine, natively builds an isolated virtual environment, installs its own dependencies, and launches the interactive setup wizard automatically—no tedious Git cloning required!
+The npm command bootstraps the backend in `~/.superbrain-server`, creates an isolated virtual environment, installs Python dependencies, and launches the interactive setup wizard automatically.
+
+If Python 3.10+ is not available on your system path, the CLI now exits with a clear error and tells you to install Python first.
 
 **See it in action:**
 
@@ -243,7 +254,7 @@ When you trigger the NPM command, SuperBrain safely downloads the Python engine,
 https://github.com/user-attachments/assets/9769681b-5494-4093-b1bf-2c60c20e1673
 
 
-`npx superbrain-server` is the **single entry point** for the backend. On first run it walks you through:
+`npx -y superbrain-server@latest` (or `superbrain-server` after global install) is the **single entry point** for the backend. On first run it walks you through:
 
 1. Virtual environment creation 
 2. Dependency installation (`requirements.txt`)
@@ -253,7 +264,7 @@ https://github.com/user-attachments/assets/9769681b-5494-4093-b1bf-2c60c20e1673
 6. Whisper transcription model selection
 7. API token generation
 
-On subsequent runs, it skips the wizard and instantly boots the server. Use `npx superbrain-server reset` to re-run the wizard.
+On subsequent runs, it skips the wizard and instantly boots the server. Use `superbrain-server reset` (or `npx -y superbrain-server@latest reset`) to re-run the wizard.
 
 ### Backend Setup with Docker
 
@@ -269,6 +280,8 @@ Edit `.env` and set at least:
 - `GEMINI_API_KEY` (recommended)
 - `GROQ_API_KEY` (optional but useful)
 - `OPENROUTER_API_KEY` (optional fallback)
+
+`GOOGLE_API_KEY` is still accepted as a compatibility alias, but `GEMINI_API_KEY` is the preferred key name.
 
 Then build and run:
 
@@ -342,8 +355,9 @@ python api.py
 If you need to wipe configurations or clean the local cache, the CLI comes packed with powerful commands:
 
 ```bash
-npx superbrain-server reset         # Open interactive reset menu (Safe)
-npx superbrain-server reset --all   # Completely wipe local cache/tokens/setup (Destructive)
+superbrain-server reset                          # Open interactive reset menu (Safe)
+superbrain-server reset --all                    # Completely wipe local cache/tokens/setup (Destructive)
+npx -y superbrain-server@latest reset --all      # Same command without global install
 ```
 
 </details>

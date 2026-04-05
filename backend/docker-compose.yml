@@ -1,5 +1,3 @@
-version: '3.8'
-
 # ────────────────────────────────────────────────────────────────────────────────
 # SuperBrain Production Docker Compose Configuration
 # ────────────────────────────────────────────────────────────────────────────────
@@ -37,6 +35,7 @@ services:
       # API Keys (load from .env file)
       GROQ_API_KEY: ${GROQ_API_KEY}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       
       # Instagram credentials
@@ -90,7 +89,7 @@ services:
     # ──── Security Options ────
     security_opt:
       - no-new-privileges:true
-    read_only_root_filesystem: false
+    read_only: false
     cap_drop:
       - ALL
     cap_add:

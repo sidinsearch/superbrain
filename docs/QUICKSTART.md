@@ -24,7 +24,8 @@ cp .env.example .env
 # 3. Add your API keys to .env
 # Edit with your favorite editor:
 # GROQ_API_KEY=your_key_here
-# GOOGLE_API_KEY=your_key_here
+# GEMINI_API_KEY=your_key_here
+# GOOGLE_API_KEY=your_key_here   # optional compatibility alias
 
 # 4. Start with Docker
 docker-compose up -d
@@ -64,7 +65,7 @@ npx expo start
 1. Visit [makersuite.google.com](https://makersuite.google.com/app/apikey)
 2. Sign in with Google account
 3. Create API key
-4. Copy to `.env`: `GOOGLE_API_KEY=your_key`
+4. Copy to `.env`: `GEMINI_API_KEY=your_key`
 
 ### OpenRouter (Optional)
 
