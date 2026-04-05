@@ -82,7 +82,7 @@ const SettingsScreen = () => {
     message: '',
     confirmText: 'OK',
     destructive: false,
-    onConfirm: () => {},
+    onConfirm: () => { },
   });
 
   useEffect(() => {
@@ -112,7 +112,7 @@ const SettingsScreen = () => {
     try {
       const token = await apiService.getApiToken();
       const baseUrl = await apiService.getBaseUrl();
-      
+
       // Only populate if values exist in storage; otherwise keep empty
       if (baseUrl) {
         setServerUrl(baseUrl);
@@ -384,10 +384,10 @@ const SettingsScreen = () => {
                 <Ionicons name="qr-code-outline" size={18} color={colors.primary} />
               </TouchableOpacity>
               <View style={[styles.statusBadge, connectionStatus === 'connected' ? styles.statusConnected : styles.statusDisconnected]}>
-                <Ionicons 
-                  name={connectionStatus === 'connected' ? 'checkmark-circle' : 'close-circle'} 
-                  size={14} 
-                  color={connectionStatus === 'connected' ? '#28a745' : '#dc3545'} 
+                <Ionicons
+                  name={connectionStatus === 'connected' ? 'checkmark-circle' : 'close-circle'}
+                  size={14}
+                  color={connectionStatus === 'connected' ? '#28a745' : '#dc3545'}
                 />
                 <Text style={[styles.statusText, connectionStatus === 'connected' ? styles.statusTextConnected : styles.statusTextDisconnected]}>
                   {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
@@ -395,7 +395,7 @@ const SettingsScreen = () => {
               </View>
             </View>
           </View>
-          
+
           <Text style={styles.inputLabel}>Server URL</Text>
           <TextInput
             style={styles.apiInput}
@@ -403,7 +403,7 @@ const SettingsScreen = () => {
             onChangeText={setServerUrl}
             autoCapitalize="none"
             autoCorrect={false}
-            placeholder="e.g., http://localhost:8000 or https://api.example.com"
+            placeholder="e.g., http://localhost:8000"
             placeholderTextColor={colors.textMuted}
             editable={!saving}
           />
@@ -449,7 +449,7 @@ const SettingsScreen = () => {
         {/* Settings Menu */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Configuration</Text>
-          
+
           <SettingsItem
             icon="cloud-outline"
             iconColor="#8b5cf6"
@@ -457,7 +457,7 @@ const SettingsScreen = () => {
             subtitle="Configure Groq, Gemini, OpenRouter"
             onPress={() => navigation.navigate('AIProvider')}
           />
-          
+
           <SettingsItem
             icon="logo-instagram"
             iconColor="#e4405f"
@@ -465,7 +465,7 @@ const SettingsScreen = () => {
             subtitle="Optional login for reliable Instagram downloads"
             onPress={() => navigation.navigate('Instagram')}
           />
-          
+
           <SettingsItem
             icon="download-outline"
             iconColor="#10b981"
@@ -479,7 +479,7 @@ const SettingsScreen = () => {
         {queueStatus !== null && (queueStatus.retry_count ?? 0) > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Queue</Text>
-            
+
             <SettingsItem
               icon="refresh-circle-outline"
               iconColor="#f59e0b"
@@ -495,7 +495,7 @@ const SettingsScreen = () => {
         {/* Danger Zone */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Danger Zone</Text>
-          
+
           <SettingsItem
             icon="key-outline"
             iconColor="#6366f1"
@@ -503,7 +503,7 @@ const SettingsScreen = () => {
             subtitle="Generate a new Access Token"
             onPress={handleResetApiToken}
           />
-          
+
           <SettingsItem
             icon="trash-outline"
             iconColor="#dc3545"

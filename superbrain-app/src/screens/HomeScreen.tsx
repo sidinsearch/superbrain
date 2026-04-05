@@ -166,19 +166,16 @@ const HomeScreen = () => {
     },
     {
       iconName: 'share-outline',
-      emoji: '📱',
       title: 'Save from Anywhere',
       description: 'Open any Instagram post, YouTube video, or Website → tap Share → select SuperBrain. Done. Your content is saved and analyzed instantly.',
     },
     {
       iconName: 'layers-outline',
-      emoji: '🔍',
       title: 'Explore Your Feed',
       description: 'Scroll through your saves, filter by category, or search. Tap a post to see full details. Long-press to select and delete multiple posts at once.',
     },
     {
       iconName: 'settings-outline',
-      emoji: '⚙️',
       title: 'Connect Your Backend',
       description: 'Head to Settings to add your Server URL and Access Token. You can also configure AI providers and Instagram credentials for content analysis.',
     },
@@ -234,7 +231,7 @@ const HomeScreen = () => {
         loadPosts(false),
       ]);
       // Reschedule Watch Later notifications with (possibly restored) collection data
-      scheduleAllWatchLaterNotifications().catch(() => {});
+      scheduleAllWatchLaterNotifications().catch(() => { });
       setIsInitialized(true);
     } catch (error) {
       console.error('Error initializing:', error);
@@ -269,7 +266,7 @@ const HomeScreen = () => {
       if (cachedPosts && cachedPosts.length > 0) {
         setPosts(cachedPosts);
         setLoading(false); // Clear loading immediately when we have cache
-        
+
         // If cache is valid and not forcing refresh, we're done —
         // BUT only skip the server fetch if there are NO analyzing posts.
         // When posts are in-flight we must reach the watcher startup logic below.
@@ -279,16 +276,16 @@ const HomeScreen = () => {
             return;
           }
         }
-        
+
         // If we got here, we'll fetch in background but UI is already showing cached posts
       } else {
         // No cache, show loading spinner
         setLoading(true);
       }
-      
+
       // Fetch from server in background (UI already showing if we have cache)
       const fetchedPosts = await apiService.getRecentPosts(50);
-      
+
       // Clear analyzing state for posts that are now done on the server
       const prevAnalyzing = postsCache.getAnalyzingPosts();
       for (const shortcode of prevAnalyzing) {
@@ -342,7 +339,7 @@ const HomeScreen = () => {
             } else {
               prevProcessingRef.current = total;
             }
-          }).catch(() => {});
+          }).catch(() => { });
 
           pollIntervalRef.current = setInterval(async () => {
             try {
@@ -371,7 +368,7 @@ const HomeScreen = () => {
       }
     } catch (error: any) {
       console.error('Error loading posts:', error);
-      
+
       // Only show error if we don't have cached posts
       const cachedPosts = await postsCache.getCachedPosts();
       if (!cachedPosts || cachedPosts.length === 0) {
@@ -401,9 +398,9 @@ const HomeScreen = () => {
       (post.title && post.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (post.summary && post.summary.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (post.tags && post.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())));
-    
+
     const matchesCategory = selectedCategory === 'all' || post.category === selectedCategory;
-    
+
     return matchesSearch && matchesCategory;
   });
 
@@ -439,9 +436,9 @@ const HomeScreen = () => {
 
   const getContentTypeIcon = (post: Post) => {
     switch (post.content_type) {
-      case 'youtube':  return '▶️';
-      case 'webpage':  return '🌐';
-      default:         return '📸'; // instagram
+      case 'youtube': return '▶️';
+      case 'webpage': return '🌐';
+      default: return '📸'; // instagram
     }
   };
 
@@ -505,12 +502,12 @@ const HomeScreen = () => {
       if (collectionId === 'default_watch_later') {
         for (const shortcode of toAdd) {
           const post = posts.find(p => p.shortcode === shortcode);
-          if (post) sendImmediateWatchLaterNotification(post).catch(() => {});
+          if (post) sendImmediateWatchLaterNotification(post).catch(() => { });
         }
       } else {
         for (const shortcode of toAdd) {
           const post = posts.find(p => p.shortcode === shortcode);
-          if (post) sendImmediateSavedNotification(post).catch(() => {});
+          if (post) sendImmediateSavedNotification(post).catch(() => { });
         }
       }
 
@@ -641,7 +638,7 @@ const HomeScreen = () => {
     }
 
     const isAnalyzing = postsCache.isAnalyzing(post.shortcode);
-    
+
     return (
       <TouchableOpacity
         key={post.shortcode}
@@ -750,15 +747,15 @@ const HomeScreen = () => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={colors.background} />
-      
+
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>SuperBrain</Text>
           <Text style={styles.headerSubtitle}>{filteredPosts.length} saved posts</Text>
         </View>
         {selectionMode ? (
-          <TouchableOpacity 
-            style={styles.cancelButton} 
+          <TouchableOpacity
+            style={styles.cancelButton}
             onPress={() => {
               setSelectionMode(false);
               setSelectedPosts(new Set());
@@ -829,8 +826,8 @@ const HomeScreen = () => {
       {selectionMode ? (
         <View style={styles.actionsBar}>
           <View style={styles.actionsRow}>
-            <TouchableOpacity 
-              style={styles.actionButton} 
+            <TouchableOpacity
+              style={styles.actionButton}
               onPress={handleSelectAll}
             >
               <Text style={styles.actionButtonText}>
@@ -839,14 +836,14 @@ const HomeScreen = () => {
             </TouchableOpacity>
             {selectedPosts.size > 0 ? (
               <>
-                <TouchableOpacity 
-                  style={styles.actionButtonPrimary} 
+                <TouchableOpacity
+                  style={styles.actionButtonPrimary}
                   onPress={handleShowCollections}
                 >
                   <Text style={styles.actionButtonPrimaryText}>Add to Library</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.actionButtonDelete} 
+                <TouchableOpacity
+                  style={styles.actionButtonDelete}
                   onPress={handleDeletePosts}
                 >
                   <Text style={styles.actionButtonDeleteText}>Delete</Text>
@@ -871,7 +868,7 @@ const HomeScreen = () => {
             <Ionicons name="key-outline" size={48} color={colors.primary} />
           </View>
           <Text style={styles.emptyTitle}>Setup Required</Text>
-          <Text style={styles.emptyText}>Configure your Access Token and server URL to continue.</Text>
+          <Text style={styles.emptyText}>Configure your Access Token and Server URL to continue.</Text>
           <TouchableOpacity
             style={styles.setupButton}
             onPress={() => navigation.navigate('Settings')}
