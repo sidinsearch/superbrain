@@ -19,6 +19,7 @@ backend/.instagram_session.json
 backend/.instaloader_session
 backend/token.txt
 backend/config/ngrok_token.txt
+backend/config/test_credentials.txt
 backend/.setup_done
 
 # ── Database ─────────────────────────────────────────────────────────────────

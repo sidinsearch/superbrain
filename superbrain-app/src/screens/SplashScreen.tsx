@@ -1,34 +1,46 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, StatusBar } from 'react-native';
 import * as Linking from 'expo-linking';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import ApiService from '../services/api';
+import { colors } from '../theme/colors';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Splash'>;
 
 export default function SplashScreen({ navigation }: Props) {
   const [progress] = useState(new Animated.Value(0));
+  const [fadeIn] = useState(new Animated.Value(0));
+  const [scaleAnim] = useState(new Animated.Value(0.8));
 
   useEffect(() => {
+    // Fade in the content
+    Animated.parallel([
+      Animated.timing(fadeIn, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
     const initialize = async () => {
       // Check for share intent FIRST before anything else
       const url = await Linking.getInitialURL();
       
       if (url) {
-        // Check if it's a share URL
         if (url.includes('share')) {
-          // Parse the URL to get the shared Instagram URL
           const parsed = Linking.parse(url);
-          
           const sharedUrl = parsed.queryParams?.url as string;
-          
-          // Navigate directly to ShareHandler immediately
           navigation.replace('ShareHandler', { url: sharedUrl });
-          return; // Exit early, don't continue with normal flow
+          return;
         }
       }
-      
       
       // Normal flow - initialize API and show animation
       await ApiService.initialize();
@@ -51,16 +63,24 @@ export default function SplashScreen({ navigation }: Props) {
 
   const progressWidth = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: ['0%', '40%'],
+    outputRange: ['0%', '100%'],
   });
 
   return (
     <View style={styles.container}>
-      {/* Glow effect background */}
+      <StatusBar barStyle="light-content" backgroundColor="#0f1115" translucent />
+      
+      {/* Subtle glow effects */}
       <View style={styles.glowCircle} />
       <View style={styles.glowCircle2} />
       
-      <View style={styles.content}>
+      <Animated.View style={[
+        styles.content,
+        {
+          opacity: fadeIn,
+          transform: [{ scale: scaleAnim }],
+        },
+      ]}>
         <View style={styles.iconContainer}>
           <View style={styles.iconGlow} />
           <Text style={styles.emoji}>🧠</Text>
@@ -70,7 +90,7 @@ export default function SplashScreen({ navigation }: Props) {
           <Text style={styles.title}>SuperBrain</Text>
           <Text style={styles.subtitle}>Save it. See it. Do it.</Text>
         </View>
-      </View>
+      </Animated.View>
 
       {/* Progress bar */}
       <View style={styles.progressContainer}>
@@ -79,19 +99,6 @@ export default function SplashScreen({ navigation }: Props) {
         </View>
         <Text style={styles.loadingText}>LOADING</Text>
       </View>
-
-      {/* Status bar simulation */}
-      <View style={styles.statusBar}>
-        <Text style={styles.statusTime}>9:41</Text>
-        <View style={styles.statusIcons}>
-          <Text style={styles.statusIcon}>📶</Text>
-          <Text style={styles.statusIcon}>📡</Text>
-          <Text style={styles.statusIcon}>🔋</Text>
-        </View>
-      </View>
-
-      {/* Home indicator */}
-      <View style={styles.homeIndicator} />
     </View>
   );
 }
@@ -99,56 +106,54 @@ export default function SplashScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: -60,
   },
   glowCircle: {
     position: 'absolute',
-    width: 500,
-    height: 500,
-    borderRadius: 250,
-    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+    width: 400,
+    height: 400,
+    borderRadius: 200,
+    backgroundColor: 'rgba(99, 102, 241, 0.04)',
     top: '50%',
     left: '50%',
     marginTop: -250,
-    marginLeft: -250,
-    opacity: 0.8,
+    marginLeft: -200,
   },
   glowCircle2: {
     position: 'absolute',
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: 'rgba(255, 255, 255, 0.01)',
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: 'rgba(139, 92, 246, 0.03)',
     top: '50%',
     left: '50%',
-    marginTop: -150,
-    marginLeft: -150,
+    marginTop: -175,
+    marginLeft: -125,
   },
   content: {
     alignItems: 'center',
     zIndex: 10,
+    marginTop: -40,
   },
   iconContainer: {
     position: 'relative',
-    marginBottom: 24,
+    marginBottom: 28,
   },
   iconGlow: {
     position: 'absolute',
-    width: 128,
-    height: 128,
-    borderRadius: 64,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(99, 102, 241, 0.08)',
     top: '50%',
     left: '50%',
-    marginTop: -64,
-    marginLeft: -64,
-    opacity: 0.6,
+    marginTop: -70,
+    marginLeft: -70,
   },
   emoji: {
-    fontSize: 112,
+    fontSize: 100,
     textAlign: 'center',
     zIndex: 1,
   },
@@ -156,74 +161,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
-    letterSpacing: -1,
+    fontSize: 42,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 10,
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 18,
-    color: '#808080',
+    fontSize: 17,
+    color: colors.textMuted,
     fontWeight: '500',
-    letterSpacing: 1,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
   },
   progressContainer: {
     position: 'absolute',
     bottom: 80,
-    width: 200,
+    width: 180,
     alignItems: 'center',
   },
   progressTrack: {
     width: '100%',
-    height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 2,
+    height: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 1.5,
     overflow: 'hidden',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   progressBar: {
     height: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
-    borderRadius: 2,
+    backgroundColor: colors.primary,
+    borderRadius: 1.5,
+    opacity: 0.7,
   },
   loadingText: {
     fontSize: 10,
-    fontWeight: 'bold',
-    color: '#404040',
-    letterSpacing: 3,
-  },
-  statusBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 48,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 12,
-  },
-  statusTime: {
-    fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.4)',
-  },
-  statusIcons: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  statusIcon: {
-    fontSize: 16,
-    opacity: 0.4,
-  },
-  homeIndicator: {
-    position: 'absolute',
-    bottom: 8,
-    width: 128,
-    height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 2,
+    color: colors.textMuted,
+    letterSpacing: 4,
+    opacity: 0.5,
   },
 });

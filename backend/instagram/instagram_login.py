@@ -33,7 +33,7 @@ def _banner(msg: str) -> None:
 def _load_credentials() -> tuple[str, str]:
     creds: dict[str, str] = {}
     if API_KEYS_FILE.exists():
-        for line in API_KEYS_FILE.read_text(encoding="utf-8").splitlines():
+        for line in API_KEYS_FILE.read_text(encoding="utf-8", errors="ignore").splitlines():
             line = line.strip()
             if "=" in line and not line.startswith("#"):
                 k, _, v = line.partition("=")
@@ -46,7 +46,7 @@ def _load_credentials() -> tuple[str, str]:
 def _save_credentials(username: str, password: str) -> None:
     lines: list[str] = []
     if API_KEYS_FILE.exists():
-        for line in API_KEYS_FILE.read_text(encoding="utf-8").splitlines():
+        for line in API_KEYS_FILE.read_text(encoding="utf-8", errors="ignore").splitlines():
             stripped = line.strip()
             if "=" in stripped and not stripped.startswith("#"):
                 k = stripped.split("=", 1)[0].strip()

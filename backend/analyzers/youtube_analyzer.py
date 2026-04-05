@@ -201,7 +201,7 @@ def get_youtube_thumbnail(youtube_url: str) -> str:
 def _load_gemini_key() -> str:
     creds: dict[str, str] = {}
     if API_KEYS_FILE.exists():
-        for line in API_KEYS_FILE.read_text(encoding="utf-8").splitlines():
+        for line in API_KEYS_FILE.read_text(encoding="utf-8", errors="ignore").splitlines():
             line = line.strip()
             if "=" in line and not line.startswith("#"):
                 k, _, v = line.partition("=")

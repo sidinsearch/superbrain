@@ -15,12 +15,14 @@ export const colors = {
   backgroundSecondary: '#1a1d24',
   backgroundCard: '#1e2229',
   backgroundTertiary: '#232935',
+  backgroundElevated: '#272b35',
 
   // Primary Theme
   primary: '#6366f1',      // Indigo
   primaryLight: '#818cf8',
   primaryDark: '#4f46e5',
   primaryAccent: '#4c1d95', // Dark purple
+  primaryGlow: 'rgba(99, 102, 241, 0.15)',
 
   // Secondary Theme
   accent: '#8b5cf6',       // Violet
@@ -55,16 +57,24 @@ export const colors = {
     product: '#f59e0b',    // Amber
     places: '#3b82f6',     // Blue
     recipe: '#ef4444',     // Red
-    software: '#10b981',   // Emerald
-    book: '#8b5cf6',       // Violet
+    food: '#ef4444',       // Red (alias)
+    software: '#0ea5e9',   // Sky
+    book: '#b45309',       // Amber-700
     'tv shows': '#d946ef', // Fuchsia
     workout: '#14b8a6',    // Teal
-    film: '#f97316',       // Orange
-    event: '#06b6d4',      // Cyan
+    fitness: '#14b8a6',    // Teal (alias)
+    film: '#8b5cf6',       // Violet
+    event: '#f43f5e',      // Rose
+    fashion: '#ec4899',    // Pink
+    education: '#8b5cf6',  // Violet
+    entertainment: '#f97316', // Orange
+    pets: '#06b6d4',       // Cyan
     music: '#ec4899',      // Pink
     news: '#0ea5e9',       // Sky
     travel: '#14b8a6',     // Teal
-  },
+    uncategorized: '#6b7280', // Gray
+    other: '#6b7280',      // Gray
+  } as Record<string, string>,
 };
 
 // ────────────────────────────────────────────────────────────────────────────────

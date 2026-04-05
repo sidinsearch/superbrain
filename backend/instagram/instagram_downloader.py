@@ -53,7 +53,7 @@ def _load_credentials() -> tuple[str, str]:
     creds: dict[str, str] = {}
     key_file = API_KEYS_FILE if API_KEYS_FILE.exists() else LEGACY_API_KEYS_FILE
     if key_file.exists():
-        for line in key_file.read_text(encoding="utf-8").splitlines():
+        for line in key_file.read_text(encoding="utf-8", errors="ignore").splitlines():
             line = line.strip()
             if "=" in line and not line.startswith("#"):
                 k, _, v = line.partition("=")

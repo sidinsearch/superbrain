@@ -370,7 +370,7 @@ def setup_api_keys():
     # Load existing values if re-running
     existing = {}
     if API_KEYS.exists():
-        for line in API_KEYS.read_text().splitlines():
+        for line in API_KEYS.read_text(encoding="utf-8", errors="ignore").splitlines():
             line = line.strip()
             if "=" in line and not line.startswith("#"):
                 k, _, v = line.partition("=")

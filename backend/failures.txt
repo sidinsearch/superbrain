@@ -1,0 +1,4 @@
+[FAIL] 3.2 POST /collections (create) -- status=422
+[FAIL] 3.5 Watch Later protection -- 'str' object has no attribute 'get'
+[FAIL] 6.1 POST /analyze (YouTube) -- status=400
+FAILED: 3

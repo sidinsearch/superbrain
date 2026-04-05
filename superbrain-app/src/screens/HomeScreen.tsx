@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TextInput,
   TouchableOpacity,
   Image,
@@ -13,6 +14,7 @@ import {
   Dimensions,
   Modal,
   BackHandler,
+  Animated,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -174,6 +176,12 @@ const HomeScreen = () => {
       title: 'Explore Your Feed',
       description: 'Scroll through your saves, filter by category, or search. Tap a post to see full details. Long-press to select and delete multiple posts at once.',
     },
+    {
+      iconName: 'settings-outline',
+      emoji: '⚙️',
+      title: 'Connect Your Backend',
+      description: 'Head to Settings to add your Server URL and Access Token. You can also configure AI providers and Instagram credentials for content analysis.',
+    },
   ];
 
   const loadCategories = async () => {
@@ -218,16 +226,15 @@ const HomeScreen = () => {
         return;
       }
       setIsConfigured(true);
-      // Load categories from backend
-      await loadCategories();
-      // Await backend sync first, THEN reschedule notifications
-      // This ensures fresh-install users get notifications restored after backend pull
-      try {
-        await collectionsService.syncFromBackend();
-      } catch { /* offline — local cache used */ }
+      // Fire categories, collections sync, and posts loading in parallel
+      // for faster first paint
+      const [, ,] = await Promise.all([
+        loadCategories(),
+        collectionsService.syncFromBackend().catch(() => { /* offline */ }),
+        loadPosts(false),
+      ]);
       // Reschedule Watch Later notifications with (possibly restored) collection data
       scheduleAllWatchLaterNotifications().catch(() => {});
-      await loadPosts(false); // Use cache-first strategy even on initial load
       setIsInitialized(true);
     } catch (error) {
       console.error('Error initializing:', error);
@@ -698,38 +705,47 @@ const HomeScreen = () => {
     );
   };
 
-  // Build grid: YT/web = full-width landscape, instagram = paired compact rows
-  const buildGridRows = (posts: Post[]) => {
-    const elements: React.ReactElement[] = [];
+  // Build flat data for FlatList: converts posts into row items
+  // Each item is either a single landscape card or a pair of compact cards
+  type GridItem =
+    | { type: 'landscape'; post: Post; index: number }
+    | { type: 'pair'; left: Post; right: Post | null; leftIndex: number; rightIndex: number };
+
+  const buildGridData = useCallback((posts: Post[]): GridItem[] => {
+    const items: GridItem[] = [];
     let i = 0;
     while (i < posts.length) {
       const post = posts[i];
       if (post.content_type === 'youtube' || post.content_type === 'webpage') {
-        elements.push(renderPost(post, i));
+        items.push({ type: 'landscape', post, index: i });
         i++;
       } else {
-        const next = i + 1 < posts.length ? posts[i + 1] : null;
-        if (next && next.content_type !== 'youtube' && next.content_type !== 'webpage') {
-          elements.push(
-            <View key={`row-${i}`} style={styles.compactRow}>
-              {renderPost(post, i)}
-              {renderPost(next, i + 1)}
-            </View>
-          );
-          i += 2;
-        } else {
-          // Lone card — fills full row width via flex: 1
-          elements.push(
-            <View key={`row-${i}`} style={styles.compactRow}>
-              {renderPost(post, i)}
-            </View>
-          );
-          i++;
-        }
+        const next = i + 1 < posts.length && posts[i + 1].content_type !== 'youtube' && posts[i + 1].content_type !== 'webpage'
+          ? posts[i + 1] : null;
+        items.push({ type: 'pair', left: post, right: next, leftIndex: i, rightIndex: i + 1 });
+        i += next ? 2 : 1;
       }
     }
-    return elements;
-  };
+    return items;
+  }, []);
+
+  const gridData = React.useMemo(() => buildGridData(filteredPosts), [filteredPosts, buildGridData]);
+
+  const renderGridItem = useCallback(({ item }: { item: GridItem }) => {
+    if (item.type === 'landscape') {
+      return renderPost(item.post, item.index);
+    }
+    return (
+      <View style={styles.compactRow}>
+        {renderPost(item.left, item.leftIndex)}
+        {item.right ? renderPost(item.right, item.rightIndex) : <View style={{ flex: 1 }} />}
+      </View>
+    );
+  }, [selectionMode, selectedPosts, posts]);
+
+  const getItemKey = useCallback((item: GridItem) => {
+    return item.type === 'landscape' ? item.post.shortcode : `pair-${item.left.shortcode}`;
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -874,7 +890,10 @@ const HomeScreen = () => {
           </Text>
         </View>
       ) : (
-        <ScrollView
+        <FlatList
+          data={gridData}
+          renderItem={renderGridItem}
+          keyExtractor={getItemKey}
           style={styles.postsContainer}
           contentContainerStyle={styles.postsContent}
           refreshControl={
@@ -885,11 +904,12 @@ const HomeScreen = () => {
               colors={[colors.primary]}
             />
           }
-        >
-          <View style={styles.postsGrid}>
-            {buildGridRows(filteredPosts)}
-          </View>
-        </ScrollView>
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={8}
+          windowSize={7}
+          initialNumToRender={6}
+          showsVerticalScrollIndicator={false}
+        />
       )}
 
       <BottomNav activeTab="Home" />
@@ -1001,15 +1021,11 @@ const HomeScreen = () => {
         onHide={() => setToast({ ...toast, visible: false })}
       />
 
-      {/* ── Onboarding Tutorial Modal ─────────────────────────── */}
-      <Modal
-        visible={showOnboarding}
-        transparent
-        animationType="fade"
-        onRequestClose={dismissOnboarding}
-      >
-        <View style={styles.onboardingOverlay}>
-          <View style={styles.onboardingCard}>
+      {/* ── Onboarding Tutorial (absolute overlay — non-blocking) ──── */}
+      {showOnboarding && (
+        <View style={styles.onboardingOverlay} pointerEvents="box-none">
+          <View style={styles.onboardingBackdrop} />
+          <View style={styles.onboardingCard} pointerEvents="auto">
             {/* Header gradient strip */}
             <View style={styles.onboardingHeader}>
               <Text style={styles.onboardingHeaderLabel}>SUPERBRAIN</Text>
@@ -1017,8 +1033,8 @@ const HomeScreen = () => {
 
             {/* Step content */}
             <View style={styles.onboardingBody}>
-              {onboardingStep === 0 ? (
-                <Text style={styles.onboardingEmoji}>🧠</Text>
+              {ONBOARDING_STEPS[onboardingStep].emoji ? (
+                <Text style={styles.onboardingEmoji}>{ONBOARDING_STEPS[onboardingStep].emoji}</Text>
               ) : (
                 <Ionicons
                   name={ONBOARDING_STEPS[onboardingStep].iconName as any}
@@ -1058,11 +1074,16 @@ const HomeScreen = () => {
                     setOnboardingStep(s => s + 1);
                   } else {
                     dismissOnboarding();
+                    if (!isConfigured) {
+                      navigation.navigate('Settings');
+                    }
                   }
                 }}
               >
                 <Text style={styles.onboardingBtnPrimaryText}>
-                  {onboardingStep < ONBOARDING_STEPS.length - 1 ? 'Next' : 'Get Started'}
+                  {onboardingStep < ONBOARDING_STEPS.length - 1
+                    ? 'Next'
+                    : !isConfigured ? 'Go to Settings' : 'Get Started'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1077,7 +1098,7 @@ const HomeScreen = () => {
             </TouchableOpacity>
           </View>
         </View>
-      </Modal>
+      )}
     </View>
   );
 };
@@ -1092,33 +1113,35 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingTop: 56,
+    paddingBottom: 16,
   },
   headerTitle: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 4,
+    marginBottom: 2,
+    letterSpacing: -0.3,
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textMuted,
+    fontWeight: '500',
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.backgroundCard,
     marginHorizontal: 20,
-    marginBottom: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.border,
   },
   searchIconContainer: {
-    marginRight: 8,
+    marginRight: 10,
   },
   searchIconText: {
     fontSize: 18,
@@ -1126,7 +1149,8 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     color: colors.text,
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: '400',
   },
   clearButton: {
     padding: 4,
@@ -1136,24 +1160,24 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   categoriesContainer: {
-    maxHeight: 50,
-    marginBottom: 8,
+    maxHeight: 48,
+    marginBottom: 6,
   },
   categoriesContent: {
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingBottom: 14,
+    gap: 8,
   },
   categoryChip: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    marginRight: 10,
+    paddingVertical: 7,
     backgroundColor: colors.backgroundCard,
-    borderRadius: 24,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.border,
-    minHeight: 44,
+    minHeight: 36,
     gap: 6,
   },
   categoryChipActive: {
@@ -1312,10 +1336,12 @@ const styles = StyleSheet.create({
   landscapeCard: {
     width: '100%',
     height: Math.round((width - 40) * 9 / 16),
-    marginBottom: 16,
+    marginBottom: 14,
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: colors.backgroundCard,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   landscapeCardImage: {
     width: '100%',
@@ -1327,18 +1353,19 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: 14,
-    paddingTop: 32,
+    paddingTop: 40,
     justifyContent: 'flex-end',
   },
   landscapeCardRow: {
     flexDirection: 'row',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   landscapeCardTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 6,
+    letterSpacing: -0.1,
   },
   playOverlay: {
     position: 'absolute',
@@ -1367,9 +1394,11 @@ const styles = StyleSheet.create({
   compactCard: {
     flex: 1,
     height: 220,
-    borderRadius: 12,
+    borderRadius: 14,
     overflow: 'hidden',
     backgroundColor: colors.backgroundCard,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
   },
   compactCardImage: {
     width: '100%',
@@ -1381,31 +1410,34 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: 12,
+    paddingTop: 40,
     justifyContent: 'flex-end',
   },
   categoryBadgeSmall: {
     alignSelf: 'flex-start',
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   categoryBadgeTextSmall: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#fff',
   },
   compactCardTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 4,
+    marginBottom: 3,
+    lineHeight: 18,
   },
   compactUsername: {
     fontSize: 11,
-    color: colors.textSecondary,
+    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '500',
   },
   navIconContainer: {
     marginBottom: 6,
@@ -1726,64 +1758,78 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
-  // ── Onboarding ──────────────────────────────────────────────
+  // ── Onboarding (absolute overlay) ─────────────────────────────────────
   onboardingOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 9998,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
     paddingHorizontal: 24,
   },
+  onboardingBackdrop: {
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.88)',
+  },
   onboardingCard: {
-    width: '100%',
+    width: '100%' as const,
     backgroundColor: colors.backgroundCard,
-    borderRadius: 20,
-    overflow: 'hidden',
+    borderRadius: 24,
+    overflow: 'hidden' as const,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(255,255,255,0.08)',
+    zIndex: 1,
   },
   onboardingHeader: {
     backgroundColor: colors.primary,
     paddingVertical: 10,
-    alignItems: 'center',
+    alignItems: 'center' as const,
   },
   onboardingHeaderLabel: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '700' as const,
     color: '#fff',
     letterSpacing: 3,
   },
   onboardingBody: {
     paddingHorizontal: 28,
-    paddingTop: 32,
+    paddingTop: 36,
     paddingBottom: 8,
-    alignItems: 'center',
-    minHeight: 220,
-    justifyContent: 'center',
+    alignItems: 'center' as const,
+    minHeight: 230,
+    justifyContent: 'center' as const,
   },
   onboardingIcon: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   onboardingEmoji: {
-    fontSize: 56,
-    marginBottom: 8,
+    fontSize: 64,
+    marginBottom: 12,
   },
   onboardingTitle: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '700' as const,
     color: colors.text,
-    textAlign: 'center',
+    textAlign: 'center' as const,
     marginBottom: 14,
+    letterSpacing: -0.3,
   },
   onboardingDesc: {
     fontSize: 15,
     color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 23,
+    textAlign: 'center' as const,
+    lineHeight: 24,
   },
   onboardingDots: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: 'row' as const,
+    justifyContent: 'center' as const,
     gap: 8,
     marginTop: 24,
     marginBottom: 4,
@@ -1795,12 +1841,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   },
   onboardingDotActive: {
-    width: 24,
+    width: 28,
     backgroundColor: colors.primary,
   },
   onboardingActions: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: 'row' as const,
+    justifyContent: 'center' as const,
     gap: 12,
     paddingHorizontal: 28,
     paddingTop: 20,
@@ -1809,31 +1855,31 @@ const styles = StyleSheet.create({
   onboardingBtnPrimary: {
     flex: 1,
     backgroundColor: colors.primary,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
+    borderRadius: 14,
+    paddingVertical: 15,
+    alignItems: 'center' as const,
   },
   onboardingBtnPrimaryText: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '700' as const,
     color: '#fff',
   },
   onboardingBtnSecondary: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
+    borderRadius: 14,
+    paddingVertical: 15,
+    alignItems: 'center' as const,
     borderWidth: 1,
     borderColor: colors.border,
   },
   onboardingBtnSecondaryText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '600' as const,
     color: colors.textSecondary,
   },
   onboardingSkip: {
-    alignItems: 'center',
+    alignItems: 'center' as const,
     paddingVertical: 14,
     paddingBottom: 20,
   },

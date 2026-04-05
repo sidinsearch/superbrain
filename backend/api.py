@@ -52,7 +52,7 @@ TOKEN_FILE = Path(__file__).parent / "token.txt"
 def load_or_create_api_token():
     """Load existing API token or create one if missing."""
     if TOKEN_FILE.exists():
-        content = TOKEN_FILE.read_text().strip()
+        content = TOKEN_FILE.read_text(encoding="utf-8", errors="ignore").strip()
         if content and is_valid_api_token_format(content):
             logger.info("=" * 80)
             logger.info(f"🔐 API Token: {content}")
@@ -564,9 +564,10 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
             logger.warning(f"⚠️  [{shortcode}] main.py stderr:\n{stderr[:1000]}")
         
         if returncode == 2:
-            # main.py detected quota exhaustion and queued item for retry
+            # main.py detected quota exhaustion and queued item for retry.
+            # NOTE: Do NOT remove from queue here — main.py already called
+            # queue_for_retry() which set status='retry'. Removing would lose it.
             logger.info(f"⏰ [{shortcode}] Quota exhausted — queued for automatic retry")
-            db.remove_from_queue(shortcode)
             raise HTTPException(
                 status_code=202,
                 detail="API quota exhausted. Your request has been queued for automatic retry in 24 hours."
@@ -632,8 +633,11 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
             processing_time=processing_time
         )
         
-    except HTTPException:
-        db.remove_from_queue(shortcode)
+    except HTTPException as he:
+        # Don't remove from queue for 202 (retry-queued) — the item was
+        # intentionally kept in the retry queue by main.py.
+        if he.status_code != 202:
+            db.remove_from_queue(shortcode)
         raise
     except subprocess.SubprocessError as e:
         logger.error(f"❌ [{shortcode}] Subprocess error: {str(e)}")
@@ -972,6 +976,7 @@ async def health_check(token: str = Depends(verify_token)):
 async def queue_status(token: str = Depends(verify_token)):
     """Get current queue and processing status"""
     try:
+        db = get_db()
         processing = db.get_processing()
         queue = db.get_queue()
         

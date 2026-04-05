@@ -30,7 +30,7 @@ def _load_groq_key():
         return key
     keys_file = _CONFIG_DIR / ".api_keys"
     if keys_file.exists():
-        for line in keys_file.read_text().splitlines():
+        for line in keys_file.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if line.startswith("GROQ_API_KEY="):
                 v = line.split("=", 1)[1].strip()

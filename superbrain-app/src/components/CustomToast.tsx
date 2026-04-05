@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Animated, Dimensions, Modal } from 'react-native';
+import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
 import { colors } from '../theme/colors';
 
 const { width } = Dimensions.get('window');
@@ -68,77 +68,81 @@ const CustomToast: React.FC<CustomToastProps> = ({
   const getTypeStyles = () => {
     switch (type) {
       case 'success':
-        return { backgroundColor: colors.success, icon: '✓' };
+        return { backgroundColor: '#1DB954', icon: '✓' };
       case 'error':
-        return { backgroundColor: colors.error, icon: '✕' };
+        return { backgroundColor: '#E53935', icon: '✕' };
       case 'warning':
-        return { backgroundColor: colors.warning, icon: '⚠' };
+        return { backgroundColor: '#FB8C00', icon: '⚠' };
       default:
-        return { backgroundColor: colors.info, icon: 'ℹ' };
+        return { backgroundColor: '#2196F3', icon: 'ℹ' };
     }
   };
 
   const typeStyles = getTypeStyles();
 
   return (
-    <Modal
-      transparent
-      visible={visible}
-      animationType="none"
-      statusBarTranslucent
-      hardwareAccelerated
-      onRequestClose={() => {}}
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.container,
+        {
+          opacity,
+          transform: [{ translateY }],
+        },
+      ]}
     >
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.container,
-          {
-            opacity,
-            transform: [{ translateY }],
-          },
-        ]}
-      >
-        <View style={[styles.toast, { backgroundColor: typeStyles.backgroundColor }]}>
+      <View style={[styles.toast, { backgroundColor: typeStyles.backgroundColor }]}>
+        <View style={styles.iconContainer}>
           <Text style={styles.icon}>{typeStyles.icon}</Text>
-          <Text style={styles.message}>{message}</Text>
         </View>
-      </Animated.View>
-    </Modal>
+        <Text style={styles.message} numberOfLines={2}>{message}</Text>
+      </View>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: 60,
-    left: 20,
-    right: 20,
-    zIndex: 9999,
+    top: 54,
+    left: 16,
+    right: 16,
+    zIndex: 99999,
+    elevation: 99999,
   },
   toast: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+  iconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
   icon: {
-    fontSize: 20,
+    fontSize: 16,
     color: '#fff',
-    marginRight: 12,
     fontWeight: '700',
   },
   message: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     color: '#fff',
-    fontWeight: '500',
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    lineHeight: 20,
   },
 });
 
