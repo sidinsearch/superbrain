@@ -1,0 +1,101 @@
+name: Build and Attach APK to Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish (for example v1.0.2-beta.1)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve release tag
+        id: vars
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG_NAME="${{ github.event.inputs.tag }}"
+          else
+            TAG_NAME="${GITHUB_REF_NAME}"
+          fi
+
+          if [[ "$TAG_NAME" != v* ]]; then
+            echo "Tag must start with v (received: $TAG_NAME)"
+            exit 1
+          fi
+
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install JS dependencies
+        run: npm ci
+        working-directory: superbrain-app
+
+      - name: Set Android SDK local.properties
+        run: echo "sdk.dir=$ANDROID_HOME" > superbrain-app/android/local.properties
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.npm
+          key: gradle-npm-${{ hashFiles('superbrain-app/package-lock.json', 'superbrain-app/android/**/*.gradle*', 'superbrain-app/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-npm-
+            gradle-
+
+      - name: Make gradlew executable
+        run: chmod +x superbrain-app/android/gradlew
+
+      - name: Build release APK
+        run: cd superbrain-app/android && ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Collect APK
+        shell: bash
+        run: |
+          APK_PATH=$(find superbrain-app/android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          if [ -z "$APK_PATH" ]; then
+            echo "Release APK not found"
+            exit 1
+          fi
+          cp "$APK_PATH" superbrain.apk
+
+      - name: Upload release APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: superbrain-release-${{ github.run_number }}
+          path: superbrain.apk
+          retention-days: 30
+
+      - name: Create or update GitHub Release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag_name }}
+          name: SuperBrain ${{ steps.vars.outputs.tag_name }}
+          prerelease: ${{ contains(steps.vars.outputs.tag_name, '-beta') }}
+          generate_release_notes: true
+          files: superbrain.apk

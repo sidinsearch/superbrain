@@ -13,6 +13,11 @@
     "superbrain",
     "server"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sidinsearch/superbrain.git"
+  },
+  "homepage": "https://github.com/sidinsearch/superbrain#readme",
   "author": "sidinsearch",
   "license": "MIT",
   "dependencies": {},

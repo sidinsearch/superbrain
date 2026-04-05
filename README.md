@@ -10,6 +10,8 @@ A self-hosted AI-powered second brain for Android — save Instagram posts, YouT
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://python.org)
 [![React Native](https://img.shields.io/badge/React_Native-0.81-61DAFB?logo=react&logoColor=white)](https://reactnative.dev)
 [![Expo SDK 54](https://img.shields.io/badge/Expo-SDK_54-000020?logo=expo&logoColor=white)](https://expo.dev)
+[![npm package](https://img.shields.io/npm/v/superbrain-server?label=npm%20package)](https://www.npmjs.com/package/superbrain-server)
+[![npm downloads](https://img.shields.io/npm/dm/superbrain-server)](https://www.npmjs.com/package/superbrain-server)
 
 [![Download APK](https://img.shields.io/badge/Download%20APK-2ea44f?style=for-the-badge&logo=android&logoColor=white)](https://github.com/sidinsearch/superbrain/releases)
 [![Report Bug](https://img.shields.io/badge/Report%20Bug-d73a4a?style=for-the-badge&logo=github&logoColor=white)](https://github.com/sidinsearch/superbrain/issues/new?labels=bug)
@@ -51,8 +53,10 @@ A self-hosted AI-powered second brain for Android — save Instagram posts, YouT
 - [Architecture](#architecture)
 - [AI Model Router](#ai-model-router)
 - [Getting Started](#getting-started)
+- [Packages](#packages)
 - [Instagram Credentials](#instagram-credentials)
 - [Installing the Android App](#installing-the-android-app)
+- [Release Process](#release-process)
 - [Hosting Options](#hosting-options)
 - [Notifications](#notifications)
 - [API Reference](#api-reference)
@@ -337,6 +341,36 @@ Use the generated HTTPS URL in app Settings.
 
 ---
 
+## Packages
+
+SuperBrain backend launcher is published in two registries:
+
+- npmjs: [superbrain-server](https://www.npmjs.com/package/superbrain-server)
+  - Stable install: `npx -y superbrain-server@latest`
+  - Beta install: `npx -y superbrain-server@beta`
+- GitHub Packages: `@sidinsearch/superbrain-server`
+  - Add scope mapping once:
+
+```bash
+npm config set @sidinsearch:registry https://npm.pkg.github.com
+```
+
+  - Install stable:
+
+```bash
+npx -y @sidinsearch/superbrain-server@latest
+```
+
+  - Install beta:
+
+```bash
+npx -y @sidinsearch/superbrain-server@beta
+```
+
+On the GitHub repository page, this appears in the **Packages** section once the package is associated with the repository.
+
+---
+
 ## Instagram Credentials
 
 SuperBrain uses [Instaloader](https://instaloader.github.io/) to download Instagram posts. It can operate in two modes:
@@ -412,7 +446,19 @@ EAS returns a download URL + QR code when done. No Android Studio required.
 
 ### Option 3 — GitHub Actions
 
-The repo includes a [build workflow](.github/workflows/build.yml) that builds the APK on every push to `main`. Download the artifact from the **Actions** tab.
+The repo includes:
+
+- [build workflow](.github/workflows/build.yml): Builds APK artifacts on push to `main` and `beta`
+- [release APK workflow](.github/workflows/release-apk.yml): On version tags (`v*`), builds APK and attaches it to the matching GitHub Release automatically
+
+How to get the newest APK from Actions without creating a release:
+
+1. Push your changes to `beta` or `main`.
+2. Open **GitHub → Actions → Build APK (Gradle)**.
+3. Open the latest successful run.
+4. Download the artifact named like `superbrain-release-<run_number>`.
+5. Extract it and rename `superbrain.apk` if needed.
+6. Use it directly for testing/internal sharing.
 
 ### Option 4 — Local Gradle Build
 
@@ -422,6 +468,32 @@ npm install
 cd android
 ./gradlew assembleRelease
 # Output: android/app/build/outputs/apk/release/app-release.apk
+```
+
+---
+
+## Release Process
+
+Use this automated flow to keep npm + GitHub release + APK aligned.
+
+1. Merge or push final changes to `beta` (or `main` for stable).
+2. Create and push a version tag (example: `v1.0.3-beta.0` or `v1.0.3`).
+3. GitHub Actions runs automatically:
+  - `.github/workflows/release-apk.yml` builds `superbrain.apk` and publishes it to the GitHub Release for that tag.
+  - `.github/workflows/publish-github-packages.yml` publishes `@sidinsearch/superbrain-server` to GitHub Packages.
+4. Publish/update npmjs package (`superbrain-server`) with matching version and dist-tag (`beta` or `latest`).
+5. Verify release assets and install commands in release notes.
+
+Recommended release notes install line:
+
+```bash
+npx -y superbrain-server@beta
+```
+
+For stable releases, use:
+
+```bash
+npx -y superbrain-server@latest
 ```
 
 ---

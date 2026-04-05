@@ -1,0 +1,64 @@
+name: Publish npm Package to GitHub Packages
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://npm.pkg.github.com
+
+      - name: Prepare package payload
+        run: node scripts/build.js
+        working-directory: superbrain-cli
+
+      - name: Set scoped package name and release version
+        id: meta
+        shell: bash
+        run: |
+          OWNER_LC="${GITHUB_REPOSITORY_OWNER,,}"
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          cd superbrain-cli
+          npm pkg set "name=@${OWNER_LC}/superbrain-server"
+          npm version "$VERSION" --no-git-tag-version
+
+          if [[ "$VERSION" == *"-beta"* || "$VERSION" == *"-beta."* ]]; then
+            DIST_TAG="beta"
+          else
+            DIST_TAG="latest"
+          fi
+
+          echo "scope=@${OWNER_LC}" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Configure npm scope registry mapping
+        shell: bash
+        run: |
+          echo "${{ steps.meta.outputs.scope }}:registry=https://npm.pkg.github.com" > ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" >> ~/.npmrc
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to GitHub Packages
+        run: npm publish --tag "${{ steps.meta.outputs.dist_tag }}"
+        working-directory: superbrain-cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
