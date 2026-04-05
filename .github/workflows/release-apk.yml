@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - 'v*'
+  release:
+    types:
+      - published
   workflow_dispatch:
     inputs:
       tag:
@@ -27,6 +30,8 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TAG_NAME="${{ github.event.inputs.tag }}"
+          elif [ "${{ github.event_name }}" = "release" ]; then
+            TAG_NAME="${{ github.event.release.tag_name }}"
           else
             TAG_NAME="${GITHUB_REF_NAME}"
           fi
@@ -98,4 +103,5 @@ jobs:
           name: SuperBrain ${{ steps.vars.outputs.tag_name }}
           prerelease: ${{ contains(steps.vars.outputs.tag_name, '-beta') }}
           generate_release_notes: true
+          overwrite_files: true
           files: superbrain.apk

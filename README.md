@@ -11,7 +11,7 @@ A self-hosted AI-powered second brain for Android — save Instagram posts, YouT
 [![React Native](https://img.shields.io/badge/React_Native-0.81-61DAFB?logo=react&logoColor=white)](https://reactnative.dev)
 [![Expo SDK 54](https://img.shields.io/badge/Expo-SDK_54-000020?logo=expo&logoColor=white)](https://expo.dev)
 [![npm package](https://img.shields.io/npm/v/superbrain-server?label=npm%20package)](https://www.npmjs.com/package/superbrain-server)
-[![npm downloads](https://img.shields.io/npm/dm/superbrain-server)](https://www.npmjs.com/package/superbrain-server)
+[![npm total downloads](https://img.shields.io/npm/dt/superbrain-server?label=npm%20downloads)](https://www.npmjs.com/package/superbrain-server)
 
 [![Download APK](https://img.shields.io/badge/Download%20APK-2ea44f?style=for-the-badge&logo=android&logoColor=white)](https://github.com/sidinsearch/superbrain/releases)
 [![Report Bug](https://img.shields.io/badge/Report%20Bug-d73a4a?style=for-the-badge&logo=github&logoColor=white)](https://github.com/sidinsearch/superbrain/issues/new?labels=bug)
@@ -349,25 +349,22 @@ SuperBrain backend launcher is published in two registries:
   - Stable install: `npx -y superbrain-server@latest`
   - Beta install: `npx -y superbrain-server@beta`
 - GitHub Packages: `@sidinsearch/superbrain-server`
-  - Add scope mapping once:
+  - One-time auth + install block (`read:packages` token required):
+  - Note: only needed for GitHub Packages. Not needed for npmjs (`superbrain-server`) installs.
 
 ```bash
 npm config set @sidinsearch:registry https://npm.pkg.github.com
-```
-
-  - Install stable:
-
-```bash
+npm config set //npm.pkg.github.com/:_authToken YOUR_GITHUB_TOKEN
 npx -y @sidinsearch/superbrain-server@latest
-```
-
-  - Install beta:
-
-```bash
+# beta channel
 npx -y @sidinsearch/superbrain-server@beta
 ```
 
-On the GitHub repository page, this appears in the **Packages** section once the package is associated with the repository.
+The package appears in the repository **Packages** section after the first successful tagged run of `.github/workflows/publish-github-packages.yml`.
+
+Direct repository Packages page:
+
+- https://github.com/sidinsearch/superbrain/packages
 
 ---
 
@@ -449,7 +446,7 @@ EAS returns a download URL + QR code when done. No Android Studio required.
 The repo includes:
 
 - [build workflow](.github/workflows/build.yml): Builds APK artifacts on push to `main` and `beta`
-- [release APK workflow](.github/workflows/release-apk.yml): On version tags (`v*`), builds APK and attaches it to the matching GitHub Release automatically
+- [release APK workflow](.github/workflows/release-apk.yml): On version tags (`v*`) or when a Release is published, builds APK and attaches/updates `superbrain.apk` on the matching GitHub Release automatically
 
 How to get the newest APK from Actions without creating a release:
 
@@ -477,10 +474,23 @@ cd android
 Use this automated flow to keep npm + GitHub release + APK aligned.
 
 1. Merge or push final changes to `beta` (or `main` for stable).
-2. Create and push a version tag (example: `v1.0.3-beta.0` or `v1.0.3`).
+2. Create and push a version tag.
+
+```bash
+git tag v1.0.3-beta.0
+git push origin v1.0.3-beta.0
+```
+
+Stable example:
+
+```bash
+git tag v1.0.3
+git push origin v1.0.3
+```
+
 3. GitHub Actions runs automatically:
-  - `.github/workflows/release-apk.yml` builds `superbrain.apk` and publishes it to the GitHub Release for that tag.
-  - `.github/workflows/publish-github-packages.yml` publishes `@sidinsearch/superbrain-server` to GitHub Packages.
+  - `.github/workflows/release-apk.yml` builds `superbrain.apk` and publishes or updates it on the GitHub Release for that tag.
+   - `.github/workflows/publish-github-packages.yml` publishes `@sidinsearch/superbrain-server` to GitHub Packages.
 4. Publish/update npmjs package (`superbrain-server`) with matching version and dist-tag (`beta` or `latest`).
 5. Verify release assets and install commands in release notes.
 
@@ -495,6 +505,14 @@ For stable releases, use:
 ```bash
 npx -y superbrain-server@latest
 ```
+
+Verification checklist:
+
+1. Release page for the tag contains `superbrain.apk`.
+2. Repository **Packages** tab shows `@sidinsearch/superbrain-server`.
+3. Install checks:
+  - npmjs: `npx -y superbrain-server@beta` (or `@latest`)
+  - GitHub Packages: `npx -y @sidinsearch/superbrain-server@beta` (or `@latest`)
 
 ---
 

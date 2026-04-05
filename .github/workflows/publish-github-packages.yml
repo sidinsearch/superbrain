@@ -34,9 +34,13 @@ jobs:
         run: |
           OWNER_LC="${GITHUB_REPOSITORY_OWNER,,}"
           VERSION="${GITHUB_REF_NAME#v}"
+          REPO_URL="https://github.com/${GITHUB_REPOSITORY}.git"
 
           cd superbrain-cli
           npm pkg set "name=@${OWNER_LC}/superbrain-server"
+          npm pkg set "repository.type=git"
+          npm pkg set "repository.url=${REPO_URL}"
+          npm pkg set "publishConfig.registry=https://npm.pkg.github.com"
           npm version "$VERSION" --no-git-tag-version
 
           if [[ "$VERSION" == *"-beta"* || "$VERSION" == *"-beta."* ]]; then
