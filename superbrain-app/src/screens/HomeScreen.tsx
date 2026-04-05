@@ -26,7 +26,12 @@ import { Ionicons } from '@expo/vector-icons';
 import apiService from '../services/api';
 import postsCache from '../services/postsCache';
 import { collectionsService } from '../services/collections';
-import { scheduleAllWatchLaterNotifications, sendImmediateWatchLaterNotification, sendImmediateSavedNotification } from '../services/notificationService';
+import {
+  scheduleAllWatchLaterNotifications,
+  requestNotificationPermissionAfterOnboarding,
+  sendImmediateWatchLaterNotification,
+  sendImmediateSavedNotification,
+} from '../services/notificationService';
 import { Post, Collection } from '../types';
 import { colors } from '../theme/colors';
 import { RootStackParamList } from '../../App';
@@ -97,8 +102,13 @@ const HomeScreen = () => {
   const lastFocusRefreshRef = useRef(0);
 
   useEffect(() => {
-    initializeAndLoad();
-    checkFirstLaunch();
+    const bootstrap = async () => {
+      const shouldDeferNotificationPrompt = await checkFirstLaunch();
+      await initializeAndLoad(shouldDeferNotificationPrompt);
+    };
+
+    bootstrap();
+
     return () => {
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
@@ -134,27 +144,33 @@ const HomeScreen = () => {
     return unsubscribe;
   }, [navigation, isInitialized]);
 
-  const checkFirstLaunch = async () => {
+  const checkFirstLaunch = async (): Promise<boolean> => {
     try {
       const seen = await AsyncStorage.getItem('@superbrain_onboarded');
-      if (seen) return;
+      if (seen) return false;
       // Existing install upgrading — user already has data, skip tutorial
       const existingPosts = await AsyncStorage.getItem('@superbrain_posts_cache');
       const existingCollections = await AsyncStorage.getItem('@superbrain_collections');
       if (existingPosts || existingCollections) {
         await AsyncStorage.setItem('@superbrain_onboarded', '1');
-        return;
+        return false;
       }
       // Show onboarding only after app is fully initialized (configuration loaded)
       // Delay to ensure SettingsScreen navigation works smoothly
       setTimeout(() => setShowOnboarding(true), 1200);
+      return true;
     } catch { /* ignore */ }
+    return false;
   };
 
   const dismissOnboarding = async () => {
     try { await AsyncStorage.setItem('@superbrain_onboarded', '1'); } catch { /* ignore */ }
     setShowOnboarding(false);
     setOnboardingStep(0);
+
+    // Prompt for notifications only after onboarding walkthrough is finished.
+    requestNotificationPermissionAfterOnboarding().catch(() => {});
+    scheduleAllWatchLaterNotifications().catch(() => {});
   };
 
   const ONBOARDING_STEPS = [
@@ -212,7 +228,7 @@ const HomeScreen = () => {
     }
   };
 
-  const initializeAndLoad = async () => {
+  const initializeAndLoad = async (deferNotificationPrompt: boolean = false) => {
     try {
       await apiService.initialize();
       const token = await apiService.getApiToken();
@@ -231,7 +247,9 @@ const HomeScreen = () => {
         loadPosts(false),
       ]);
       // Reschedule Watch Later notifications with (possibly restored) collection data
-      scheduleAllWatchLaterNotifications().catch(() => { });
+      if (!deferNotificationPrompt) {
+        scheduleAllWatchLaterNotifications().catch(() => { });
+      }
       setIsInitialized(true);
     } catch (error) {
       console.error('Error initializing:', error);

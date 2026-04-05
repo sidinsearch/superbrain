@@ -6,6 +6,7 @@ import { collectionsService } from './collections';
 
 const COLLECTIONS_KEY = '@superbrain_collections';
 const WL_NOTIF_IDS_KEY = '@superbrain_wl_notif_ids'; // { [shortcode]: string[] }
+const ONBOARDED_KEY = '@superbrain_onboarded';
 
 // ─────────────────────────────────────────────
 // Foreground handler
@@ -119,6 +120,12 @@ async function saveNotifIds(map: Record<string, string[]>): Promise<void> {
 // Permission + category setup
 // ─────────────────────────────────────────────
 async function requestNotificationPermission(): Promise<boolean> {
+  // Never show notification permission prompt until onboarding is completed.
+  const onboarded = await AsyncStorage.getItem(ONBOARDED_KEY);
+  if (onboarded !== '1') {
+    return false;
+  }
+
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('watch-later', {
       name: 'Watch Later Reminders',
@@ -163,6 +170,11 @@ async function requestNotificationPermission(): Promise<boolean> {
   if (existing === 'granted') return true;
   const { status } = await Notifications.requestPermissionsAsync();
   return status === 'granted';
+}
+
+// Explicitly called by onboarding completion flow.
+export async function requestNotificationPermissionAfterOnboarding(): Promise<boolean> {
+  return requestNotificationPermission();
 }
 
 // ─────────────────────────────────────────────
