@@ -91,27 +91,22 @@ app = FastAPI(
     version="1.02"
 )
 
-# CORS configuration - restrict origins in production
+# CORS configuration
 import os
 
-# Get allowed origins from environment variable or use defaults
+# Get allowed origins from environment variable or allow all for development
 allowed_origins_env = os.getenv('ALLOWED_ORIGINS', '')
 if allowed_origins_env:
     allowed_origins = [origin.strip() for origin in allowed_origins_env.split(',')]
 else:
-    # Development defaults - RESTRICT IN PRODUCTION
-    allowed_origins = [
-        "http://localhost:3000",
-        "http://localhost:8081", 
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:8081",
-    ]
+    # Development: allow all origins so phones on same WiFi can connect
+    allowed_origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_credentials=False if allowed_origins == ["*"] else True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-API-Key"],
 )
 
@@ -839,6 +834,72 @@ async def status():
         "version": "1.02",
         "message": "Server is running. Configure app with server URL and Access Token from token.txt."
     }
+
+
+@app.get("/connect-info")
+async def connect_info(request: Request):
+    """
+    Returns connection details for QR code scanning.
+    No auth required — used by the mobile app to auto-fill settings.
+    The URL is built from the request so it matches whatever address the client used.
+    """
+    # Build the base URL from the incoming request
+    scheme = request.headers.get('x-forwarded-proto', request.url.scheme)
+    host = request.headers.get('x-forwarded-host', request.headers.get('host', 'localhost:5000'))
+    base_url = f"{scheme}://{host}"
+
+    return {
+        "url": base_url,
+        "token": API_TOKEN,
+        "version": "1.02",
+        "name": "SuperBrain"
+    }
+
+
+@app.get("/analysis-status/{shortcode}")
+async def analysis_status(shortcode: str, token: str = Depends(verify_token)):
+    """
+    Check if a post has been analyzed yet.
+    Returns status: 'complete', 'processing', 'queued', or 'not_found'.
+    Used by the app to poll for completion after sharing a URL.
+    """
+    try:
+        db = get_db()
+
+        # Check if fully analyzed
+        cached = db.check_cache(shortcode)
+        if cached:
+            return {
+                "status": "complete",
+                "shortcode": shortcode,
+                "title": cached.get('title', ''),
+                "category": cached.get('category', ''),
+                "data": {
+                    'title': cached.get('title', ''),
+                    'summary': cached.get('summary', ''),
+                    'tags': cached.get('tags', []),
+                    'category': cached.get('category', ''),
+                    'content_type': cached.get('content_type', ''),
+                    'thumbnail': cached.get('thumbnail', ''),
+                }
+            }
+
+        # Check if currently processing
+        processing = db.get_processing()
+        if shortcode in processing:
+            return {"status": "processing", "shortcode": shortcode}
+
+        # Check if in queue
+        queue = db.get_queue()
+        for i, item in enumerate(queue):
+            if item['shortcode'] == shortcode:
+                return {"status": "queued", "shortcode": shortcode, "position": i + 1}
+
+        return {"status": "not_found", "shortcode": shortcode}
+
+    except Exception as e:
+        logger.error(f"Error checking analysis status for {shortcode}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 class ConnectRequest(BaseModel):

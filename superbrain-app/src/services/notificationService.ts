@@ -134,11 +134,16 @@ async function requestNotificationPermission(): Promise<boolean> {
       lightColor: '#ff6b6b',
       sound: 'default',
     });
+    await Notifications.setNotificationChannelAsync('analysis-complete', {
+      name: 'Analysis Complete',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#28a745',
+      sound: 'default',
+    });
   }
 
   // Register "Mark as Watched" action button (Android & iOS)
-  // Wrapped in try-catch — on some Android versions this can fail, which must
-  // not block the notification channel setup or permission grant.
   try {
     await Notifications.setNotificationCategoryAsync('watch_later_post', [
       {
@@ -163,31 +168,19 @@ async function requestNotificationPermission(): Promise<boolean> {
 // ─────────────────────────────────────────────
 // Schedule daily notification(s) for ONE post
 // ─────────────────────────────────────────────
-/**
- * Schedule repeating daily reminder(s) for a single Watch Later post.
- *
- * Regular posts  → 1 notification at 19:30 + stagger (19:30–19:59)
- * Deadline posts → 2 notifications: 09:00 urgent + 19:30 reminder
- *
- * Notifications fire every day until cancelled (post removed).
- */
 export async function schedulePostWatchLaterNotification(post: Post): Promise<void> {
   try {
     const granted = await requestNotificationPermission();
     if (!granted) return;
 
-    // Cancel any existing notifications for this post
     await cancelPostWatchLaterNotification(post.shortcode);
 
     const ids: string[] = [];
     const hash = simpleHash(post.shortcode);
-    // Spread posts across 28 half-hour slots: 08:00, 08:30, 09:00 … 21:30
-    // (~30 min apart per post since each gets a deterministic unique-ish slot)
     const slot = hash % 28;
     const notifHour = 8 + Math.floor(slot / 2);
     const notifMinute = (slot % 2) * 30;
 
-    // ── Daily reminder ────────────────────────────────────────────────
     const { title, body } = buildNotificationContent(post, 'reminder');
     const eveningId = await Notifications.scheduleNotificationAsync({
       content: {
@@ -207,7 +200,6 @@ export async function schedulePostWatchLaterNotification(post: Post): Promise<vo
     });
     ids.push(eveningId);
 
-    // ── Morning urgent (deadline posts only) ─────────────────────────
     if (isDeadlinePost(post)) {
       const { title: uTitle, body: uBody } = buildNotificationContent(post, 'urgent');
       const morningId = await Notifications.scheduleNotificationAsync({
@@ -225,7 +217,7 @@ export async function schedulePostWatchLaterNotification(post: Post): Promise<vo
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
           hour: 9,
-          minute: hash % 15, // 0–14 morning stagger
+          minute: hash % 15,
           repeats: true,
         },
       });
@@ -271,21 +263,18 @@ export async function scheduleAllWatchLaterNotifications(): Promise<void> {
 
     const postIds: string[] = watchLater.postIds;
 
-    // Load cached post metadata
     let cachedPosts: Post[] = [];
     try {
       const cp = await AsyncStorage.getItem('@superbrain_posts_cache');
       if (cp) cachedPosts = JSON.parse(cp);
     } catch (_) {}
 
-    // Cancel notifications for posts no longer in Watch Later
     const map = await loadNotifIds();
     const currentSet = new Set(postIds);
     for (const sc of Object.keys(map)) {
       if (!currentSet.has(sc)) await cancelPostWatchLaterNotification(sc);
     }
 
-    // Schedule / refresh each post
     for (const shortcode of postIds) {
       const post =
         cachedPosts.find(p => p.shortcode === shortcode) ??
@@ -306,16 +295,10 @@ export async function rescheduleWatchLaterNotification(): Promise<void> {
 }
 
 // ─────────────────────────────────────────────
-// Debug & Test Functions
-// ─────────────────────────────────────────────
-
-
 // "Mark as Watched" action handler
-// Called when user taps the action button on a notification
 // ─────────────────────────────────────────────
 export async function handleMarkAsWatched(shortcode: string): Promise<void> {
   try {
-    // Remove from Watch Later via the service so it syncs to backend
     await collectionsService.removePostFromCollection('default_watch_later', shortcode);
     await cancelPostWatchLaterNotification(shortcode);
   } catch (e) {
@@ -337,16 +320,12 @@ export async function sendImmediateWatchLaterNotification(post: Post): Promise<v
         title: '🧠 ⏰ Added to Watch Later',
         body,
         sound: 'default',
-        // No categoryIdentifier here — action buttons (Mark as Watched) are
-        // only shown on the scheduled daily reminder notifications, not the
-        // instant confirmation notification.
         data: { shortcode: post.shortcode, type: 'watch_later_added' },
         ...(Platform.OS === 'android' ? { channelId: 'watch-later-urgent', color: '#667eea' } : {}),
       },
       trigger: null,
     });
 
-    // Set up daily scheduled notifications for this post
     await schedulePostWatchLaterNotification(post);
   } catch (e) {
     console.warn('[Notifications] sendImmediateWatchLaterNotification error:', e);
@@ -355,7 +334,7 @@ export async function sendImmediateWatchLaterNotification(post: Post): Promise<v
 
 // ─────────────────────────────────────────────
 // Instant "Saved to SuperBrain" notification
-// Fires for any save that is NOT Watch Later
+// (kept for backward compat but now rarely used directly)
 // ─────────────────────────────────────────────
 export async function sendImmediateSavedNotification(post: Post): Promise<void> {
   try {
@@ -378,5 +357,85 @@ export async function sendImmediateSavedNotification(post: Post): Promise<void> 
     });
   } catch (e) {
     console.warn('[Notifications] sendImmediateSavedNotification error:', e);
+  }
+}
+
+// ─────────────────────────────────────────────
+// Analysis-complete notification
+// Fires AFTER the backend finishes analyzing
+// ─────────────────────────────────────────────
+export async function sendAnalysisCompleteNotification(post: Post): Promise<void> {
+  try {
+    const granted = await requestNotificationPermission();
+    if (!granted) return;
+
+    const name = post.title || 'Your saved post';
+    const cat = (post.category || '').toLowerCase();
+
+    let title = '🧠 ✅ Analysis Complete';
+    let body = `"${name}" has been analyzed and saved!`;
+
+    if (post.content_type === 'youtube') {
+      title = '🧠 🎬 Video Analyzed';
+      body = `"${name}" is ready — summary, tags, and more!`;
+    } else if (post.content_type === 'webpage') {
+      title = '🧠 🌐 Page Analyzed';
+      body = `"${name}" has been saved with AI summary.`;
+    } else if (cat.includes('food') || cat.includes('recipe')) {
+      title = '🧠 🍳 Recipe Saved';
+      body = `"${name}" — analyzed and ready to cook!`;
+    } else if (cat.includes('fitness') || cat.includes('workout')) {
+      title = '🧠 💪 Workout Saved';
+      body = `"${name}" — analyzed and ready for action!`;
+    } else if (cat.includes('educat') || cat.includes('tutorial') || cat.includes('learn')) {
+      title = '🧠 📚 Learning Content Ready';
+      body = `"${name}" — your summary and notes are ready.`;
+    }
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        sound: 'default',
+        data: { shortcode: post.shortcode, type: 'analysis_complete' },
+        ...(Platform.OS === 'android' ? {
+          channelId: 'analysis-complete',
+          color: '#28a745',
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+        } : {}),
+      },
+      trigger: null,
+    });
+  } catch (e) {
+    console.warn('[Notifications] sendAnalysisCompleteNotification error:', e);
+  }
+}
+
+// ─────────────────────────────────────────────
+// Analysis-failed notification
+// ─────────────────────────────────────────────
+export async function sendAnalysisFailedNotification(shortcode: string, title?: string): Promise<void> {
+  try {
+    const granted = await requestNotificationPermission();
+    if (!granted) return;
+
+    const name = title || 'A saved post';
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '🧠 ❌ Analysis Failed',
+        body: `"${name}" could not be analyzed. Tap to retry.`,
+        sound: 'default',
+        data: { shortcode, type: 'analysis_failed' },
+        ...(Platform.OS === 'android' ? {
+          channelId: 'analysis-complete',
+          color: '#dc3545',
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+        } : {}),
+      },
+      trigger: null,
+    });
+  } catch (e) {
+    console.warn('[Notifications] sendAnalysisFailedNotification error:', e);
   }
 }

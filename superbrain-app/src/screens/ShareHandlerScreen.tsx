@@ -19,7 +19,7 @@ import { colors } from '../theme/colors';
 import apiService from '../services/api';
 import postsCache from '../services/postsCache';
 import { collectionsService } from '../services/collections';
-import { sendImmediateWatchLaterNotification, sendImmediateSavedNotification } from '../services/notificationService';
+import { sendImmediateWatchLaterNotification, sendAnalysisCompleteNotification, sendAnalysisFailedNotification } from '../services/notificationService';
 import { Post, Collection } from '../types';
 import CustomToast from '../components/CustomToast';
 
@@ -315,12 +315,12 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
           // fire instant "Saved" notification for all other collections
           if (collectionId === 'default_watch_later') {
             sendImmediateWatchLaterNotification(placeholderPost).catch(() => {});
-          } else {
-            sendImmediateSavedNotification(placeholderPost).catch(() => {});
           }
+          // Non-Watch-Later saves: NO instant notification.
+          // Notification fires after analysis completes (see .then() below).
 
           // Trigger backend analysis in background
-          apiService.analyzeInstagramUrl(url).then(async () => {
+          apiService.analyzeInstagramUrl(url).then(async (analyzedPost) => {
             // When analysis completes, merge fresh posts with analyzing placeholders
             const freshPosts = await apiService.getRecentPosts(50);
             if (freshPosts.length > 0) {
@@ -332,18 +332,25 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
               await postsCache.savePosts([...placeholders, ...freshPosts]);
             }
             postsCache.markAnalysisComplete(shortcode);
+
+            // Fire completion notification with proper post title
+            const completePost = analyzedPost || placeholderPost;
+            sendAnalysisCompleteNotification(completePost).catch(() => {});
           }).catch((err: any) => {
             if (err?.isRetryQueued) {
               showToast('⏰ Queued — will retry automatically tomorrow', 'info');
             } else {
-              console.error('Background analysis error:', err);              // Track in local failed list so user can re-analyze from Library
+              console.error('Background analysis error:', err);
               postsCache.markAsFailed(
                 shortcode,
                 url,
                 post?.title || '',
                 post?.thumbnail_url,
                 post?.content_type,
-              );            }
+              );
+              // Fire failure notification
+              sendAnalysisFailedNotification(shortcode, post?.title).catch(() => {});
+            }
             postsCache.markAnalysisComplete(shortcode);
           });
         }
@@ -388,7 +395,7 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
         }
         
         // Trigger backend analysis in background
-        apiService.analyzeInstagramUrl(url).then(async () => {
+        apiService.analyzeInstagramUrl(url).then(async (analyzedPost) => {
           const freshPosts = await apiService.getRecentPosts(50);
           if (freshPosts.length > 0) {
             const sc = post.shortcode!;
@@ -400,11 +407,16 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
             await postsCache.savePosts([...placeholders, ...freshPosts]);
           }
           if (post.shortcode) postsCache.markAnalysisComplete(post.shortcode);
+
+          // Fire completion notification with proper post title
+          const completePost = analyzedPost || post;
+          sendAnalysisCompleteNotification(completePost).catch(() => {});
         }).catch((err: any) => {
           if (err?.isRetryQueued) {
             showToast('⏰ Quota full — queued for retry tomorrow', 'info');
           } else {
-            console.error('Background analysis error:', err);            if (post?.shortcode) {
+            console.error('Background analysis error:', err);
+            if (post?.shortcode) {
               postsCache.markAsFailed(
                 post.shortcode,
                 url,
@@ -412,12 +424,14 @@ const ShareHandlerScreen = ({ route, navigation }: Props) => {
                 post?.thumbnail_url,
                 post?.content_type,
               );
-            }          }
+            }
+            // Fire failure notification
+            sendAnalysisFailedNotification(post?.shortcode || '', post?.title).catch(() => {});
+          }
           if (post.shortcode) postsCache.markAnalysisComplete(post.shortcode);
         });
       }
       
-      if (post) sendImmediateSavedNotification(post).catch(() => {});
       showToast('✨ Saved — analyzing in background...', 'info');
       
       // Return to previous app

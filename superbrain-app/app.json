@@ -43,7 +43,8 @@
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.SCHEDULE_EXACT_ALARM",
         "android.permission.USE_EXACT_ALARM",
-        "android.permission.WAKE_LOCK"
+        "android.permission.WAKE_LOCK",
+        "android.permission.CAMERA"
       ],
       "intentFilters": [
         {
@@ -103,6 +104,12 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#667eea"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "SuperBrain needs camera access to scan QR codes for server connection setup."
         }
       ]
     ]

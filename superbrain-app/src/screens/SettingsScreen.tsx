@@ -89,6 +89,25 @@ const SettingsScreen = () => {
     loadSettings();
   }, []);
 
+  // Handle QR scan data when returning from QRScanner
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      const routes = navigation.getState()?.routes;
+      const currentRoute = routes?.[routes.length - 1];
+      const params = currentRoute?.params as any;
+      if (params?.qrData) {
+        const { url, token } = params.qrData;
+        if (url) setServerUrl(url);
+        if (token) setApiToken(token);
+        // Clear the params so we don't re-trigger
+        navigation.setParams({ qrData: undefined } as any);
+        // Auto-save after a brief delay to let state update
+        setTimeout(() => handleQRConnect(url, token), 300);
+      }
+    });
+    return unsubscribe;
+  }, [navigation]);
+
   const loadSettings = async () => {
     try {
       const token = await apiService.getApiToken();
@@ -170,6 +189,45 @@ const SettingsScreen = () => {
     } catch (error: any) {
       setConnectionStatus('disconnected');
       setToast({ visible: true, message: error.message || 'Connection failed', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleQRConnect = async (qrUrl: string, qrToken: string) => {
+    if (!qrUrl || !qrToken) return;
+    try {
+      setSaving(true);
+      const normalizedUrl = qrUrl.trim().replace(/\/+$/, '');
+      const normalizedToken = sanitizeAccessToken(qrToken);
+
+      if (!normalizedToken || normalizedToken.length !== ACCESS_TOKEN_LENGTH) {
+        setToast({ visible: true, message: 'Invalid token from QR code', type: 'error' });
+        return;
+      }
+
+      await apiService.setApiUrl(normalizedUrl);
+      await apiService.setApiToken(normalizedToken);
+
+      const reachable = await apiService.testConnection();
+      if (!reachable) {
+        setConnectionStatus('disconnected');
+        setToast({ visible: true, message: 'Server not reachable', type: 'error' });
+        return;
+      }
+
+      const status = await apiService.getQueueStatus();
+      if (status !== null) {
+        setConnectionStatus('connected');
+        setQueueStatus(status);
+        setToast({ visible: true, message: '✅ Connected via QR code!', type: 'success' });
+      } else {
+        setConnectionStatus('disconnected');
+        setToast({ visible: true, message: 'Invalid Access Token from QR', type: 'error' });
+      }
+    } catch (error: any) {
+      setConnectionStatus('disconnected');
+      setToast({ visible: true, message: error.message || 'QR connection failed', type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -317,15 +375,24 @@ const SettingsScreen = () => {
               <Ionicons name="sync" size={18} color={colors.primary} style={{ marginRight: 8 }} />
               <Text style={styles.statusTitle}>Connection</Text>
             </View>
-            <View style={[styles.statusBadge, connectionStatus === 'connected' ? styles.statusConnected : styles.statusDisconnected]}>
-              <Ionicons 
-                name={connectionStatus === 'connected' ? 'checkmark-circle' : 'close-circle'} 
-                size={14} 
-                color={connectionStatus === 'connected' ? '#28a745' : '#dc3545'} 
-              />
-              <Text style={[styles.statusText, connectionStatus === 'connected' ? styles.statusTextConnected : styles.statusTextDisconnected]}>
-                {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
-              </Text>
+            <View style={styles.statusRightRow}>
+              <TouchableOpacity
+                style={styles.qrButton}
+                onPress={() => navigation.navigate('QRScanner' as any)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="qr-code-outline" size={18} color={colors.primary} />
+              </TouchableOpacity>
+              <View style={[styles.statusBadge, connectionStatus === 'connected' ? styles.statusConnected : styles.statusDisconnected]}>
+                <Ionicons 
+                  name={connectionStatus === 'connected' ? 'checkmark-circle' : 'close-circle'} 
+                  size={14} 
+                  color={connectionStatus === 'connected' ? '#28a745' : '#dc3545'} 
+                />
+                <Text style={[styles.statusText, connectionStatus === 'connected' ? styles.statusTextConnected : styles.statusTextDisconnected]}>
+                  {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
+                </Text>
+              </View>
             </View>
           </View>
           
@@ -561,6 +628,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
+  },
+  statusRightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  qrButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: `${colors.primary}18`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: `${colors.primary}30`,
   },
   statusBadge: {
     flexDirection: 'row',

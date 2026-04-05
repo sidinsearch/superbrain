@@ -18,6 +18,7 @@ import FailedAnalysisScreen from './src/screens/FailedAnalysisScreen';
 import AIProviderScreen from './src/screens/AIProviderScreen';
 import InstagramScreen from './src/screens/InstagramScreen';
 import DataImportExportScreen from './src/screens/DataImportExportScreen';
+import QRScannerScreen from './src/screens/QRScannerScreen';
 
 // API Service
 import apiService from './src/services/api';
@@ -37,6 +38,7 @@ export type RootStackParamList = {
   AIProvider: undefined;
   Instagram: undefined;
   DataImportExport: undefined;
+  QRScanner: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -225,6 +227,11 @@ export default function App() {
             name="DataImportExport"
             component={DataImportExportScreen}
             options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
+            name="QRScanner"
+            component={QRScannerScreen}
+            options={{ animation: 'slide_from_bottom' }}
           />
         </Stack.Navigator>
       </NavigationContainer>

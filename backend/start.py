@@ -997,6 +997,83 @@ def _detect_local_ip() -> str:
 
     return "127.0.0.1"
 
+def _display_connect_qr(url: str, token: str):
+    """Display a proper QR code in the terminal using segno + Unicode half-block chars.
+
+    The QR encodes a JSON string:  {"url": "...", "token": "..."}
+    which the mobile app's QR scanner can read to auto-configure connection.
+    """
+    try:
+        import segno
+    except ImportError:
+        # segno not installed — try installing it on the fly
+        try:
+            info("Installing segno for QR code display …")
+            run_q([str(VENV_PIP), "install", "--quiet", "segno"])
+            import segno
+        except Exception:
+            warn("Could not generate QR code (segno not available).")
+            info("Install it:  pip install segno")
+            return
+
+    payload = json.dumps({"url": url, "token": token}, separators=(',', ':'))
+    qr = segno.make(payload, error='L')
+
+    # Convert to a matrix of booleans (True = dark module)
+    matrix = [list(row) for row in qr.matrix]
+    rows = len(matrix)
+    cols = len(matrix[0]) if rows else 0
+
+    # Add quiet zone (2 modules on each side)
+    quiet = 2
+    padded_cols = cols + quiet * 2
+    padded_rows = rows + quiet * 2
+    padded = []
+    empty_row = [0] * padded_cols
+    for _ in range(quiet):
+        padded.append(list(empty_row))
+    for row in matrix:
+        padded.append([0] * quiet + row + [0] * quiet)
+    for _ in range(quiet):
+        padded.append(list(empty_row))
+
+    # Render using Unicode half-block characters for double vertical resolution
+    # Each output line encodes TWO rows of QR modules:
+    #   top=dark, bottom=dark → "█"  (full block)
+    #   top=dark, bottom=light → "▀" (upper half)
+    #   top=light, bottom=dark → "▄" (lower half)
+    #   top=light, bottom=light → " " (space)
+    BG_WHITE  = "\033[47m"   # white background
+    FG_BLACK  = "\033[30m"   # black foreground
+    ANSI_RST  = "\033[0m"
+
+    nl()
+    print(f"  {BOLD}{CYAN}┌{'─' * (padded_cols + 4)}┐{RESET}")
+    print(f"  {BOLD}{CYAN}│{RESET}  {BOLD}Scan with SuperBrain app{RESET}  {BOLD}{CYAN}│{RESET}")
+    print(f"  {BOLD}{CYAN}├{'─' * (padded_cols + 4)}┤{RESET}")
+
+    for y in range(0, padded_rows, 2):
+        line_chars = []
+        for x in range(padded_cols):
+            top = padded[y][x] if y < padded_rows else 0
+            bottom = padded[y + 1][x] if y + 1 < padded_rows else 0
+
+            if top and bottom:
+                line_chars.append("█")
+            elif top and not bottom:
+                line_chars.append("▀")
+            elif not top and bottom:
+                line_chars.append("▄")
+            else:
+                line_chars.append(" ")
+
+        line = "".join(line_chars)
+        print(f"  {BOLD}{CYAN}│{RESET}  {line}  {BOLD}{CYAN}│{RESET}")
+
+    print(f"  {BOLD}{CYAN}└{'─' * (padded_cols + 4)}┘{RESET}")
+    nl()
+
+
 def launch_backend():
     h1("Launching SuperBrain Backend")
 
@@ -1119,6 +1196,10 @@ def launch_backend():
         tunnel_line = ""
         tunnel_hint = f"         · public     →  install Node.js first, then run: {DIM}npx localtunnel --port {PORT}{RESET}"
 
+    # ── Generate and display QR code ──────────────────────────────────────────
+    qr_url = f"http://{local_ip}:{PORT}"
+    _display_connect_qr(qr_url, token)
+
     print(f"""
   {GREEN}{BOLD}Backend is starting up!{RESET}
 
@@ -1130,14 +1211,20 @@ def launch_backend():
   {DIM}Keep this terminal open. Press Ctrl+C to stop the server.{RESET}
 
   {YELLOW}Mobile app setup:{RESET}
-    1. Build / install the SuperBrain APK on your Android device.
-    2. Open the app  →  tap the ⚙ settings icon.
-    3. Set {BOLD}Server URL{RESET} to:
-         · Same WiFi  →  http://{local_ip}:{PORT}
+    {BOLD}Option A — Scan QR code (easiest):{RESET}
+      1. Open the app  →  Settings  →  tap the {BOLD}QR icon{RESET} 📷
+      2. Scan the QR code shown above
+      3. Done — auto-connected!
+
+    {BOLD}Option B — Manual setup:{RESET}
+      1. Build / install the SuperBrain APK on your Android device.
+      2. Open the app  →  tap the ⚙ settings icon.
+      3. Set {BOLD}Server URL{RESET} to:
+           · Same WiFi  →  http://{local_ip}:{PORT}
 {tunnel_hint}
-         · Port fwd   →  http://<your-public-ip>:{PORT}
-    4. Set {BOLD}Access Token{RESET} to: {BOLD}{MAGENTA}{token}{RESET}
-    5. Tap {BOLD}Save{RESET}  →  Connected!
+           · Port fwd   →  http://<your-public-ip>:{PORT}
+      4. Set {BOLD}Access Token{RESET} to: {BOLD}{MAGENTA}{token}{RESET}
+      5. Tap {BOLD}Save{RESET}  →  Connected!
 
   {YELLOW}Data Management:{RESET}
     • {BOLD}Export:{RESET}   In app Settings  →  Data Import/Export  →  choose format (JSON/ZIP)
