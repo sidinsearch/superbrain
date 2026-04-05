@@ -216,59 +216,51 @@ Free AI APIs have rate limits, downtime, and variable speed. SuperBrain solves t
 
 ## Getting Started
 
-### Prerequisites
+### Backend Setup Prerequisites
 
-| Requirement | Install | Required? |
+| Requirement | Install | Needed For |
 |---|---|---|
-| Python 3.10+ | [python.org](https://python.org) | ✅ Yes |
-| ffmpeg | `sudo apt install ffmpeg` / `brew install ffmpeg` / `winget install Gyan.FFmpeg` | ✅ Yes |
-| Node.js 20+ | [nodejs.org](https://nodejs.org) | Required for one-line backend install |
-| ngrok | [ngrok.com](https://ngrok.com) | Only if backend runs on your PC |
+| Python 3.10+ | [python.org](https://python.org) | npm + local Python setup |
+| ffmpeg | `sudo apt install ffmpeg` / `brew install ffmpeg` / `winget install Gyan.FFmpeg` | all backend methods |
+| Node.js 20+ | [nodejs.org](https://nodejs.org) | npm one-line setup |
+| Docker + Compose | [docs.docker.com/get-started](https://docs.docker.com/get-started/) | Docker setup |
+| ngrok (optional) | [ngrok.com](https://ngrok.com) | phone access from outside local network |
 
-### Quick Start (Recommended)
+### Method 1: npm One-Line Setup (Recommended)
 
-Install and run the backend from any directory on Windows, macOS, or Linux:
+This is the easiest way to run backend on any PC without cloning this repository.
 
 ```bash
-# 1) One-line backend install + run (recommended)
+# Run directly (no global install)
 npx -y superbrain-server@latest
-
-# 2) Optional: install globally for repeated usage
-npm install -g superbrain-server
-superbrain-server
-
-# 3) Expose the server to the internet (if running on your local machine)
-ngrok http 5000
-
-# 4) Install the APK on your Android phone
-#    Open Settings in the app -> enter the ngrok URL + Access Token shown in backend console
 ```
 
-The npm command bootstraps the backend in `~/.superbrain-server`, creates an isolated virtual environment, installs Python dependencies, and launches the interactive setup wizard automatically.
+Optional global install:
 
-If Python 3.10+ is not available on your system path, the CLI now exits with a clear error and tells you to install Python first.
+```bash
+npm install -g superbrain-server
+superbrain-server
+```
 
-**See it in action:**
+What this does on first run:
 
+1. Downloads backend package to `~/.superbrain-server`
+2. Creates virtual environment
+3. Installs dependencies
+4. Runs interactive setup wizard
+5. Starts API server and prints Access Token
 
-https://github.com/user-attachments/assets/9769681b-5494-4093-b1bf-2c60c20e1673
+Useful commands:
 
+```bash
+superbrain-server reset
+superbrain-server reset --all
+npx -y superbrain-server@latest reset
+```
 
-`npx -y superbrain-server@latest` (or `superbrain-server` after global install) is the **single entry point** for the backend. On first run it walks you through:
+### Method 2: Docker Setup
 
-1. Virtual environment creation 
-2. Dependency installation (`requirements.txt`)
-3. API key configuration (Groq / Gemini / OpenRouter)
-4. Instagram credentials (optional — [see below](#instagram-credentials))
-5. Ollama offline model setup (optional)
-6. Whisper transcription model selection
-7. API token generation
-
-On subsequent runs, it skips the wizard and instantly boots the server. Use `superbrain-server reset` (or `npx -y superbrain-server@latest reset`) to re-run the wizard.
-
-### Backend Setup with Docker
-
-From the backend folder:
+Use this when you want containerized, reproducible deployment.
 
 ```bash
 cd superbrain/backend
@@ -278,12 +270,10 @@ cp .env.example .env
 Edit `.env` and set at least:
 
 - `GEMINI_API_KEY` (recommended)
-- `GROQ_API_KEY` (optional but useful)
-- `OPENROUTER_API_KEY` (optional fallback)
+- `GROQ_API_KEY` (optional)
+- `OPENROUTER_API_KEY` (optional)
 
-`GOOGLE_API_KEY` is still accepted as a compatibility alias, but `GEMINI_API_KEY` is the preferred key name.
-
-Then build and run:
+Then run:
 
 ```bash
 docker compose up -d --build
@@ -296,15 +286,11 @@ Health check:
 curl http://localhost:5000/health
 ```
 
-Notes:
+### Method 3: Local Python Setup (Normal)
 
-- The app connects using the **Access Token** printed by backend logs / console.
-- If you run backend on your laptop for phone access, expose port 5000 with ngrok:
-  `ngrok http 5000`
+Use this when developing backend locally without Docker.
 
-### Backend Setup (Manual)
-
-#### Windows (PowerShell)
+Windows (PowerShell):
 
 ```powershell
 cd superbrain\backend
@@ -314,7 +300,7 @@ pip install -r requirements.txt
 python start.py
 ```
 
-#### Linux / macOS
+Linux / macOS:
 
 ```bash
 cd superbrain/backend
@@ -324,53 +310,30 @@ pip install -r requirements.txt
 python start.py
 ```
 
-Manual direct API start (without setup wizard):
+Direct API run (without setup wizard):
 
 ```bash
 python api.py
 ```
 
-This starts API on `http://localhost:5000`.
+### Connect Android App to Backend
 
-### Manual Setup
+1. Start backend using any method above.
+2. Copy the Access Token shown by backend.
+3. In Android app Settings, set backend URL and Access Token.
+4. Verify `/health` endpoint returns OK.
 
-<details>
-<summary>Click to expand</summary>
+### Optional: Expose Backend for Phone Access
 
-```bash
-cd superbrain/backend
-python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-
-# Copy the example keys file and fill in your keys
-cp config/.api_keys.example config/.api_keys
-
-# Start the server
-python api.py
-```
-
-### Reset & Utilities
-
-If you need to wipe configurations or clean the local cache, the CLI comes packed with powerful commands:
-
-```bash
-superbrain-server reset                          # Open interactive reset menu (Safe)
-superbrain-server reset --all                    # Completely wipe local cache/tokens/setup (Destructive)
-npx -y superbrain-server@latest reset --all      # Same command without global install
-```
-
-</details>
-
-### Expose with ngrok
+If phone cannot reach your PC directly, expose port 5000:
 
 ```bash
 ngrok http 5000
 ```
 
-Copy the `https://xxxx.ngrok-free.app` URL and enter it in the app's **Settings** screen along with the Access Token shown by backend.
+Use the generated HTTPS URL in app Settings.
 
-> **Tip:** Run `ngrok config add-authtoken YOUR_TOKEN` for a stable URL that persists across restarts.
+> **Tip:** `GOOGLE_API_KEY` is accepted as a compatibility alias, but `GEMINI_API_KEY` is the preferred key name.
 
 ---
 

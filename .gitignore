@@ -61,6 +61,7 @@ supermobile-app/.env
 desktop.ini
 *.log
 .opencode/
+.anti-gravity/
 .antigravity
 .antigravity/
 anti-gravity
