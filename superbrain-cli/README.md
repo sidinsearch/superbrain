@@ -39,6 +39,8 @@ npx -y @sidinsearch/superbrain-server@latest
 npx -y @sidinsearch/superbrain-server@beta
 ```
 
+GitHub Packages docs: https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry
+
 ## What It Does on First Run
 
 1. Unpacks backend files into `~/.superbrain-server`

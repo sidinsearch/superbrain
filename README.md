@@ -360,11 +360,9 @@ npx -y @sidinsearch/superbrain-server@latest
 npx -y @sidinsearch/superbrain-server@beta
 ```
 
-The package appears in the repository **Packages** section after the first successful tagged run of `.github/workflows/publish-github-packages.yml`.
+GitHub Packages docs: [Working with the npm registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry)
 
-Direct repository Packages page:
-
-- https://github.com/sidinsearch/superbrain/packages
+Repository Packages page: https://github.com/sidinsearch/superbrain/packages
 
 ---
 
