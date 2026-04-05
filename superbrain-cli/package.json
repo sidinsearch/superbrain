@@ -1,0 +1,20 @@
+{
+  "name": "superbrain-server",
+  "version": "1.0.1",
+  "description": "1-Line Auto-Installer and Server Execution wrapper for SuperBrain",
+  "main": "index.js",
+  "bin": {
+    "superbrain-server": "./bin/superbrain.js"
+  },
+  "scripts": {
+    "build": "node scripts/build.js"
+  },
+  "keywords": ["superbrain", "server"],
+  "author": "sidinsearch",
+  "license": "MIT",
+  "dependencies": {},
+  "files": [
+    "bin/",
+    "payload/"
+  ]
+}

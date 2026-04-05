@@ -220,23 +220,22 @@ Free AI APIs have rate limits, downtime, and variable speed. SuperBrain solves t
 | Node.js 20+ | [nodejs.org](https://nodejs.org) | Only for building the app |
 | ngrok | [ngrok.com](https://ngrok.com) | Only if backend runs on your PC |
 
-### Quick Start
+### Quick Start (Recommended)
+
+Start the SuperBrain backend instantly anywhere on your system using zero configuration:
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/sidinsearch/superbrain.git
-cd superbrain/backend
+# 1. Install and boot the backend seamlessly
+npx superbrain-server
 
-# 2. Run the interactive setup wizard
-#    Creates venv · installs deps · configures API keys · starts server
-python start.py
-
-# 3. Expose the server to the internet (if running on your local machine)
+# 2. Expose the server to the internet (if running on your local machine)
 ngrok http 5000
 
-# 4. Install the APK on your Android phone
+# 3. Install the APK on your Android phone
 #    Open Settings in the app -> enter the ngrok URL + Access Token shown in backend console
 ```
+
+When you trigger the NPM command, SuperBrain safely downloads the Python engine, natively builds an isolated virtual environment, installs its own dependencies, and launches the interactive setup wizard automatically—no tedious Git cloning required!
 
 **See it in action:**
 
@@ -244,9 +243,9 @@ ngrok http 5000
 https://github.com/user-attachments/assets/9769681b-5494-4093-b1bf-2c60c20e1673
 
 
-`start.py` is the **single entry point** for the backend. On first run it walks you through:
+`npx superbrain-server` is the **single entry point** for the backend. On first run it walks you through:
 
-1. Virtual environment creation
+1. Virtual environment creation 
 2. Dependency installation (`requirements.txt`)
 3. API key configuration (Groq / Gemini / OpenRouter)
 4. Instagram credentials (optional — [see below](#instagram-credentials))
@@ -254,7 +253,7 @@ https://github.com/user-attachments/assets/9769681b-5494-4093-b1bf-2c60c20e1673
 6. Whisper transcription model selection
 7. API token generation
 
-On subsequent runs it simply starts the server. Use `python start.py --reset` to re-run the wizard.
+On subsequent runs, it skips the wizard and instantly boots the server. Use `npx superbrain-server reset` to re-run the wizard.
 
 ### Backend Setup with Docker
 
@@ -338,7 +337,14 @@ cp config/.api_keys.example config/.api_keys
 python api.py
 ```
 
-The server starts on `http://localhost:5000`. Use the **Access Token** shown in backend logs/console when connecting the Android app.
+### Reset & Utilities
+
+If you need to wipe configurations or clean the local cache, the CLI comes packed with powerful commands:
+
+```bash
+npx superbrain-server reset         # Open interactive reset menu (Safe)
+npx superbrain-server reset --all   # Completely wipe local cache/tokens/setup (Destructive)
+```
 
 </details>
 
