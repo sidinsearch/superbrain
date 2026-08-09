@@ -936,6 +936,58 @@ async def status():
     }
 
 
+@app.get("/router-status")
+async def router_status(token: str = Depends(verify_token)):
+    """
+    Exposes the live ModelRouter ranking: per-model availability, measured
+    latency (EMA), cooldown state, success/fail counts, and the resolved
+    fallback order for text and vision tasks.
+
+    The router already tracks all this in memory; it was only surfaced via the
+    console (print_rankings). This endpoint makes it queryable for dashboards,
+    health checks, and self-healing automations. The router instance is a
+    process-wide singleton, so reading it is side-effect free.
+    """
+    from core.model_router import get_router, MODELS_BY_KEY
+
+    router = get_router()
+
+    def _model_entry(key: str) -> dict:
+        m = MODELS_BY_KEY.get(key) or getattr(router, "_dynamic_models", {}).get(key) or {}
+        s = router._state.get(key, router._default_model_state_dynamic(key))
+        down_until = s.get("down_until")
+        return {
+            "key": key,
+            "provider": m.get("provider"),
+            "model_id": m.get("model_id"),
+            "type": m.get("type"),
+            "available": router._is_available(key),
+            "base_priority": m.get("base_priority"),
+            "effective_priority": round(router._effective_priority(key), 3),
+            "avg_response_s": s.get("avg_response_s"),
+            "success_count": s.get("success_count", 0),
+            "fail_count": s.get("fail_count", 0),
+            "down_until": down_until,
+            "last_error": s.get("last_error"),
+        }
+
+    ranked_text = router._ranked_models("text")
+    ranked_vision = router._ranked_models("vision")
+
+    return {
+        "providers": router.get_available_providers(),
+        "text": {
+            "fallback_order": [_model_entry(k) for k in ranked_text],
+            "preferred": ranked_text[0] if ranked_text else None,
+        },
+        "vision": {
+            "fallback_order": [_model_entry(k) for k in ranked_vision],
+            "preferred": ranked_vision[0] if ranked_vision else None,
+        },
+        "dynamic_models_discovered": len(getattr(router, "_dynamic_models", {})),
+    }
+
+
 @app.get("/connect-info")
 async def connect_info(request: Request):
     """
