@@ -40,7 +40,12 @@ import { RootStackParamList } from '../../App';
 import CustomToast from '../components/CustomToast';
 import BottomNav from '../components/BottomNav';
 import { getCollectionIconName, getCollectionIconColor } from '../constants/icons';
-import { DEFAULT_CATEGORIES, CATEGORY_ICONS } from '../constants/categories';
+import { ALL_CATEGORY, DEFAULT_CATEGORIES, CATEGORY_ICONS } from '../constants/categories';
+import {
+  TaxonomyPayload,
+  isTaxonomyApiActive,
+  usesStrictCustomTaxonomy,
+} from '../services/taxonomySupport';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -201,32 +206,60 @@ const HomeScreen = () => {
     },
   ];
 
-  const loadCategories = async () => {
+  const loadCategories = async (
+    prefetchedTaxonomy?: TaxonomyPayload | null | Promise<TaxonomyPayload | null>,
+  ) => {
     try {
-      const cats = await apiService.getCategories();
-      if (cats && cats.length > 0) {
-        // Always keep full default pill set visible, then overlay live counts from backend.
-        const mergedById = new Map(
-          DEFAULT_CATEGORIES
-            .filter(c => c.id !== 'all')
-            .map(c => [c.id, { ...c, count: 0 }])
-        );
+      // Reuse a pre-fetched taxonomy when available to avoid redundant HTTP calls.
+      // On init (no prefetch), fetch taxonomy alongside categories.
+      const [cats, taxonomy] = await Promise.all([
+        apiService.getCategories(),
+        prefetchedTaxonomy !== undefined
+          ? Promise.resolve(prefetchedTaxonomy)
+          : apiService.getTaxonomy().catch(() => null),
+      ]);
 
-        for (const c of cats) {
-          const id = c.id.toLowerCase();
-          const existing = mergedById.get(id);
-          mergedById.set(id, {
-            id,
-            name: existing?.name || c.name,
-            icon: existing?.icon || CATEGORY_ICONS[c.name.trim().toLowerCase()] || 'pricetag-outline',
-            count: c.count,
-          });
-        }
+      // No GET /taxonomy (upstream today) → keep full built-in pill set + counts.
+      // Taxonomy present + use_default_categories=false → configured chips only.
+      // Taxonomy present + defaults on → seed from server taxonomy list.
+      const taxonomyActive = isTaxonomyApiActive(taxonomy);
+      const strictCustom = usesStrictCustomTaxonomy(taxonomy);
 
-        const merged = Array.from(mergedById.values());
-        const totalCount = merged.reduce((sum, c) => sum + c.count, 0);
-        setCategories([{ id: 'all', name: 'All', icon: 'star', count: totalCount }, ...merged]);
+      let seed: Array<{ id: string; name: string; icon: string; count: number }>;
+      if (taxonomyActive) {
+        seed = taxonomy!.categories.map(c => ({
+          id: c.id,
+          name: c.name,
+          icon: CATEGORY_ICONS[c.id] || CATEGORY_ICONS[c.name.trim().toLowerCase()] || 'pricetag-outline',
+          count: 0,
+        }));
+      } else {
+        seed = DEFAULT_CATEGORIES.filter(c => c.id !== 'all').map(c => ({ ...c, count: 0 }));
       }
+
+      const mergedById = new Map(seed.map(c => [c.id.toLowerCase(), { ...c }]));
+      const configuredIds = new Set(mergedById.keys());
+
+      for (const c of cats || []) {
+        const id = c.id.toLowerCase();
+        if (strictCustom && !configuredIds.has(id)) {
+          continue;
+        }
+        const existing = mergedById.get(id);
+        mergedById.set(id, {
+          id,
+          name: existing?.name || c.name,
+          icon: existing?.icon || CATEGORY_ICONS[c.name.trim().toLowerCase()] || 'pricetag-outline',
+          count: c.count,
+        });
+      }
+
+      const merged = Array.from(mergedById.values());
+      // Upstream totals from visible chips; strict taxonomy still counts all posts in All.
+      const totalCount = strictCustom
+        ? (cats || []).reduce((sum, c) => sum + (c.count || 0), 0)
+        : merged.reduce((sum, c) => sum + c.count, 0);
+      setCategories([{ ...ALL_CATEGORY, count: totalCount }, ...merged]);
     } catch (e) {
       console.warn('Failed to load categories, using defaults:', e);
     }
@@ -244,11 +277,18 @@ const HomeScreen = () => {
       }
       setIsConfigured(true);
       // Fire categories, collections sync, and posts loading in parallel
-      // for faster first paint
+      // for faster first paint. Fetch /taxonomy exactly once here (not
+      // awaited yet — same in-flight promise shared with both loadCategories
+      // and loadPosts, each awaiting it only at the point they actually need
+      // it) instead of each independently re-fetching, which both wasted a
+      // redundant HTTP call and could race under flaky network (one fetch
+      // succeeding while the other timed out, leaving rendered chips
+      // inconsistent with what sync just persisted).
+      const taxonomyPromise = apiService.getTaxonomy().catch(() => null);
       const [, ,] = await Promise.all([
-        loadCategories(),
+        loadCategories(taxonomyPromise),
         collectionsService.syncFromBackend().catch(() => { /* offline */ }),
-        loadPosts(false),
+        loadPosts(false, taxonomyPromise),
       ]);
       // Reschedule Watch Later notifications with (possibly restored) collection data
       if (!deferNotificationPrompt) {
@@ -262,7 +302,32 @@ const HomeScreen = () => {
     }
   };
 
-  const loadPosts = async (forceRefresh: boolean = false) => {
+  const loadPosts = async (
+    forceRefresh: boolean = false,
+    prefetchedTaxonomy?: TaxonomyPayload | null | Promise<TaxonomyPayload | null>,
+  ) => {
+    // Resolved lazily (below) at whichever point in this function first
+    // actually needs it, not eagerly here — keeps the fast local-data paint
+    // path (right below) unblocked by any network call, including a
+    // caller-supplied prefetch promise. `taxonomyCache` is a local (not a
+    // ref) so it's scoped to this single loadPosts call — overlapping calls
+    // (focus listener vs. poll-interval refresh) each get their own cache
+    // instead of racing to reset/read a shared one.
+    let taxonomyCache: TaxonomyPayload | null | undefined = undefined;
+    // Resolves the taxonomy exactly once per loadPosts call, reusing
+    // taxonomyCache if a previous call site within this same cycle already
+    // resolved it, otherwise awaiting prefetchedTaxonomy (a caller's
+    // in-flight fetch, e.g. bootstrap sharing one /taxonomy call with
+    // loadCategories instead of each independently re-fetching), otherwise
+    // fetching fresh.
+    const resolveTaxonomy = async (): Promise<TaxonomyPayload | null> => {
+      if (taxonomyCache !== undefined) return taxonomyCache;
+      const resolved = prefetchedTaxonomy !== undefined
+        ? await prefetchedTaxonomy
+        : await apiService.getTaxonomy().catch(() => null);
+      taxonomyCache = resolved;
+      return resolved;
+    };
     try {
       // Reconcile: if a post was in the failed list AND still stuck in analyzing, clean it up.
       const failedList = await postsCache.getFailedPosts();
@@ -296,9 +361,20 @@ const HomeScreen = () => {
         setPosts(merged);
         setLoading(false);
 
-        // If not forcing refresh and no analyzing posts, we're done
+        // Upstream path: return early when local data is enough.
+        // Taxonomy-aware servers: always continue so migrations reach the device.
+        // Defer the taxonomy check until after we confirm connectivity (below)
+        // to avoid a 404 round-trip on upstream servers that lack GET /taxonomy.
         if (!forceRefresh && analyzingShortcodes.length === 0) {
-          return;
+          const isOnlineForGate = await apiService.testConnection().catch(() => false);
+          if (!isOnlineForGate) {
+            return;
+          }
+          const taxonomy = await resolveTaxonomy();
+          if (!isTaxonomyApiActive(taxonomy)) {
+            return;
+          }
+          // taxonomy is active — fall through to background sync below.
         }
       } else {
         // No local data at all — show loading spinner
@@ -306,7 +382,7 @@ const HomeScreen = () => {
       }
 
       // ── Step 2: Background sync with backend ──
-      // This runs non-blocking: UI is already showing local data (if any)
+      // UI may already be showing local data; refresh if sync changes anything.
       const isOnline = await apiService.testConnection().catch(() => false);
 
       if (isOnline) {
@@ -314,11 +390,17 @@ const HomeScreen = () => {
         await postsCache.flushPendingPostMutations();
         await postsCache.flushPendingAnalyses();
 
-        // Delta or full sync depending on DB state
-        const dataChanged = await syncService.syncIfNeeded();
+        // forceFull / taxonomy_version resync only activate when GET /taxonomy exists
+        // (see syncService); without it this matches upstream delta-only sync.
+        const taxonomy = await resolveTaxonomy();
+        const dataChanged = await syncService.syncIfNeeded(forceRefresh, taxonomy);
 
         // If sync brought new data, re-read from local DB and update UI
         if (dataChanged || forceRefresh) {
+          // Category chip reload is taxonomy-aware; skip extra work on mainline.
+          if (isTaxonomyApiActive(taxonomy)) {
+            await loadCategories(taxonomy);
+          }
           const freshPosts = await localDb.getAllPosts();
           if (freshPosts.length > 0) {
             // Clear analyzing state for posts that now exist in the synced data
@@ -421,7 +503,9 @@ const HomeScreen = () => {
       (post.summary && post.summary.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (post.tags && post.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())));
 
-    const matchesCategory = selectedCategory === 'all' || post.category === selectedCategory;
+    const matchesCategory =
+      selectedCategory === 'all' ||
+      (post.category || '').trim().toLowerCase() === selectedCategory.trim().toLowerCase();
 
     return matchesSearch && matchesCategory;
   });

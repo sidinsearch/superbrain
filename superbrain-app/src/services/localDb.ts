@@ -230,6 +230,23 @@ async function setLastSyncTime(isoTimestamp: string): Promise<void> {
   );
 }
 
+async function getSyncMeta(key: string): Promise<string | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ value: string }>(
+    'SELECT value FROM sync_meta WHERE key = ?',
+    [key]
+  );
+  return row?.value ?? null;
+}
+
+async function setSyncMeta(key: string, value: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    'INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)',
+    [key, value]
+  );
+}
+
 // ─── Utilities ─────────────────────────────────────────────────────
 
 /** Drop all data — used for hard reset. */
@@ -258,6 +275,8 @@ const localDb = {
   updatePost,
   getLastSyncTime,
   setLastSyncTime,
+  getSyncMeta,
+  setSyncMeta,
   clearAll,
   isEmpty,
 };

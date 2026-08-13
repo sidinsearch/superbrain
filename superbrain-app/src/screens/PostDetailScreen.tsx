@@ -13,12 +13,19 @@ import { collectionsService } from '../services/collections';
 import { Collection } from '../types';
 import { schedulePostWatchLaterNotification, sendImmediateWatchLaterNotification, sendImmediateSavedNotification } from '../services/notificationService';
 import { getCollectionIconName, getCollectionIconColor } from '../constants/icons';
-import { DEFAULT_CATEGORIES, CATEGORY_ICONS } from '../constants/categories';
+import { BUILTIN_DEFAULT_CATEGORIES, CATEGORY_ICONS } from '../constants/categories';
+import { isTaxonomyApiActive } from '../services/taxonomySupport';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PostDetail'>;
 
-// Filter out 'all' from categories to use for the edit dropdown
-const CATEGORIES = DEFAULT_CATEGORIES.filter(c => c.id !== 'all');
+type CategoryOption = { id: string; name: string; icon: string };
+
+/** Upstream / no-taxonomy edit list (built-in mainline categories). */
+const FALLBACK_CATEGORIES: CategoryOption[] = BUILTIN_DEFAULT_CATEGORIES.map(c => ({
+  id: c.id,
+  name: c.name,
+  icon: c.icon,
+}));
 
 const PostDetailScreen = ({ route, navigation }: Props) => {
   const { post } = route.params;
@@ -28,6 +35,7 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
   const [editedTitle, setEditedTitle] = useState(post.title);
   const [editedSummary, setEditedSummary] = useState(post.summary);
   const [saving, setSaving] = useState(false);
+  const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>(FALLBACK_CATEGORIES);
   const [deleting, setDeleting] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'info' as 'success' | 'error' | 'warning' | 'info' });
@@ -45,6 +53,35 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
       });
     }
   }, [showEditModal]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        // Gate behind connectivity to avoid a wasted 404 round-trip on
+        // upstream servers that lack GET /taxonomy.
+        const isOnline = await apiService.testConnection().catch(() => false);
+        if (!isOnline || cancelled) return;
+        const taxonomy = await apiService.getTaxonomy();
+        if (cancelled) return;
+        // Only replace the built-in picker when the server exposes taxonomy.
+        if (isTaxonomyApiActive(taxonomy)) {
+          setCategoryOptions(
+            taxonomy!.categories.map(c => ({
+              id: c.id,
+              name: c.name,
+              icon: CATEGORY_ICONS[c.id] || CATEGORY_ICONS[c.name.trim().toLowerCase()] || 'pricetag',
+            }))
+          );
+        }
+      } catch {
+        // Keep FALLBACK_CATEGORIES (upstream path)
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const getPostImageUrl = (post: Post) => {
     if (post.thumbnail_url) return post.thumbnail_url;
@@ -390,8 +427,10 @@ const PostDetailScreen = ({ route, navigation }: Props) => {
                 contentContainerStyle={styles.categoriesContent}
                 keyboardShouldPersistTaps="always"
               >
-                {CATEGORIES.map((cat) => {
-                  const isActive = editedCategory === cat.id;
+                {categoryOptions.map((cat) => {
+                  const isActive =
+                    (editedCategory || '').trim().toLowerCase() === cat.id.toLowerCase() ||
+                    (editedCategory || '').trim().toLowerCase() === cat.name.trim().toLowerCase();
                   const catColor = getCategoryColor(cat.id);
                   return (
                     <TouchableOpacity

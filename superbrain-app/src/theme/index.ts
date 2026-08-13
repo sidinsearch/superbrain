@@ -54,6 +54,12 @@ export const colors = {
 
   // Category Colors (for tagging)
   categories: {
+    sysadmin: '#0f766e',   // Teal-700
+    science: '#2563eb',    // Blue-600
+    technology: '#7c3aed', // Violet-600
+    history: '#a16207',    // Yellow-700
+    humanities: '#be185d', // Pink-700
+    politics: '#b91c1c',   // Red-700
     product: '#f59e0b',    // Amber
     places: '#3b82f6',     // Blue
     food: '#ef4444',       // Red (alias)

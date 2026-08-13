@@ -1,6 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Post, ApiResponse, QueueStatus, DatabaseStats, RetryQueueItem, Collection } from '../types';
+import { TaxonomyPayload } from './taxonomySupport';
 
 const ACCESS_TOKEN_LENGTH = 8;
 
@@ -309,23 +310,26 @@ class ApiService {
     since: string,
     limit: number = 200,
     offset: number = 0,
-  ): Promise<{ data: Post[]; hasMore: boolean }> {
+  ): Promise<{ data: Post[]; hasMore: boolean; failed?: boolean }> {
     try {
       const headers = await this.getHeaders();
       const baseUrl = await this.getBaseUrl();
       const response = await axios.get<{
-        success: boolean; data: Post[]; has_more: boolean
+        success: boolean; data: Post[]; has_more?: boolean
       }>(
         `${baseUrl}/sync?since=${encodeURIComponent(since)}&limit=${limit}&offset=${offset}`,
         { headers, timeout: 30000 }
       );
+      const data = (response.data.data || []).map(normalizePost);
       return {
-        data: (response.data.data || []).map(normalizePost),
-        hasMore: response.data.has_more,
+        data,
+        hasMore: response.data.has_more ?? data.length === limit,
       };
     } catch (error: any) {
       console.error('Error syncing posts:', error.response?.data?.detail || error.message);
-      throw error;
+      // `failed: true` distinguishes a transient fetch error from a legitimate
+      // empty/final page — callers must not treat this as "sync complete".
+      return { data: [], hasMore: false, failed: true };
     }
   }
 
@@ -410,6 +414,38 @@ class ApiService {
     } catch (error) {
       console.error('Error fetching categories:', error);
       return [];
+    }
+  }
+
+  async getTaxonomy(): Promise<TaxonomyPayload | null> {
+    try {
+      const headers = await this.getHeaders();
+      const baseUrl = await this.getBaseUrl();
+      const response = await axios.get<{
+        success: boolean;
+        categories: Array<{ id: string; name: string; precedence?: number; guidance?: string }>;
+        allow_multiple_categories: boolean;
+        fallback_category: string;
+        use_default_categories: boolean;
+        taxonomy_version?: string;
+      }>(
+        `${baseUrl}/taxonomy`,
+        { headers, timeout: DEFAULT_TIMEOUT }
+      );
+      if (!response.data?.success) return null;
+      return {
+        categories: response.data.categories || [],
+        allow_multiple_categories: !!response.data.allow_multiple_categories,
+        fallback_category: response.data.fallback_category || 'Other',
+        use_default_categories: !!response.data.use_default_categories,
+        taxonomy_version: response.data.taxonomy_version || '',
+      };
+    } catch (error: any) {
+      // 404 = upstream / pre-taxonomy servers — silent by design
+      if (error?.response?.status !== 404) {
+        console.error('Error fetching taxonomy:', error);
+      }
+      return null;
     }
   }
 
