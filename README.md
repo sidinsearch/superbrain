@@ -636,3 +636,10 @@ This project is licensed under the **[GNU Affero General Public License v3.0](LI
 </p>
 
 
+
+## Contributors
+
+Thank you to the following community members for improving SuperBrain:
+
+- **[Daniel JB Clark (djbclark)](https://github.com/djbclark)**
+- **[TheBoomerDev](https://github.com/TheBoomerDev)**
