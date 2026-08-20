@@ -2,7 +2,7 @@
 # Multi-stage build for optimized image size
 # ────────────────────────────────────────────────────────────────────────────────
 
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
@@ -14,8 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy requirements
 COPY requirements.txt .
 
-# Build dependencies in separate layer
-RUN pip install --user --no-cache-dir -r requirements.txt
+# Install to /install so it's accessible by all users in the final stage
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 
 # ────────────────────────────────────────────────────────────────────────────────
@@ -40,11 +40,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # ──── Copy Python dependencies from builder ────
-COPY --from=builder /root/.local /root/.local
+COPY --from=builder /install /usr/local
 
 # ──── Set environment variables ────
-ENV PATH=/root/.local/bin:$PATH \
-    PYTHONUNBUFFERED=1 \
+ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     ENVIRONMENT=production \
     WORKERS=2
@@ -54,7 +53,7 @@ COPY . .
 
 # ──── Create necessary directories with proper permissions ────
 RUN mkdir -p temp config static logs data && \
-    chmod 755 temp config static logs data
+    chown -R 1000:1000 temp config static logs data
 
 # ──── Health check ────
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
