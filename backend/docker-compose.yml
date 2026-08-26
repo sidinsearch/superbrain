@@ -30,6 +30,7 @@ services:
       
       # Database
       DATABASE_PATH: /app/data/superbrain.db
+      MEDIA_PATH: /app/media
       DATABASE_TIMEOUT: 30
       
       # API Keys (load from .env file)
@@ -59,6 +60,8 @@ services:
       - superbrain-config:/app/config
       # Temporary files
       - superbrain-temp:/app/temp
+      # Downloaded offline media
+      - superbrain-media:/app/media
       # Uploads
       - superbrain-uploads:/app/static/uploads
       # Extracted ZIP Thumbnails
@@ -115,6 +118,8 @@ volumes:
   superbrain-config:
     driver: local
   superbrain-temp:
+    driver: local
+  superbrain-media:
     driver: local
   superbrain-uploads:
     driver: local

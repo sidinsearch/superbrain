@@ -53,8 +53,8 @@ ENV PATH=/root/.local/bin:$PATH \
 COPY . .
 
 # ──── Create necessary directories with proper permissions ────
-RUN mkdir -p temp config static logs data && \
-    chmod 755 temp config static logs data
+RUN mkdir -p temp media config static logs data && \
+    chmod 755 temp media config static logs data
 
 # ──── Health check ────
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \

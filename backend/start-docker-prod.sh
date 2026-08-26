@@ -65,8 +65,8 @@ fi
 # ──── Create necessary directories ────
 echo -e "\n${YELLOW}→ Setting up directories...${NC}"
 
-mkdir -p config temp static/uploads logs
-chmod 755 config temp static static/uploads logs
+mkdir -p config temp media static/uploads logs
+chmod 755 config temp media static static/uploads logs
 
 echo -e "${GREEN}✓ Directories created${NC}"
 

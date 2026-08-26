@@ -13,6 +13,7 @@ import HomeScreen from './src/screens/HomeScreen';
 import LibraryScreen from './src/screens/LibraryScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import PostDetailScreen from './src/screens/PostDetailScreen';
+import ReelsFeed from './src/screens/ReelsFeed';
 import CollectionDetailScreen from './src/screens/CollectionDetailScreen';
 import ShareHandlerScreen from './src/screens/ShareHandlerScreen';
 import FailedAnalysisScreen from './src/screens/FailedAnalysisScreen';
@@ -26,7 +27,8 @@ import QRScannerScreen from './src/screens/QRScannerScreen';
 import apiService from './src/services/api';
 import * as Notifications from 'expo-notifications';
 import { scheduleWatchLaterNotification, handleMarkAsWatched } from './src/services/notificationService';
-import { Post, Collection } from './src/types';
+import { runOfflineMediaAutoDeletePolicy } from './src/services/offlineMediaPolicy';
+import type { Post, Collection } from './src/types';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -34,9 +36,11 @@ export type RootStackParamList = {
   Library: undefined;
   Settings: undefined;
   PostDetail: { post: Post };
+  ReelsFeed: { posts?: Post[]; initialShortcode?: string } | undefined;
   CollectionDetail: { collection: Collection };
   ShareHandler: { url?: string };
-  FailedAnalysis: undefined;        RetryQueue: undefined;
+  FailedAnalysis: undefined;
+  RetryQueue: undefined;
   AIProvider: undefined;
   Instagram: undefined;
   DataImportExport: undefined;
@@ -170,6 +174,7 @@ export default function App() {
 
       // Schedule Watch Later notifications in background
       scheduleWatchLaterNotification().catch(() => {});
+      runOfflineMediaAutoDeletePolicy().catch(() => {});
     } catch (error) {
       console.error('App initialization error:', error);
     } finally {
@@ -204,6 +209,7 @@ export default function App() {
               Splash: 'splash',
               Home: 'home',
               Library: 'library',
+              ReelsFeed: 'reels',
               Settings: 'settings',
               ShareHandler: {
                 path: 'share',
@@ -231,6 +237,11 @@ export default function App() {
             name="PostDetail" 
             component={PostDetailScreen}
             options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
+            name="ReelsFeed"
+            component={ReelsFeed}
+            options={{ animation: 'fade' }}
           />
           <Stack.Screen 
             name="CollectionDetail" 
