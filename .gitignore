@@ -36,6 +36,7 @@ backend/superbrain.db-wal
 
 # ── Backend temp / generated ─────────────────────────────────────────────────
 backend/temp/
+backend/media/
 backend/static/
 backend/*.apk
 

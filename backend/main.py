@@ -18,6 +18,7 @@ import time
 # Import local modules
 from core.link_checker import validate_link
 from core.database import get_db
+from core.media_store import download_youtube_media, persist_media_file
 from analyzers.youtube_analyzer import analyze_youtube
 from analyzers.webpage_analyzer import analyze_webpage
 
@@ -501,6 +502,9 @@ def run_youtube_analysis(url: str, shortcode: str, db):
     # Use upload date scraped directly from YouTube page (always accurate)
     yt_post_date = result.get('post_date')
 
+    print_section("📼 Saving Offline Media")
+    local_filename, media_file_size = download_youtube_media(url, shortcode)
+
     print_section("💾 Saving to Database")
     db.save_analysis(
         shortcode=shortcode,
@@ -517,6 +521,8 @@ def run_youtube_analysis(url: str, shortcode: str, db):
         content_type='youtube',
         thumbnail=result.get('thumbnail', ''),
         post_date=yt_post_date,
+        local_filename=local_filename,
+        media_file_size=media_file_size,
     )
     print(f"✓ YouTube analysis saved ({shortcode})")
     print_header("✅ Done — YouTube Analysis Complete")
@@ -909,6 +915,12 @@ def main():
         except Exception as thumb_err:
             print(f"⚠️  Could not extract video thumbnail: {thumb_err}")
 
+    local_filename, media_file_size = persist_media_file(
+        mp4_files[0] if mp4_files else None,
+        "instagram",
+        shortcode,
+    )
+
     db.save_analysis(
         shortcode=shortcode,
         url=instagram_url,
@@ -924,6 +936,8 @@ def main():
         likes=likes,
         post_date=post_date,
         thumbnail=instagram_thumbnail,
+        local_filename=local_filename,
+        media_file_size=media_file_size,
     )
     
     print(f"✓ Analysis saved to database")

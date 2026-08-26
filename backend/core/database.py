@@ -48,6 +48,8 @@ class Database:
                 post_date           TEXT,
                 likes               INTEGER DEFAULT 0,
                 thumbnail           TEXT DEFAULT '',
+                local_filename      TEXT DEFAULT '',
+                media_file_size     INTEGER DEFAULT 0,
                 title               TEXT,
                 summary             TEXT,
                 tags                TEXT,
@@ -88,6 +90,19 @@ class Database:
             self._conn.commit()
         except sqlite3.OperationalError:
             pass
+
+        # Migration: add offline media metadata columns
+        for _col, _dflt in [
+            ("local_filename", "TEXT DEFAULT ''"),
+            ("media_file_size", "INTEGER DEFAULT 0"),
+        ]:
+            try:
+                self._conn.execute(
+                    f"ALTER TABLE analyses ADD COLUMN {_col} {_dflt}"
+                )
+                self._conn.commit()
+            except sqlite3.OperationalError:
+                pass
 
         # Migration: add retry columns to processing_queue
         for _col, _dflt in [
@@ -175,10 +190,11 @@ class Database:
     # Helpers
     # ------------------------------------------------------------------
 
-    # Columns safe to send to the mobile app (excludes heavy analysis blobs)
+    # Columns safe to send to the mobile app. Includes search text needed for offline lookup.
     LIGHT_COLUMNS = (
         "shortcode, url, username, content_type, analyzed_at, updated_at, "
-        "post_date, likes, thumbnail, title, summary, tags, music, category, is_hidden"
+        "post_date, likes, thumbnail, local_filename, media_file_size, "
+        "title, summary, tags, music, category, audio_transcription, text_analysis, is_hidden"
     )
 
     def _row_to_dict(self, row):
@@ -219,7 +235,8 @@ class Database:
 
     def save_analysis(self, shortcode, url, username, title, summary, tags, music, category,
                       visual_analysis="", audio_transcription="", text_analysis="",
-                      likes=0, post_date=None, content_type="instagram", thumbnail=""):
+                      likes=0, post_date=None, content_type="instagram", thumbnail="",
+                      local_filename="", media_file_size=0):
         """Insert or update an analysis record. Returns True on success."""
         if not self.is_connected():
             print("[WARNING] Database not connected. Analysis not saved.")
@@ -232,9 +249,9 @@ class Database:
             self._conn.execute("""
                 INSERT INTO analyses
                     (shortcode, url, username, content_type, analyzed_at, updated_at, post_date, likes,
-                     thumbnail, title, summary, tags, music, category,
+                     thumbnail, local_filename, media_file_size, title, summary, tags, music, category,
                      visual_analysis, audio_transcription, text_analysis)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(shortcode) DO UPDATE SET
                     url                 = excluded.url,
                     username            = excluded.username,
@@ -243,6 +260,8 @@ class Database:
                     post_date           = excluded.post_date,
                     likes               = excluded.likes,
                     thumbnail           = excluded.thumbnail,
+                    local_filename      = excluded.local_filename,
+                    media_file_size     = excluded.media_file_size,
                     title               = excluded.title,
                     summary             = excluded.summary,
                     tags                = excluded.tags,
@@ -252,7 +271,8 @@ class Database:
                     audio_transcription = excluded.audio_transcription,
                     text_analysis       = excluded.text_analysis
             """, (shortcode, url, username, content_type, now, now, post_date, likes,
-                  thumbnail, title, summary, tags_json, music, category,
+                  thumbnail, local_filename or "", int(media_file_size or 0),
+                  title, summary, tags_json, music, category,
                   visual_analysis, audio_transcription, text_analysis))
             self._conn.commit()
             print(f"[OK] Analysis saved to database ({shortcode})")

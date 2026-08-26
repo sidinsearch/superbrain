@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import CustomToast from '../components/CustomToast';
 import { RootStackParamList } from '../../App';
 import { QueueStatus } from '../types';
 import BottomNav from '../components/BottomNav';
+import StorageManager from '../components/StorageManager';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Settings'>;
 type SettingsRouteProp = RouteProp<RootStackParamList, 'Settings'>;
@@ -88,6 +89,13 @@ const SettingsScreen = () => {
     destructive: false,
     onConfirm: () => { },
   });
+
+  const handleStorageManagerResult = useCallback((
+    message: string,
+    type: 'success' | 'error' | 'warning' | 'info',
+  ) => {
+    setToast({ visible: true, message, type });
+  }, []);
 
   useEffect(() => {
     loadSettings();
@@ -476,6 +484,14 @@ const SettingsScreen = () => {
             title="Data Import/Export"
             subtitle="Backup and restore your data"
             onPress={() => navigation.navigate('DataImportExport')}
+          />
+        </View>
+
+        {/* Offline Media Storage */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Offline Media</Text>
+          <StorageManager
+            onResult={handleStorageManagerResult}
           />
         </View>
 

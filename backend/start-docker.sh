@@ -38,6 +38,9 @@ if [ ! -f .env ]; then
     fi
 fi
 
+# Create runtime directories used by docker-compose mounts and local bind paths
+mkdir -p config temp media static/uploads logs
+
 # Build and start the container
 echo "🔨 Building Docker image..."
 $DOCKER_COMPOSE build

@@ -28,6 +28,7 @@ import postsCache from '../services/postsCache';
 import localDb from '../services/localDb';
 import syncService from '../services/syncService';
 import { collectionsService } from '../services/collections';
+import { searchPostsOffline } from '../services/offlineSearch';
 import {
   scheduleAllWatchLaterNotifications,
   requestNotificationPermissionAfterOnboarding,
@@ -39,6 +40,7 @@ import { colors } from '../theme/colors';
 import { RootStackParamList } from '../../App';
 import CustomToast from '../components/CustomToast';
 import BottomNav from '../components/BottomNav';
+import useMediaSync from '../hooks/useMediaSync';
 import { getCollectionIconName, getCollectionIconColor } from '../constants/icons';
 import { ALL_CATEGORY, DEFAULT_CATEGORIES, CATEGORY_ICONS } from '../constants/categories';
 import {
@@ -58,6 +60,7 @@ const HomeScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = React.useDeferredValue(searchQuery);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
@@ -76,6 +79,26 @@ const HomeScreen = () => {
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   const lastFocusRefreshRef = useRef(0);
+
+  const handlePostMediaCached = useCallback((shortcode: string, localUri: string) => {
+    setPosts(currentPosts => currentPosts.map(post => (
+      post.shortcode === shortcode
+        ? {
+          ...post,
+          local_uri: localUri,
+          local_media_uri: localUri,
+          media_downloaded_at: new Date().toISOString(),
+        }
+        : post
+    )));
+  }, []);
+
+  useMediaSync(posts, {
+    enabled: isConfigured,
+    autoStart: true,
+    concurrency: 2,
+    onPostMediaCached: handlePostMediaCached,
+  });
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -497,18 +520,31 @@ const HomeScreen = () => {
     setToast({ visible: true, message, type });
   };
 
-  const filteredPosts = posts.filter(post => {
-    const matchesSearch = searchQuery === '' ||
-      (post.title && post.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (post.summary && post.summary.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (post.tags && post.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())));
-
-    const matchesCategory =
+  const filteredPosts = React.useMemo(() => {
+    const categoryPosts = posts.filter(post => (
       selectedCategory === 'all' ||
-      (post.category || '').trim().toLowerCase() === selectedCategory.trim().toLowerCase();
+      (post.category || '').trim().toLowerCase() === selectedCategory.trim().toLowerCase()
+    ));
 
-    return matchesSearch && matchesCategory;
-  });
+    return searchPostsOffline(categoryPosts, deferredSearchQuery);
+  }, [posts, deferredSearchQuery, selectedCategory]);
+
+  const hasPlayableMedia = (post: Post) => {
+    return post.content_type !== 'webpage' && Boolean(post.local_filename || post.local_uri || post.local_media_uri);
+  };
+
+  const hasOfflineMedia = (post: Post) => {
+    return Boolean(post.local_uri || post.local_media_uri);
+  };
+
+  const openReelsFeed = (initialShortcode: string) => {
+    const feedPosts = filteredPosts.filter(hasPlayableMedia);
+    if (feedPosts.length === 0) {
+      showToast('No reels ready yet', 'info');
+      return;
+    }
+    navigation.navigate('ReelsFeed', { posts: feedPosts, initialShortcode });
+  };
 
   const getCategoryColor = (category: string) => {
     if (!category) return colors.categories.other;
@@ -533,6 +569,35 @@ const HomeScreen = () => {
       case 'webpage': return <Ionicons name="globe-outline" size={14} color="#fff" />;
       default: return <Ionicons name="logo-instagram" size={14} color="#fff" />; // instagram
     }
+  };
+
+  const renderReelsEntryOverlay = (post: Post) => {
+    if (!hasPlayableMedia(post)) {
+      return null;
+    }
+
+    return (
+      <>
+        <View pointerEvents="box-none" style={styles.playOverlay}>
+          <TouchableOpacity
+            accessibilityLabel="Open reel feed"
+            style={styles.playButton}
+            activeOpacity={0.82}
+            onPress={(event) => {
+              event.stopPropagation();
+              openReelsFeed(post.shortcode);
+            }}
+          >
+            <Ionicons name="play" size={24} color="#fff" style={{ marginLeft: 3 }} />
+          </TouchableOpacity>
+        </View>
+        {hasOfflineMedia(post) ? (
+          <View style={styles.cardOfflineBadge}>
+            <Ionicons name="checkmark-circle" size={15} color={colors.success} />
+          </View>
+        ) : null}
+      </>
+    );
   };
 
   const togglePostSelection = (shortcode: string) => {
@@ -686,7 +751,7 @@ const HomeScreen = () => {
             style={styles.landscapeCardImage}
             resizeMode="cover"
           />
-          {/* no play overlay */}
+          {renderReelsEntryOverlay(post)}
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.88)']}
             style={styles.landscapeCardGradient}
@@ -763,6 +828,7 @@ const HomeScreen = () => {
           style={styles.compactCardImage}
           resizeMode="cover"
         />
+        {renderReelsEntryOverlay(post)}
         <LinearGradient
           colors={['transparent', 'rgba(0,0,0,0.85)']}
           style={styles.compactCardGradient}
@@ -1476,6 +1542,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 3,
   },
   playButton: {
     width: 52,
@@ -1491,6 +1558,20 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#fff',
     marginLeft: 4,
+  },
+  cardOfflineBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(0,0,0,0.62)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 4,
   },
   compactCard: {
     flex: 1,
@@ -1996,4 +2077,3 @@ const styles = StyleSheet.create({
 });
 
 export default HomeScreen;
-

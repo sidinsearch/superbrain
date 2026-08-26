@@ -29,6 +29,18 @@ function normalizePost(p: any): Post {
   if (!post.thumbnail_url && post.thumbnail) {
     post.thumbnail_url = post.thumbnail;
   }
+  const localUri = post.local_uri || post.local_media_uri;
+  post.local_filename = post.local_filename || undefined;
+  post.media_file_size = Number(post.media_file_size || 0);
+  post.local_uri = localUri || undefined;
+  post.local_media_uri = localUri || undefined;
+  post.media_downloaded_at = post.media_downloaded_at || undefined;
+  post.visual_analysis = post.visual_analysis || undefined;
+  post.audio_transcription = post.audio_transcription || post.transcribed_text || post.transcript || post.transcription || undefined;
+  post.text_analysis = post.text_analysis || undefined;
+  post.transcribed_text = post.audio_transcription;
+  post.transcript = post.audio_transcription;
+  post.transcription = post.audio_transcription;
   return post;
 }
 
@@ -91,6 +103,19 @@ class ApiService {
       this.apiUrl = savedUrl;
     }
     return this.apiUrl;
+  }
+
+  async getMediaUrl(filename: string): Promise<string> {
+    const baseUrl = (await this.getBaseUrl()).replace(/\/+$/, '');
+    return `${baseUrl}/api/v1/media/${encodeURIComponent(filename)}`;
+  }
+
+  async getMediaDownloadHeaders(): Promise<Record<string, string>> {
+    const token = await this.getApiToken();
+    if (!token) {
+      throw new Error('Access Token not configured');
+    }
+    return { 'X-API-Key': token };
   }
 
   /**
