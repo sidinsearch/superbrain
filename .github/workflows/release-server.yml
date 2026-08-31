@@ -6,6 +6,11 @@ on:
     paths:
       - 'backend/**'
       - 'superbrain-cli/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'superbrain-cli/**'
   workflow_dispatch:
 
 permissions:
@@ -66,6 +71,7 @@ jobs:
   publish-server:
     name: Publish Server Package (npmjs + GitHub Packages)
     needs: test-backend
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
