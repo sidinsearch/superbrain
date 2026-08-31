@@ -3,15 +3,21 @@ name: Publish Docker Image
 on:
   push:
     branches: [main, beta]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/docker-publish.yml'
   pull_request:
     branches: [main, beta]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/docker-publish.yml'
   release:
     types: [published]
   workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/superbrain-backend
+  IMAGE_NAME: ${{ github.repository_owner }}/superbrain-server
 
 permissions:
   contents: read

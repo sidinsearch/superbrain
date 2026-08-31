@@ -283,27 +283,27 @@ Use this when you want containerized, reproducible deployment.
 A multi-arch image (`linux/amd64`, `linux/arm64`) is published automatically on every push to `main` / `beta` and on each GitHub release.
 
 ```bash
-docker pull ghcr.io/sidinsearch/superbrain-backend:latest
+docker pull ghcr.io/sidinsearch/superbrain-server:latest
 
 docker run -d \
-  --name superbrain-backend \
+  --name superbrain-server \
   --restart unless-stopped \
   -p 5000:5000 \
   -v superbrain-data:/app/data \
   -v superbrain-logs:/app/logs \
   -e GEMINI_API_KEY=your_key_here \
   -e ENVIRONMENT=production \
-  ghcr.io/sidinsearch/superbrain-backend:latest
+  ghcr.io/sidinsearch/superbrain-server:latest
 ```
 
 Pin to a specific version:
 
 ```bash
 # Latest release tag (e.g. v2.0.3)
-docker pull ghcr.io/sidinsearch/superbrain-backend:2.0.3
+docker pull ghcr.io/sidinsearch/superbrain-server:2.0.3
 
 # Beta builds
-docker pull ghcr.io/sidinsearch/superbrain-backend:beta
+docker pull ghcr.io/sidinsearch/superbrain-server:beta
 ```
 
 Available tags: `latest` (main only), `main`, `beta`, `sha-<commit>`, plus semver tags like `2.0.3`, `2.0` on releases.
@@ -317,13 +317,13 @@ curl http://localhost:5000/health
 View logs:
 
 ```bash
-docker logs -f superbrain-backend
+docker logs -f superbrain-server
 ```
 
 Stop / remove:
 
 ```bash
-docker stop superbrain-backend && docker rm superbrain-backend
+docker stop superbrain-server && docker rm superbrain-server
 ```
 
 #### Option B: Build from source
@@ -407,9 +407,9 @@ Use the generated HTTPS URL in app Settings.
 
 SuperBrain backend is published in three artifacts:
 
-- **Docker image (GHCR)**: [`ghcr.io/sidinsearch/superbrain-backend`](https://github.com/sidinsearch/superbrain/pkgs/container/superbrain-backend)
+- **Docker image (GHCR)**: [`ghcr.io/sidinsearch/superbrain-server`](https://github.com/sidinsearch/superbrain/pkgs/container/superbrain-server)
   - Multi-arch (`linux/amd64`, `linux/arm64`), rebuilt on every push to `main`/`beta` and on each release
-  - Pull: `docker pull ghcr.io/sidinsearch/superbrain-backend:latest`
+  - Pull: `docker pull ghcr.io/sidinsearch/superbrain-server:latest`
   - See [Method 2: Docker Setup](#method-2-docker-setup) above for run instructions
 
 - **npmjs**: [superbrain-server](https://www.npmjs.com/package/superbrain-server)
