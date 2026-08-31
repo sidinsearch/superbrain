@@ -278,6 +278,56 @@ superbrain-server reset --all   # Force complete data wipe
 
 Use this when you want containerized, reproducible deployment.
 
+#### Option A: Pre-built image from GHCR (fastest)
+
+A multi-arch image (`linux/amd64`, `linux/arm64`) is published automatically on every push to `main` / `beta` and on each GitHub release.
+
+```bash
+docker pull ghcr.io/sidinsearch/superbrain-backend:latest
+
+docker run -d \
+  --name superbrain-backend \
+  --restart unless-stopped \
+  -p 5000:5000 \
+  -v superbrain-data:/app/data \
+  -v superbrain-logs:/app/logs \
+  -e GEMINI_API_KEY=your_key_here \
+  -e ENVIRONMENT=production \
+  ghcr.io/sidinsearch/superbrain-backend:latest
+```
+
+Pin to a specific version:
+
+```bash
+# Latest release tag (e.g. v2.0.3)
+docker pull ghcr.io/sidinsearch/superbrain-backend:2.0.3
+
+# Beta builds
+docker pull ghcr.io/sidinsearch/superbrain-backend:beta
+```
+
+Available tags: `latest` (main only), `main`, `beta`, `sha-<commit>`, plus semver tags like `2.0.3`, `2.0` on releases.
+
+Health check:
+
+```bash
+curl http://localhost:5000/health
+```
+
+View logs:
+
+```bash
+docker logs -f superbrain-backend
+```
+
+Stop / remove:
+
+```bash
+docker stop superbrain-backend && docker rm superbrain-backend
+```
+
+#### Option B: Build from source
+
 ```bash
 cd superbrain/backend
 cp .env.example .env
@@ -355,12 +405,17 @@ Use the generated HTTPS URL in app Settings.
 
 ## Packages
 
-SuperBrain backend launcher is published in two registries:
+SuperBrain backend is published in three artifacts:
 
-- npmjs: [superbrain-server](https://www.npmjs.com/package/superbrain-server)
+- **Docker image (GHCR)**: [`ghcr.io/sidinsearch/superbrain-backend`](https://github.com/sidinsearch/superbrain/pkgs/container/superbrain-backend)
+  - Multi-arch (`linux/amd64`, `linux/arm64`), rebuilt on every push to `main`/`beta` and on each release
+  - Pull: `docker pull ghcr.io/sidinsearch/superbrain-backend:latest`
+  - See [Method 2: Docker Setup](#method-2-docker-setup) above for run instructions
+
+- **npmjs**: [superbrain-server](https://www.npmjs.com/package/superbrain-server)
   - Stable install: `npx -y superbrain-server@latest`
 
-- GitHub Packages: `@sidinsearch/superbrain-server`
+- **GitHub Packages (npm)**: `@sidinsearch/superbrain-server`
   - One-time auth + install block (`read:packages` token required):
   - Note: only needed for GitHub Packages. Not needed for npmjs (`superbrain-server`) installs.
 
