@@ -278,6 +278,56 @@ superbrain-server reset --all   # Force complete data wipe
 
 Use this when you want containerized, reproducible deployment.
 
+#### Option A: Pre-built image from GHCR (fastest)
+
+A multi-arch image (`linux/amd64`, `linux/arm64`) is published automatically on every push to `main` / `beta` and on each GitHub release.
+
+```bash
+docker pull ghcr.io/sidinsearch/superbrain-server:latest
+
+docker run -d \
+  --name superbrain-server \
+  --restart unless-stopped \
+  -p 5000:5000 \
+  -v superbrain-data:/app/data \
+  -v superbrain-logs:/app/logs \
+  -e GEMINI_API_KEY=your_key_here \
+  -e ENVIRONMENT=production \
+  ghcr.io/sidinsearch/superbrain-server:latest
+```
+
+Pin to a specific version:
+
+```bash
+# Latest release tag (e.g. v2.0.3)
+docker pull ghcr.io/sidinsearch/superbrain-server:2.0.3
+
+# Beta builds
+docker pull ghcr.io/sidinsearch/superbrain-server:beta
+```
+
+Available tags: `latest` (main only), `main`, `beta`, `sha-<commit>`, plus semver tags like `2.0.3`, `2.0` on releases.
+
+Health check:
+
+```bash
+curl http://localhost:5000/health
+```
+
+View logs:
+
+```bash
+docker logs -f superbrain-server
+```
+
+Stop / remove:
+
+```bash
+docker stop superbrain-server && docker rm superbrain-server
+```
+
+#### Option B: Build from source
+
 ```bash
 cd superbrain/backend
 cp .env.example .env
@@ -355,12 +405,17 @@ Use the generated HTTPS URL in app Settings.
 
 ## Packages
 
-SuperBrain backend launcher is published in two registries:
+SuperBrain backend is published in three artifacts:
 
-- npmjs: [superbrain-server](https://www.npmjs.com/package/superbrain-server)
+- **Docker image (GHCR)**: [`ghcr.io/sidinsearch/superbrain-server`](https://github.com/sidinsearch/superbrain/pkgs/container/superbrain-server)
+  - Multi-arch (`linux/amd64`, `linux/arm64`), rebuilt on every push to `main`/`beta` and on each release
+  - Pull: `docker pull ghcr.io/sidinsearch/superbrain-server:latest`
+  - See [Method 2: Docker Setup](#method-2-docker-setup) above for run instructions
+
+- **npmjs**: [superbrain-server](https://www.npmjs.com/package/superbrain-server)
   - Stable install: `npx -y superbrain-server@latest`
 
-- GitHub Packages: `@sidinsearch/superbrain-server`
+- **GitHub Packages (npm)**: `@sidinsearch/superbrain-server`
   - One-time auth + install block (`read:packages` token required):
   - Note: only needed for GitHub Packages. Not needed for npmjs (`superbrain-server`) installs.
 
@@ -642,7 +697,7 @@ This project is licensed under the **[GNU Affero General Public License v3.0](LI
 Thanks to all community members and AI agents for improving SuperBrain:
 
 <!-- contributors:start -->
-<a href="https://github.com/sidinsearch"><img src="https://avatars.githubusercontent.com/u/29821792?v=4&s=400" width="48" height="48" alt="sidinsearch" style="border-radius: 8px;"></a> <a href="https://github.com/djbclark"><img src="https://avatars.githubusercontent.com/u/131936?v=4&s=400" width="48" height="48" alt="djbclark" style="border-radius: 8px;"></a> <a href="https://github.com/apps/github-actions"><img src="https://avatars.githubusercontent.com/in/15368?v=4&s=400" width="48" height="48" alt="github-actions[bot]" style="border-radius: 8px;"></a> <a href="https://github.com/TheBoomerDev"><img src="https://avatars.githubusercontent.com/u/87417633?v=4&s=400" width="48" height="48" alt="TheBoomerDev" style="border-radius: 8px;"></a> <a href="https://github.com/cursoragent"><img src="https://github.com/cursoragent.png?size=400" width="48" height="48" alt="cursoragent" style="border-radius: 8px;"></a> <a href="https://github.com/apps/copilot-swe-agent"><img src="https://avatars.githubusercontent.com/in/1143301?v=4&s=400" width="48" height="48" alt="copilot-swe-agent" style="border-radius: 8px;"></a>
+<a href="https://github.com/sidinsearch"><img src="https://avatars.githubusercontent.com/u/29821792?v=4&s=400" width="48" height="48" alt="sidinsearch" style="border-radius: 8px;"></a> <a href="https://github.com/apps/github-actions"><img src="https://avatars.githubusercontent.com/in/15368?v=4&s=400" width="48" height="48" alt="github-actions[bot]" style="border-radius: 8px;"></a> <a href="https://github.com/djbclark"><img src="https://avatars.githubusercontent.com/u/131936?v=4&s=400" width="48" height="48" alt="djbclark" style="border-radius: 8px;"></a> <a href="https://github.com/TheBoomerDev"><img src="https://avatars.githubusercontent.com/u/87417633?v=4&s=400" width="48" height="48" alt="TheBoomerDev" style="border-radius: 8px;"></a> <a href="https://github.com/cursoragent"><img src="https://github.com/cursoragent.png?size=400" width="48" height="48" alt="cursoragent" style="border-radius: 8px;"></a> <a href="https://github.com/apps/copilot-swe-agent"><img src="https://avatars.githubusercontent.com/in/1143301?v=4&s=400" width="48" height="48" alt="copilot-swe-agent" style="border-radius: 8px;"></a>
 <!-- contributors:end -->
 
 ## Star History
