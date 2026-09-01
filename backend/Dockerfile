@@ -14,13 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy requirements
 COPY requirements.txt .
 
-<<<<<<< HEAD
-# Install to /install so it's accessible by all users in the final stage
+# Build dependencies in separate layer with /install prefix so appuser can access them
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
-=======
-# Build dependencies in separate layer
-RUN pip install --prefix=/install --no-cache-dir -r requirements.txt
->>>>>>> ip91/main
 
 
 # ────────────────────────────────────────────────────────────────────────────────
