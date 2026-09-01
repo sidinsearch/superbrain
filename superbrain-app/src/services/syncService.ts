@@ -13,6 +13,7 @@ import { Post } from '../types';
 import { TaxonomyPayload, isTaxonomyApiActive } from './taxonomySupport';
 
 const BATCH_SIZE = 200; // posts per batch during full sync
+const OFFLINE_SEARCH_SCHEMA_VERSION = 'offline-search-v1';
 
 // ─── Full sync ─────────────────────────────────────────────────────
 
@@ -172,6 +173,8 @@ async function syncIfNeeded(
     let taxonomyChanged = false;
     let taxonomyVersion = '';
     let taxonomyActive = false;
+    const localSearchSchemaVersion = await localDb.getSyncMeta('offline_search_schema_version');
+    const searchSchemaChanged = localSearchSchemaVersion !== OFFLINE_SEARCH_SCHEMA_VERSION;
     try {
       const taxonomy = prefetchedTaxonomy !== undefined
         ? prefetchedTaxonomy
@@ -193,11 +196,12 @@ async function syncIfNeeded(
 
     const effectiveForceFull = forceFull && taxonomyActive;
 
-    if (empty || effectiveForceFull || taxonomyChanged) {
+    if (empty || effectiveForceFull || taxonomyChanged || searchSchemaChanged) {
       const count = await fullSync();
       if (taxonomyVersion) {
         await localDb.setSyncMeta('taxonomy_version', taxonomyVersion);
       }
+      await localDb.setSyncMeta('offline_search_schema_version', OFFLINE_SEARCH_SCHEMA_VERSION);
       return count > 0;
     } else {
       const changes = await deltaSync();

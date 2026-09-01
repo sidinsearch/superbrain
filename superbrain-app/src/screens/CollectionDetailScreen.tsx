@@ -26,6 +26,7 @@ import CustomToast from '../components/CustomToast';
 import { cancelPostWatchLaterNotification } from '../services/notificationService';
 import { getCollectionIconName, getCollectionIconColor } from '../constants/icons';
 import { CATEGORY_ICONS } from '../constants/categories';
+import { searchPostsOffline } from '../services/offlineSearch';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CollectionDetail'>;
 
@@ -37,6 +38,7 @@ const CollectionDetailScreen = ({ route, navigation }: Props) => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = React.useDeferredValue(searchQuery);
   const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'info' as 'success' | 'error' | 'warning' | 'info' });
@@ -150,12 +152,9 @@ const CollectionDetailScreen = ({ route, navigation }: Props) => {
     return `https://www.instagram.com/p/${shortcode}/media/?size=l`;
   };
 
-  const filteredPosts = posts.filter(post =>
-    searchQuery === '' ||
-    (post.title && post.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (post.summary && post.summary.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (post.tags && post.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())))
-  );
+  const filteredPosts = React.useMemo(() => (
+    searchPostsOffline(posts, deferredSearchQuery)
+  ), [posts, deferredSearchQuery]);
 
   const renderPost = (post: Post) => {
     const isSelected = selectedPosts.has(post.shortcode);

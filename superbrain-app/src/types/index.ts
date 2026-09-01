@@ -7,9 +7,20 @@ export interface Post {
   tags: string[];
   music: string;
   category: string;
+  visual_analysis?: string;
+  audio_transcription?: string;
+  text_analysis?: string;
+  transcribed_text?: string;
+  transcript?: string;
+  transcription?: string;
   content_type?: 'instagram' | 'youtube' | 'webpage';
   thumbnail?: string;      // raw field from backend
   thumbnail_url?: string;  // normalized alias used by UI
+  local_filename?: string;
+  media_file_size?: number;
+  local_uri?: string;
+  local_media_uri?: string;
+  media_downloaded_at?: string;
   likes?: number;
   post_date?: string;
   analyzed_at?: string;

@@ -28,6 +28,7 @@ from pathlib import Path
 # Import database module
 from core.database import get_db
 from core.link_checker import validate_link
+from core.media_store import get_media_dir
 
 # Configure logging
 logging.basicConfig(
@@ -133,10 +134,47 @@ _active_processes_lock = threading.Lock()
 
 _STATIC_DIR = Path(__file__).parent / "static"
 _THUMBNAILS_DIR = _STATIC_DIR / "thumbnails"
+_MEDIA_DIR = get_media_dir()
 _THUMBNAILS_DIR.mkdir(parents=True, exist_ok=True)
+_MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 
 from fastapi.staticfiles import StaticFiles
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+
+def _resolve_media_file(filename: str) -> Path:
+    """Resolve a media filename safely inside backend/media."""
+    if Path(filename).name != filename or not filename.lower().endswith(".mp4"):
+        raise HTTPException(status_code=400, detail="Invalid media filename")
+
+    media_root = _MEDIA_DIR.resolve()
+    media_path = (media_root / filename).resolve()
+    try:
+        media_path.relative_to(media_root)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid media filename")
+
+    if not media_path.exists() or not media_path.is_file():
+        raise HTTPException(status_code=404, detail="Media file not found")
+
+    return media_path
+
+
+@app.get("/api/v1/media/{filename}")
+async def get_media_file(filename: str, token: str = Depends(verify_token)):
+    """
+    Stream a downloaded offline media file.
+    The mobile app should download this once, then play the local file URI.
+    """
+    media_path = _resolve_media_file(filename)
+    return FileResponse(
+        str(media_path),
+        media_type="video/mp4",
+        headers={
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "private, max-age=3600",
+        },
+    )
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
@@ -321,6 +359,7 @@ async def root():
             "GET /caption": "Get post caption quickly (requires auth)",
             "GET /cache/{shortcode}": "Check cache (requires auth)",
             "GET /recent": "Get recent analyses (requires auth)",
+            "GET /api/v1/media/{filename}": "Stream downloaded offline media (requires auth)",
             "GET /stats": "Database statistics (requires auth)",
             "GET /category/{category}": "Get by category (requires auth)",
             "GET /search": "Search by tags (requires auth)"
@@ -476,11 +515,15 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
                 'username': cached_result.get('username', ''),
                 'content_type': cached_result.get('content_type', content_type),
                 'thumbnail': cached_result.get('thumbnail', ''),
+                'local_filename': cached_result.get('local_filename', ''),
+                'media_file_size': cached_result.get('media_file_size', 0),
                 'title': cached_result.get('title', ''),
                 'summary': cached_result.get('summary', ''),
                 'tags': cached_result.get('tags', []),
                 'music': cached_result.get('music', ''),
-                'category': cached_result.get('category', '')
+                'category': cached_result.get('category', ''),
+                'audio_transcription': cached_result.get('audio_transcription', ''),
+                'text_analysis': cached_result.get('text_analysis', '')
             }
             
             processing_time = (datetime.now() - start_time).total_seconds()
@@ -649,11 +692,15 @@ async def analyze_instagram(request: AnalyzeRequest, token: str = Depends(verify
             'username': analysis.get('username', ''),
             'content_type': analysis.get('content_type', content_type),
             'thumbnail': analysis.get('thumbnail', ''),
+            'local_filename': analysis.get('local_filename', ''),
+            'media_file_size': analysis.get('media_file_size', 0),
             'title': analysis.get('title', ''),
             'summary': analysis.get('summary', ''),
             'tags': analysis.get('tags', []),
             'music': analysis.get('music', ''),
-            'category': analysis.get('category', '')
+            'category': analysis.get('category', ''),
+            'audio_transcription': analysis.get('audio_transcription', ''),
+            'text_analysis': analysis.get('text_analysis', '')
         }
         
         processing_time = (datetime.now() - start_time).total_seconds()
@@ -706,11 +753,17 @@ async def check_cache(shortcode: str, token: str = Depends(verify_token)):
         filtered_data = {
             'url': result.get('url', ''),
             'username': result.get('username', ''),
+            'content_type': result.get('content_type', ''),
+            'thumbnail': result.get('thumbnail', ''),
+            'local_filename': result.get('local_filename', ''),
+            'media_file_size': result.get('media_file_size', 0),
             'title': result.get('title', ''),
             'summary': result.get('summary', ''),
             'tags': result.get('tags', []),
             'music': result.get('music', ''),
-            'category': result.get('category', '')
+            'category': result.get('category', ''),
+            'audio_transcription': result.get('audio_transcription', ''),
+            'text_analysis': result.get('text_analysis', '')
         }
         
         return {
@@ -1039,6 +1092,8 @@ async def analysis_status(shortcode: str, token: str = Depends(verify_token)):
                     'category': cached.get('category', ''),
                     'content_type': cached.get('content_type', ''),
                     'thumbnail': cached.get('thumbnail', ''),
+                    'local_filename': cached.get('local_filename', ''),
+                    'media_file_size': cached.get('media_file_size', 0),
                 }
             }
 
@@ -1098,6 +1153,7 @@ class CollectionPostsRequest(BaseModel):
 ALLOWED_POST_FIELDS = {
     'shortcode', 'url', 'username', 'content_type', 'post_date',
     'likes', 'thumbnail', 'title', 'summary', 'tags', 'music', 'category',
+    'local_filename', 'media_file_size',
     'visual_analysis', 'audio_transcription', 'text_analysis'
 }
 
@@ -1397,8 +1453,16 @@ async def reset_database(
         )
         conn.commit()
 
+        # Clear persisted offline media files as part of the confirmed data reset.
+        if _MEDIA_DIR.exists():
+            for media_file in _MEDIA_DIR.glob("*.mp4"):
+                try:
+                    media_file.unlink()
+                except Exception as media_err:
+                    logger.warning(f"Failed to delete media file {media_file.name}: {media_err}")
+
         deleted_count = cur_posts.rowcount
-        
+
         logger.warning(f"🗑️ Database was reset by a client. Deleted {deleted_count} posts.")
         
         return {
@@ -1671,6 +1735,8 @@ async def _process_import_data(data: dict, mode: str):
                 post_date=filtered_post.get("post_date"),
                 content_type=filtered_post.get("content_type", "instagram"),
                 thumbnail=filtered_post.get("thumbnail", ""),
+                local_filename=filtered_post.get("local_filename", ""),
+                media_file_size=filtered_post.get("media_file_size", 0),
             )
             imported_posts += 1
 

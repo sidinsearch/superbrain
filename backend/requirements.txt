@@ -29,6 +29,7 @@ shazamio>=0.4.0
 # ── Instagram Download ────────────────────────────────────────────────────────
 instaloader>=4.11.0
 instagrapi>=2.0.0
+yt-dlp>=2025.1.15
 
 # ── Computer Vision ───────────────────────────────────────────────────────────
 opencv-python-headless>=4.9.0.80
