@@ -54,7 +54,21 @@ EMA_ALPHA = 0.3
 # Cache file for dynamically discovered free OpenRouter models (FreeRide approach)
 OPENROUTER_FREE_CACHE_FILE  = CONFIG_DIR / "openrouter_free_models.json"
 OPENROUTER_FREE_CACHE_HOURS = 6   # re-fetch every 6 h
-OPENROUTER_API_MODELS_URL   = "https://openrouter.ai/api/v1/models"
+OPENROUTER_DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_BASE_URL = os.environ.get(
+    "OPENROUTER_BASE_URL",
+    OPENROUTER_DEFAULT_BASE_URL,
+).rstrip("/")
+OPENROUTER_CHAT_COMPLETIONS_URL = f"{OPENROUTER_BASE_URL}/chat/completions"
+OPENROUTER_MODEL_OVERRIDE = os.environ.get(
+    "OPENROUTER_MODEL_OVERRIDE",
+    "",
+).strip()
+OPENROUTER_API_MODELS_URL = (
+    f"{OPENROUTER_DEFAULT_BASE_URL}/models"
+    if OPENROUTER_BASE_URL == OPENROUTER_DEFAULT_BASE_URL
+    else None
+)
 
 # Trusted providers — affects scoring weight for dynamic discovery (FreeRide)
 TRUSTED_PROVIDERS = [
@@ -679,6 +693,8 @@ class ModelRouter:
         api_key = self._key("OPENROUTER_API_KEY")
         if not api_key:
             return  # No key → skip
+        if not OPENROUTER_API_MODELS_URL:
+            return  # Custom gateway (e.g. OmniRoute): dynamic OpenRouter discovery disabled
 
         # Check cache freshness
         try:
@@ -996,7 +1012,7 @@ class ModelRouter:
     def _openrouter_text(self, model_id: str, prompt: str) -> str:
         import requests
         resp = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
+            OPENROUTER_CHAT_COMPLETIONS_URL,
             headers={
                 "Authorization": f"Bearer {self._key('OPENROUTER_API_KEY')}",
                 "HTTP-Referer": "https://github.com/superbrain",
@@ -1004,7 +1020,7 @@ class ModelRouter:
                 "Content-Type": "application/json",
             },
             json={
-                "model": model_id,
+                "model": OPENROUTER_MODEL_OVERRIDE or model_id,
                 "messages": [{"role": "user", "content": prompt}],
                 "max_tokens": 800,
                 "temperature": 0.7,
@@ -1027,7 +1043,7 @@ class ModelRouter:
             })
         content.append({"type": "text", "text": prompt})
         resp = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
+            OPENROUTER_CHAT_COMPLETIONS_URL,
             headers={
                 "Authorization": f"Bearer {self._key('OPENROUTER_API_KEY')}",
                 "HTTP-Referer": "https://github.com/superbrain",
@@ -1035,7 +1051,7 @@ class ModelRouter:
                 "Content-Type": "application/json",
             },
             json={
-                "model": model_id,
+                "model": OPENROUTER_MODEL_OVERRIDE or model_id,
                 "messages": [{"role": "user", "content": content}],
                 "max_tokens": 800,
                 "temperature": 0.7,
