@@ -1,6 +1,6 @@
 {
-  "name": "superbrain-server",
-  "version": "2.0.3",
+  "name": "@sidinsearch/superbrain-server",
+  "version": "2.0.4",
   "description": "1-Line Auto-Installer and Server Execution wrapper for SuperBrain",
   "bin": {
     "superbrain-server": "bin/superbrain.js"
@@ -21,7 +21,7 @@
     "payload/"
   ],
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://npm.pkg.github.com"
   }
 }
-

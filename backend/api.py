@@ -47,7 +47,16 @@ def is_valid_api_token_format(token: str) -> bool:
     """Validate token format: exactly 8 alphanumeric chars."""
     return len(token) == 8 and token.isalnum()
 
-TOKEN_FILE = Path(__file__).parent / "token.txt"
+# Deployment environment. Defaults to "development" to preserve existing
+# local/onboarding behavior; Coolify/production deployments set
+# ENVIRONMENT=production (already the default in backend/docker-compose.yml).
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+IS_PRODUCTION = ENVIRONMENT.strip().lower() == "production"
+
+# Persistent token path. Configurable via TOKEN_FILE so deployments (e.g.
+# Coolify with TOKEN_FILE=/app/data/token.txt) can point it at a persistent
+# volume; default preserves the previous behavior of backend/token.txt.
+TOKEN_FILE = Path(os.getenv("TOKEN_FILE", str(Path(__file__).parent / "token.txt")))
 
 def load_or_create_api_token():
     """Load existing API token or create one if missing."""
@@ -1000,18 +1009,27 @@ async def connect_info(request: Request):
     Returns connection details for QR code scanning.
     No auth required — used by the mobile app to auto-fill settings.
     The URL is built from the request so it matches whatever address the client used.
+
+    SECURITY: this endpoint is unauthenticated by design (it's what lets the
+    mobile app auto-fill during onboarding), so the Access Token is only
+    ever included when ENVIRONMENT is not "production". In production the
+    token is never disclosed here, regardless of caller.
     """
     # Build the base URL from the incoming request
     scheme = request.headers.get('x-forwarded-proto', request.url.scheme)
     host = request.headers.get('x-forwarded-host', request.headers.get('host', 'localhost:5000'))
     base_url = f"{scheme}://{host}"
 
-    return {
+    info = {
         "url": base_url,
-        "token": API_TOKEN,
         "version": "2.0.0",
         "name": "SuperBrain"
     }
+
+    if not IS_PRODUCTION:
+        info["token"] = API_TOKEN
+
+    return info
 
 
 @app.get("/analysis-status/{shortcode}")
