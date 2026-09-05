@@ -31,6 +31,9 @@ services:
       # Database
       DATABASE_PATH: /app/data/superbrain.db
       MEDIA_PATH: /app/media
+      # Disposable server video cache: expire by time since save, sweep hourly.
+      MEDIA_RETENTION_DAYS: ${MEDIA_RETENTION_DAYS:-30}
+      MEDIA_CLEANUP_INTERVAL_SECONDS: ${MEDIA_CLEANUP_INTERVAL_SECONDS:-3600}
       DATABASE_TIMEOUT: 30
       
       # API Keys (load from .env file)

@@ -158,6 +158,7 @@ async function upsertPosts(posts: Post[]): Promise<void> {
           media_file_size = excluded.media_file_size,
           local_media_uri = CASE
             WHEN excluded.local_media_uri != '' THEN excluded.local_media_uri
+            WHEN excluded.local_filename = '' THEN posts.local_media_uri
             WHEN excluded.local_filename != ''
               AND posts.local_filename = excluded.local_filename
               AND posts.media_file_size = excluded.media_file_size
@@ -166,6 +167,7 @@ async function upsertPosts(posts: Post[]): Promise<void> {
           END,
           media_downloaded_at = CASE
             WHEN excluded.media_downloaded_at IS NOT NULL THEN excluded.media_downloaded_at
+            WHEN excluded.local_filename = '' THEN posts.media_downloaded_at
             WHEN excluded.local_filename != ''
               AND posts.local_filename = excluded.local_filename
               AND posts.media_file_size = excluded.media_file_size
@@ -338,8 +340,9 @@ async function clearPostLocalMediaByFilename(localFilename: string): Promise<voi
     `UPDATE posts
      SET local_media_uri = '',
          media_downloaded_at = NULL
-     WHERE local_filename = ?`,
-    [localFilename]
+     WHERE local_filename = ?
+        OR substr(local_media_uri, -(length(?) + 1)) = '/' || ?`,
+    [localFilename, localFilename, localFilename]
   );
 }
 
@@ -355,13 +358,12 @@ async function clearAllPostLocalMedia(): Promise<void> {
   );
 }
 
-/** Return posts whose server metadata says an offline MP4 is available. */
+/** Return playable posts, including device downloads after the server cache expires. */
 async function getPostsWithServerMedia(limit: number = 500): Promise<Post[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<any>(
     `SELECT * FROM posts
-     WHERE local_filename IS NOT NULL
-       AND local_filename != ''
+     WHERE (COALESCE(local_filename, '') != '' OR COALESCE(local_media_uri, '') != '')
        AND content_type != 'webpage'
      ORDER BY analyzed_at DESC
      LIMIT ?`,

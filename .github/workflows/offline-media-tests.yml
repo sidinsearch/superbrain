@@ -1,0 +1,43 @@
+name: Offline Media Tests
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'superbrain-app/**'
+      - '.github/workflows/offline-media-tests.yml'
+  push:
+    branches: [experimental/video-playback]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install HTTP test dependencies
+        run: python -m pip install fastapi httpx python-multipart requests
+      - name: Test media storage, endpoint and sync
+        run: python -m unittest backend.tests.test_media_metadata backend.tests.test_media_retention backend.tests.test_media_endpoint backend.tests.test_instagram_temp_cleanup backend.tests.test_sync_pagination -v
+
+  client:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: superbrain-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: superbrain-app/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck

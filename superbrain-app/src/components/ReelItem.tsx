@@ -8,6 +8,7 @@ import { colors } from '../theme/colors';
 import { Post } from '../types';
 import apiService from '../services/api';
 import offlineMediaManager from '../services/OfflineMediaManager';
+import localDb from '../services/localDb';
 
 type ReelItemProps = {
   item: Post;
@@ -81,6 +82,24 @@ const ReelItem = ({ item, isActive, height, topInset, bottomInset }: ReelItemPro
           return;
         }
 
+        if (cancelled) {
+          return;
+        }
+
+        if (storedLocalUri) {
+          // Device cleanup can remove a file without updating its cached post.
+          // Repair the offline copy independently so streaming can start now.
+          void localDb.clearPostLocalMedia(item.shortcode)
+            .then(() => offlineMediaManager.ensurePostMediaDownloaded({
+              ...item,
+              local_uri: undefined,
+              local_media_uri: undefined,
+            }))
+            .catch(() => {
+              // A failed offline download must not interrupt remote playback.
+            });
+        }
+
         if (!item.local_filename) {
           throw new Error('No media file available');
         }
@@ -122,6 +141,7 @@ const ReelItem = ({ item, isActive, height, topInset, bottomInset }: ReelItemPro
     creator,
     item.local_filename,
     item.media_file_size,
+    item.shortcode,
     storedLocalUri,
     thumbnailUri,
     title,
