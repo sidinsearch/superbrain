@@ -26,6 +26,7 @@ Welcome to the SuperBrain documentation! This folder contains all detailed guide
 
 ### For DevOps/Deployment
 - **[Deployment Guide](DEPLOYMENT.md)** - Production deployment
+- **[Offline Media Storage](OFFLINE_MEDIA.md)** - Server retention, capacity, and media tests
 - **[GitHub Readiness](GITHUB_READINESS.md)** - Production readiness checklist
 - **[Changelog](CHANGELOG.md)** - Version history and improvements
 
@@ -123,6 +124,7 @@ These files are in the project root for GitHub/repository visibility:
 |------|------|
 | 5-min setup | [QUICKSTART.md](QUICKSTART.md) |
 | Production deployment | [DEPLOYMENT.md](DEPLOYMENT.md) |
+| Offline video retention | [OFFLINE_MEDIA.md](OFFLINE_MEDIA.md) |
 | API documentation | [Technical Reference](TECHNICAL_REFERENCE.md) |
 | Architecture overview | [Diagrams](ARCHITECTURE_DIAGRAMS.md) |
 | What changed? | [Changelog](CHANGELOG.md) |

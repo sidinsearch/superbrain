@@ -31,6 +31,7 @@ config/localtunnel.log
 # Logs and transient artifacts
 logs/
 temp/
+media/
 error_log_utf8.txt
 failures.txt
 final_test.txt

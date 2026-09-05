@@ -225,6 +225,7 @@ const StorageManager = ({ onResult }: StorageManagerProps) => {
               <Text style={styles.policySubtitle}>Older than {autoDeleteDays} days</Text>
             </View>
             <Switch
+              accessibilityLabel="Auto-delete old videos"
               value={autoDeleteEnabled}
               onValueChange={handleToggleAutoDelete}
               disabled={busy}

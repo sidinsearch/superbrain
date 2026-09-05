@@ -24,11 +24,13 @@ import string
 import threading
 import time
 from pathlib import Path
+from contextlib import asynccontextmanager
 
 # Import database module
 from core.database import get_db
 from core.link_checker import validate_link
 from core.media_store import get_media_dir
+from core.media_retention import positive_env_int, sweep_media
 
 # Configure logging
 logging.basicConfig(
@@ -87,11 +89,42 @@ async def verify_token(request: Request, x_api_key: str = Header(None, descripti
         )
     return actual_token
 
+async def run_media_cleanup():
+    """Run disk/DB maintenance off the event loop; retry failures next interval."""
+    try:
+        await asyncio.to_thread(sweep_media, get_media_dir(), db.db_path)
+    except Exception:
+        logger.exception("Media cache cleanup failed; retrying at the next interval")
+
+
+async def media_cleanup_loop(interval: int):
+    while True:
+        await asyncio.sleep(interval)
+        await run_media_cleanup()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await run_media_cleanup()
+    cleanup_task = asyncio.create_task(media_cleanup_loop(
+        positive_env_int("MEDIA_CLEANUP_INTERVAL_SECONDS", 3600)
+    ))
+    try:
+        yield
+    finally:
+        cleanup_task.cancel()
+        try:
+            await cleanup_task
+        except asyncio.CancelledError:
+            pass
+
+
 # Initialize FastAPI app
 app = FastAPI(
     title="SuperBrain",
     description="AI-powered Instagram content analysis with caching",
-    version="1.02"
+    version="1.02",
+    lifespan=lifespan,
 )
 
 # CORS configuration
@@ -144,7 +177,12 @@ app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 def _resolve_media_file(filename: str) -> Path:
     """Resolve a media filename safely inside backend/media."""
-    if Path(filename).name != filename or not filename.lower().endswith(".mp4"):
+    if (
+        not filename
+        or any(char in filename for char in ("/", "\\", "\x00"))
+        or Path(filename).name != filename
+        or not filename.lower().endswith(".mp4")
+    ):
         raise HTTPException(status_code=400, detail="Invalid media filename")
 
     media_root = _MEDIA_DIR.resolve()
@@ -160,7 +198,7 @@ def _resolve_media_file(filename: str) -> Path:
     return media_path
 
 
-@app.get("/api/v1/media/{filename}")
+@app.get("/api/v1/media/{filename:path}")
 async def get_media_file(filename: str, token: str = Depends(verify_token)):
     """
     Stream a downloaded offline media file.

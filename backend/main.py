@@ -387,7 +387,7 @@ def _clean_text(output: str) -> str:
 def cleanup_temp_folder(folder_path):
     """Delete temp folder after successful database save"""
     try:
-        if False:
+        if Path(folder_path).is_dir():
             shutil.rmtree(folder_path)
             print(f"🗑️  Cleaned up temp folder: {Path(folder_path).name}")
             return True
@@ -921,7 +921,7 @@ def main():
         shortcode,
     )
 
-    db.save_analysis(
+    saved = db.save_analysis(
         shortcode=shortcode,
         url=instagram_url,
         username=username,
@@ -940,6 +940,10 @@ def main():
         media_file_size=media_file_size,
     )
     
+    if not saved:
+        print("⚠ Analysis was not saved; retaining temporary files for recovery")
+        sys.exit(1)
+
     print(f"✓ Analysis saved to database")
     
     # Step 8: Cleanup temp folder
