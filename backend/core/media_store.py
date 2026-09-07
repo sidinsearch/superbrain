@@ -4,7 +4,11 @@
 import os
 import re
 import shutil
+import tempfile
 from pathlib import Path
+from contextlib import contextmanager
+
+from core.media_retention import media_lock
 
 MEDIA_DIR = Path(os.getenv("MEDIA_PATH", str(Path(__file__).resolve().parent.parent / "media")))
 
@@ -21,6 +25,16 @@ def safe_media_stem(content_type: str, shortcode: str) -> str:
     return f"{safe_type or 'media'}_{safe_code or 'item'}"
 
 
+@contextmanager
+def media_download_workspace():
+    """Private staging area; the lease keeps a live download safe from cleanup."""
+    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".download-", dir=MEDIA_DIR) as folder:
+        workspace = Path(folder)
+        with media_lock(workspace / ".active.sqlite3"):
+            yield workspace
+
+
 def persist_media_file(source_path: Path | str | None, content_type: str, shortcode: str) -> tuple[str, int]:
     """
     Persist a downloaded MP4 into backend/media and return (filename, byte_size).
@@ -30,15 +44,29 @@ def persist_media_file(source_path: Path | str | None, content_type: str, shortc
         return "", 0
 
     source = Path(source_path)
-    if not source.exists() or source.suffix.lower() != ".mp4":
+    if not source.is_file() or source.suffix.lower() != ".mp4":
         return "", 0
 
     try:
         MEDIA_DIR.mkdir(parents=True, exist_ok=True)
         destination = MEDIA_DIR / f"{safe_media_stem(content_type, shortcode)}.mp4"
-        if source.resolve() != destination.resolve():
-            shutil.copy2(source, destination)
-        file_size = destination.stat().st_size
+        if source.resolve() == destination.resolve():
+            file_size = destination.stat().st_size
+            if file_size <= 0:
+                return "", 0
+            with media_lock(MEDIA_DIR / ".maintenance.sqlite3"):
+                os.utime(destination, None)
+                return destination.name, file_size
+        with media_download_workspace() as workspace:
+            staged = workspace / "video.mp4"
+            shutil.copyfile(source, staged)
+            file_size = staged.stat().st_size
+            if file_size <= 0:
+                return "", 0
+            # Set retention age at publication, never the original post date.
+            with media_lock(MEDIA_DIR / ".maintenance.sqlite3"):
+                os.utime(staged, None)
+                staged.replace(destination)
         print(f"Offline media saved: {destination.name} ({file_size} bytes)")
         return destination.name, file_size
     except Exception as e:
@@ -55,40 +83,27 @@ def download_youtube_media(url: str, shortcode: str) -> tuple[str, int]:
         return "", 0
 
     try:
-        MEDIA_DIR.mkdir(parents=True, exist_ok=True)
-        stem = safe_media_stem("youtube", shortcode)
-        output_template = str(MEDIA_DIR / f"{stem}.%(ext)s")
-        final_path = MEDIA_DIR / f"{stem}.mp4"
+        with media_download_workspace() as workspace:
+            final_path = workspace / "video.mp4"
+            ydl_opts = {
+                "format": (
+                    "bv*[ext=mp4][height<=1080]+ba[ext=m4a]/"
+                    "b[ext=mp4][height<=1080]/b[ext=mp4]/best[ext=mp4]"
+                ),
+                "merge_output_format": "mp4",
+                "outtmpl": str(workspace / "video.%(ext)s"),
+                "noplaylist": True,
+                "quiet": True,
+                "no_warnings": True,
+                "overwrites": True,
+            }
 
-        ydl_opts = {
-            "format": (
-                "bv*[ext=mp4][height<=1080]+ba[ext=m4a]/"
-                "b[ext=mp4][height<=1080]/b[ext=mp4]/best[ext=mp4]"
-            ),
-            "merge_output_format": "mp4",
-            "outtmpl": output_template,
-            "noplaylist": True,
-            "quiet": True,
-            "no_warnings": True,
-            "overwrites": True,
-        }
+            print("Downloading YouTube media for offline playback...")
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.extract_info(url, download=True)
 
-        print("Downloading YouTube media for offline playback...")
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.extract_info(url, download=True)
-
-        if final_path.exists():
-            file_size = final_path.stat().st_size
-            print(f"Offline media saved: {final_path.name} ({file_size} bytes)")
-            return final_path.name, file_size
-
-        # Some videos may download as a single MP4 with yt-dlp's resolved extension.
-        mp4_candidates = sorted(MEDIA_DIR.glob(f"{stem}*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True)
-        if mp4_candidates:
-            return persist_media_file(mp4_candidates[0], "youtube", shortcode)
-
-        print("yt-dlp completed but no MP4 media file was produced.")
-        return "", 0
+            # Do not publish an intermediate video-only fragment as the result.
+            return persist_media_file(final_path, "youtube", shortcode)
     except Exception as e:
         print(f"YouTube offline media download failed: {e}")
         return "", 0

@@ -51,6 +51,10 @@
 
 ## Backend Deployment
 
+For offline video playback, configure server cache retention and plan disk space
+using [Offline video storage and retention](OFFLINE_MEDIA.md). The default is
+30 days since save, swept hourly; this is an age policy, not a disk quota.
+
 ### Option 1: Docker (Recommended)
 
 #### Quick Start
