@@ -53,7 +53,10 @@
 
 For offline video playback, configure server cache retention and plan disk space
 using [Offline video storage and retention](OFFLINE_MEDIA.md). The default is
-30 days since save, swept hourly; this is an age policy, not a disk quota.
+30 days since save, swept hourly. Set `MEDIA_MAX_BYTES` to enable oldest-first
+MP4 eviction during each sweep (`0` disables it). Allow room for downloads and
+growth between sweeps. Authenticated cache statistics and an on-demand sweep
+are available under `/admin/media-cache`; see the linked guide for examples.
 
 ### Option 1: Docker (Recommended)
 

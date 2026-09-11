@@ -30,7 +30,7 @@ from contextlib import asynccontextmanager
 from core.database import get_db
 from core.link_checker import validate_link
 from core.media_store import get_media_dir
-from core.media_retention import positive_env_int, sweep_media
+from core.media_retention import get_media_cache_stats, positive_env_int, sweep_media
 
 # Configure logging
 logging.basicConfig(
@@ -92,7 +92,7 @@ async def verify_token(request: Request, x_api_key: str = Header(None, descripti
 async def run_media_cleanup():
     """Run disk/DB maintenance off the event loop; retry failures next interval."""
     try:
-        await asyncio.to_thread(sweep_media, get_media_dir(), db.db_path)
+        await asyncio.to_thread(sweep_media, _MEDIA_DIR, db.db_path)
     except Exception:
         logger.exception("Media cache cleanup failed; retrying at the next interval")
 
@@ -213,6 +213,29 @@ async def get_media_file(filename: str, token: str = Depends(verify_token)):
             "Cache-Control": "private, max-age=3600",
         },
     )
+
+
+@app.get("/admin/media-cache/stats")
+async def media_cache_stats(response: Response, token: str = Depends(verify_token)):
+    """Report finalized MP4 usage and the last completed cache sweep."""
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        return await asyncio.to_thread(get_media_cache_stats, _MEDIA_DIR)
+    except Exception:
+        logger.exception("Could not read media cache statistics")
+        raise HTTPException(status_code=503, detail="Media cache statistics unavailable")
+
+
+@app.post("/admin/media-cache/sweep")
+async def sweep_media_cache(response: Response, token: str = Depends(verify_token)):
+    """Run the configured retention and size policy immediately."""
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        return await asyncio.to_thread(sweep_media, _MEDIA_DIR, db.db_path)
+    except Exception:
+        logger.exception("On-demand media cache sweep failed")
+        raise HTTPException(status_code=503, detail="Media cache sweep failed")
+
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
@@ -398,6 +421,8 @@ async def root():
             "GET /cache/{shortcode}": "Check cache (requires auth)",
             "GET /recent": "Get recent analyses (requires auth)",
             "GET /api/v1/media/{filename}": "Stream downloaded offline media (requires auth)",
+            "GET /admin/media-cache/stats": "Media cache usage and last sweep (requires auth)",
+            "POST /admin/media-cache/sweep": "Run media cache cleanup (requires auth)",
             "GET /stats": "Database statistics (requires auth)",
             "GET /category/{category}": "Get by category (requires auth)",
             "GET /search": "Search by tags (requires auth)"

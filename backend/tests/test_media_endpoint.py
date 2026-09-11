@@ -5,6 +5,7 @@ import asyncio
 import importlib.util
 import os
 import shutil
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -39,7 +40,7 @@ class IsolatedApiMixin:
         database.is_connected.return_value = False
         with (
             patch("core.database.get_db", return_value=database),
-            patch("core.media_store.get_media_dir", return_value=runtime_dir / "media"),
+            patch("core.media_store.MEDIA_DIR", runtime_dir / "media"),
             patch("threading.Thread.start"),
         ):
             spec.loader.exec_module(cls.api)
@@ -134,13 +135,150 @@ class MediaEndpointTests(IsolatedApiMixin, unittest.TestCase):
         self.assertEqual(response.status_code, 404)
 
 
+class MediaCacheAdminTests(IsolatedApiMixin, unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(dir=self.runtime.name)
+        self.addCleanup(self.temp.cleanup)
+        self.media_dir = Path(self.temp.name) / "configured-media"
+        self.media_dir.mkdir()
+        self.database_path = Path(self.temp.name) / "analyses.sqlite3"
+        with sqlite3.connect(self.database_path) as connection:
+            connection.execute("""
+                CREATE TABLE analyses (
+                    shortcode TEXT PRIMARY KEY, local_filename TEXT,
+                    media_file_size INTEGER, is_hidden INTEGER DEFAULT 0,
+                    updated_at TEXT DEFAULT '2020-01-01T00:00:00',
+                    title TEXT DEFAULT 'Saved analysis'
+                )
+            """)
+        for patcher in (
+            patch.object(self.api, "_MEDIA_DIR", self.media_dir),
+            patch.object(self.api.db, "db_path", self.database_path),
+            patch.dict(os.environ, {"MEDIA_MAX_BYTES": "10", "MEDIA_RETENTION_DAYS": "30"}),
+            patch("core.media_retention.time.time", return_value=1_800_000_000),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.client = TestClient(self.api.app)
+        self.addCleanup(self.client.close)
+        self.headers = {"X-API-Key": self.api.API_TOKEN}
+
+    def create_video(self, name, age):
+        path = self.media_dir / name
+        path.write_bytes(b"0123456789")
+        timestamp = 1_800_000_000 - age
+        os.utime(path, (timestamp, timestamp))
+        with sqlite3.connect(self.database_path) as connection:
+            connection.execute(
+                "INSERT INTO analyses (shortcode, local_filename, media_file_size) VALUES (?, ?, ?)",
+                (path.stem, name, path.stat().st_size),
+            )
+        return path
+
+    def test_admin_routes_require_valid_token_before_accessing_cache(self):
+        with (
+            patch.object(self.api, "get_media_cache_stats") as stats,
+            patch.object(self.api, "sweep_media") as sweep,
+        ):
+            for method, url in (
+                ("GET", "/admin/media-cache/stats"),
+                ("POST", "/admin/media-cache/sweep"),
+            ):
+                for headers in ({}, {"X-API-Key": "WRONG123"}):
+                    with self.subTest(method=method, headers=headers):
+                        response = self.client.request(method, url, headers=headers)
+                        self.assertEqual(response.status_code, 401)
+            stats.assert_not_called()
+            sweep.assert_not_called()
+
+    def test_stats_reports_usage_and_ages_without_evicting(self):
+        oldest = self.create_video("oldest.mp4", age=2 * 86400)
+        newest = self.create_video("newest.mp4", age=86400)
+
+        response = self.client.get("/admin/media-cache/stats", headers=self.headers)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        self.assertEqual(response.json(), {
+            "file_count": 2, "total_bytes": 20,
+            "oldest_age_days": 2.0, "newest_age_days": 1.0,
+            "last_sweep_at": None, "last_sweep_result": None,
+            "max_bytes": 10, "over_budget_bytes": 10,
+        })
+        self.assertTrue(oldest.exists())
+        self.assertTrue(newest.exists())
+
+    def test_manual_sweep_updates_stats_database_and_served_files(self):
+        oldest = self.create_video("oldest.mp4", age=2 * 86400)
+        newest = self.create_video("newest.mp4", age=86400)
+
+        response = self.client.post("/admin/media-cache/sweep", headers=self.headers)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        result = response.json()
+        self.assertEqual(result["quota_deleted_files"], 1)
+        self.assertEqual(result["total_bytes"], 10)
+        self.assertEqual(result["max_bytes"], 10)
+        self.assertEqual(result["over_budget_bytes"], 0)
+        self.assertEqual(result["cleared_rows"], 1)
+        self.assertFalse(oldest.exists())
+        self.assertTrue(newest.exists())
+        stats = self.client.get("/admin/media-cache/stats", headers=self.headers).json()
+        self.assertEqual(stats["file_count"], 1)
+        self.assertEqual(stats["total_bytes"], 10)
+        self.assertEqual(stats["last_sweep_result"], result)
+        self.assertIsNotNone(stats["last_sweep_at"])
+        with sqlite3.connect(self.database_path) as connection:
+            row = connection.execute(
+                "SELECT local_filename, media_file_size, updated_at, title FROM analyses WHERE shortcode = 'oldest'"
+            ).fetchone()
+        self.assertEqual(row[:2], ("", 0))
+        self.assertGreater(row[2], "2020-01-01T00:00:00")
+        self.assertEqual(row[3], "Saved analysis")
+        self.assertEqual(self.client.get(
+            "/api/v1/media/oldest.mp4", headers=self.headers,
+        ).status_code, 404)
+        self.assertEqual(self.client.get(
+            "/api/v1/media/newest.mp4", headers=self.headers,
+        ).content, newest.read_bytes())
+
+    def test_stats_for_empty_cache_uses_null_ages_and_no_previous_sweep(self):
+        response = self.client.get("/admin/media-cache/stats", headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        stats = response.json()
+        self.assertEqual(stats["file_count"], 0)
+        self.assertEqual(stats["total_bytes"], 0)
+        self.assertIsNone(stats["oldest_age_days"])
+        self.assertIsNone(stats["newest_age_days"])
+        self.assertIsNone(stats["last_sweep_at"])
+
+    def test_unavailable_cache_returns_503_without_internal_paths(self):
+        for method, route, function, detail in (
+            ("GET", "stats", "get_media_cache_stats", "Media cache statistics unavailable"),
+            ("POST", "sweep", "sweep_media", "Media cache sweep failed"),
+        ):
+            with (
+                self.subTest(route=route),
+                patch.object(self.api, function, side_effect=OSError("/private/internal/path")),
+                patch.object(self.api.logger, "exception") as log_failure,
+            ):
+                response = self.client.request(
+                    method, f"/admin/media-cache/{route}", headers=self.headers,
+                )
+                self.assertEqual(response.status_code, 503)
+                self.assertEqual(response.json(), {"detail": detail})
+                log_failure.assert_called_once()
+
+
 class MediaCleanupLifespanTests(IsolatedApiMixin, unittest.IsolatedAsyncioTestCase):
     async def test_cleanup_runs_off_event_loop_with_configured_paths(self):
         with patch.object(self.api.asyncio, "to_thread", new_callable=AsyncMock) as offload:
             await self.api.run_media_cleanup()
         offload.assert_awaited_once_with(
-            self.api.sweep_media, self.api.get_media_dir(), self.api.db.db_path
+            self.api.sweep_media, self.api._MEDIA_DIR, self.api.db.db_path
         )
+        self.assertEqual(self.api._MEDIA_DIR, Path(self.runtime.name) / "media")
 
     async def test_periodic_cleanup_logs_failure_and_retries_next_interval(self):
         with (

@@ -10,7 +10,12 @@ from contextlib import contextmanager
 
 from core.media_retention import media_lock
 
-MEDIA_DIR = Path(os.getenv("MEDIA_PATH", str(Path(__file__).resolve().parent.parent / "media")))
+_BACKEND_DIR = Path(__file__).resolve().parent.parent
+MEDIA_DIR = Path(os.getenv("MEDIA_PATH", "media"))
+if not MEDIA_DIR.is_absolute():
+    # Analysis subprocesses run from backend/ while the API may start elsewhere.
+    # Anchor relative configuration here so every process uses the same cache.
+    MEDIA_DIR = _BACKEND_DIR / MEDIA_DIR
 
 
 def get_media_dir() -> Path:
