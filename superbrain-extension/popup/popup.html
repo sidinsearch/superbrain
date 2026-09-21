@@ -9,132 +9,137 @@
 <body>
   <div class="container">
     <div class="header">
-      <img src="../icons/icon48.png" width="40" height="40" alt="SuperBrain" style="border-radius: 10px;">
-      <div class="header-text">
-        <h1>SuperBrain</h1>
-        <p>Save Anything</p>
+      <div class="header-brand">
+        <img src="../icons/icon48.png" width="32" height="32" alt="SuperBrain" class="brand-logo">
+        <div class="header-text">
+          <h1>SuperBrain</h1>
+          <p id="serverInfo" class="server-info">Connecting...</p>
+        </div>
       </div>
-    </div>
-
-    <div class="status-bar">
       <div class="status-indicator">
         <div class="status-dot" id="statusDot"></div>
-        <span class="status-text" id="statusText">Checking...</span>
-      </div>
-      <div class="server-info" id="serverInfo">-</div>
-    </div>
-
-    <div class="clip-section">
-      <div class="input-group">
-        <label for="collectionSelect">Collection</label>
-        <select id="collectionSelect" class="select-input">
-          <option value="">Default Collection</option>
-          <!-- Collections loaded dynamically -->
-        </select>
-      </div>
-      <button class="btn btn-primary" id="savePageBtn">
-        <span class="spinner hidden" id="savePageSpinner"></span>
-        <span id="savePageText">Save Current Page</span>
-      </button>
-    </div>
-
-    <div class="db-stats">
-      <div class="db-stat-item">
-        <span class="db-stat-icon">📥</span>
-        <span class="db-stat-label">Local DB</span>
-        <span class="db-stat-value" id="dbTotal">0</span>
-      </div>
-      <div class="db-stat-item">
-        <span class="db-stat-icon">📂</span>
-        <span class="db-stat-label">Collections</span>
-        <span class="db-stat-value" id="dbCollections">0</span>
-      </div>
-      <div class="db-stat-item">
-        <span class="db-stat-icon">✓</span>
-        <span class="db-stat-label">Saved</span>
-        <span class="db-stat-value success" id="dbSaved">0</span>
-      </div>
-      <div class="db-stat-item">
-        <span class="db-stat-icon">⏳</span>
-        <span class="db-stat-label">Pending</span>
-        <span class="db-stat-value warning" id="dbPending">0</span>
-      </div>
-      <div class="db-stat-item">
-        <span class="db-stat-icon">✗</span>
-        <span class="db-stat-label">Failed</span>
-        <span class="db-stat-value error" id="dbFailed">0</span>
       </div>
     </div>
 
-    <div class="progress-section hidden" id="progressSection">
-      <div class="progress-header">
-        <span class="progress-title" id="progressTitle">Scanning...</span>
-        <span class="progress-count" id="progressCount">0 / 0</span>
-      </div>
-      <div class="progress-bar">
-        <div class="progress-fill" id="progressFill" style="width: 0%"></div>
-      </div>
-      <div class="progress-detail" id="progressDetail">Initializing...</div>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="tab-save">Save</button>
+      <button class="tab-btn" data-tab="tab-scan">Bulk Scan</button>
+      <button class="tab-btn" data-tab="tab-queue">Queue <span id="queueBadge" class="badge hidden">0</span></button>
     </div>
 
-    <div class="actions" id="actionsSection">
-      <button class="btn btn-secondary" id="scrapeBtn" disabled>
-        <span class="spinner hidden" id="scrapeSpinner"></span>
-        <span id="scrapeBtnText">Scan Instagram Saved</span>
-      </button>
-      <button class="btn btn-secondary" id="youtubeScanBtn" disabled>
-        <span class="spinner hidden" id="youtubeSpinner"></span>
-        <span id="youtubeBtnText">Scan YouTube Playlist</span>
-      </button>
-      <button class="btn btn-secondary hidden" id="stopBtn">
-        Stop
-      </button>
-    </div>
-
-    <div class="failed-section" id="failedSection">
-      <div class="failed-header">
-        <span class="failed-title">Failed Posts</span>
-        <span class="failed-count" id="failedCount">0</span>
-      </div>
-      <div class="failed-actions">
-        <button class="btn btn-sm btn-warning" id="retryFailedBtn" disabled>
-          Retry Failed
-        </button>
-        <button class="btn btn-sm btn-ghost" id="clearFailedBtn" disabled>
-          Clear All
+    <div class="tab-content active" id="tab-save">
+      <div class="clip-section">
+        <div class="input-group">
+          <label for="collectionSelect">Collection</label>
+          <div class="select-wrapper">
+            <svg class="select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+            <select id="collectionSelect" class="select-input">
+              <option value="">Default Collection</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-lg" id="savePageBtn">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+          <span class="spinner hidden" id="savePageSpinner"></span>
+          <span id="savePageText">Save Current Page</span>
         </button>
       </div>
-      <div class="failed-list" id="failedList">
-        <div class="failed-empty">No failed posts</div>
+    </div>
+
+    <div class="tab-content" id="tab-scan">
+      <div class="scan-actions">
+        <button class="btn btn-secondary action-card" id="scrapeBtn" disabled>
+          <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+          <div class="card-text">
+            <span class="card-title">Instagram Saved</span>
+            <span class="card-desc">Auto-scrolls your saved posts</span>
+          </div>
+          <span class="spinner hidden" id="scrapeSpinner"></span>
+        </button>
+        
+        <button class="btn btn-secondary action-card" id="youtubeScanBtn" disabled>
+          <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33 2.78 2.78 0 0 0 1.94 2c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z"></path><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon></svg>
+          <div class="card-text">
+            <span class="card-title">YouTube Playlist</span>
+            <span class="card-desc">Syncs playlist or Watch Later</span>
+          </div>
+          <span class="spinner hidden" id="youtubeSpinner"></span>
+        </button>
+
+        <button class="btn btn-secondary action-card" id="importBookmarksBtn" disabled>
+          <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+          <div class="card-text">
+            <span class="card-title">Browser Bookmarks</span>
+            <span class="card-desc">Imports all existing bookmarks</span>
+          </div>
+        </button>
+
+        <button class="btn btn-danger hidden" id="stopBtn">Stop Current Scan</button>
       </div>
     </div>
 
-    <div class="log-section">
-      <div class="log-title">Activity Log</div>
-      <div class="log-entries" id="logEntries">
-        <div class="log-entry">
-          <span class="log-time">--:--</span>
-          <span class="log-message info">Ready</span>
+    <div class="tab-content" id="tab-queue">
+      <div class="db-stats">
+        <div class="db-stat-item">
+          <span class="db-stat-value" id="dbTotal">0</span>
+          <span class="db-stat-label">Local</span>
+        </div>
+        <div class="db-stat-item">
+          <span class="db-stat-value success" id="dbSaved">0</span>
+          <span class="db-stat-label">Done</span>
+        </div>
+        <div class="db-stat-item">
+          <span class="db-stat-value warning" id="dbPending">0</span>
+          <span class="db-stat-label">Pending</span>
+        </div>
+        <div class="db-stat-item">
+          <span class="db-stat-value error" id="dbFailed">0</span>
+          <span class="db-stat-label">Fail</span>
+        </div>
+      </div>
+
+      <div class="progress-section hidden" id="progressSection">
+        <div class="progress-header">
+          <span class="progress-title" id="progressTitle">Scanning...</span>
+          <span class="progress-count" id="progressCount">0 / 0</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+        </div>
+        <div class="progress-detail" id="progressDetail">Initializing...</div>
+      </div>
+
+      <div class="failed-section" id="failedSection">
+        <div class="failed-header">
+          <span class="failed-title">Failed Items</span>
+          <div class="failed-actions">
+            <button class="btn btn-sm btn-ghost" id="retryFailedBtn" disabled>Retry</button>
+            <button class="btn btn-sm btn-ghost" id="clearFailedBtn" disabled>Clear</button>
+          </div>
+        </div>
+        <div class="failed-list" id="failedList">
+          <div class="failed-empty">No failed items</div>
+        </div>
+      </div>
+
+      <div class="log-section">
+        <div class="log-title">Activity Log</div>
+        <div class="log-entries" id="logEntries">
+          <div class="log-entry">
+            <span class="log-time">--:--</span>
+            <span class="log-message info">Ready</span>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="footer">
       <a href="#" id="settingsLink" class="settings-link">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
-        </svg>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
         Settings
       </a>
-      <span class="footer-divider">|</span>
-      <a href="#" id="importBookmarksLink" class="settings-link">
-        Import Bookmarks
-      </a>
-      <span class="footer-divider">|</span>
-      <a href="#" id="clearDbLink" class="settings-link danger">
-        Clear DB
-      </a>
+      <span class="footer-divider">•</span>
+      <a href="#" id="clearDbLink" class="settings-link danger">Clear DB</a>
     </div>
   </div>
 

@@ -23,16 +23,26 @@ function setupEventListeners() {
   if (document.getElementById('savePageBtn')) {
     document.getElementById('savePageBtn').addEventListener('click', saveCurrentPage);
   }
+  if (document.getElementById('importBookmarksBtn')) {
+    document.getElementById('importBookmarksBtn').addEventListener('click', importBookmarks);
+  }
   document.getElementById('stopBtn').addEventListener('click', stopScrape);
   document.getElementById('settingsLink').addEventListener('click', openSettings);
   document.getElementById('retryFailedBtn').addEventListener('click', retryFailed);
   document.getElementById('clearFailedBtn').addEventListener('click', clearFailed);
   document.getElementById('clearDbLink').addEventListener('click', clearDatabase);
   
-  const importBookmarksLink = document.getElementById('importBookmarksLink');
-  if (importBookmarksLink) {
-    importBookmarksLink.addEventListener('click', importBookmarks);
-  }
+  // Tab switching logic
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      
+      const tabId = e.currentTarget.getAttribute('data-tab');
+      e.currentTarget.classList.add('active');
+      document.getElementById(tabId).classList.add('active');
+    });
+  });
 
   chrome.runtime.onMessage.addListener(handleMessage);
 }
