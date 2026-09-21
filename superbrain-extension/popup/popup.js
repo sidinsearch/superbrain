@@ -11,18 +11,156 @@ let currentDbStats = {
 document.addEventListener('DOMContentLoaded', async () => {
   await checkConnection();
   await loadDbStats();
+  await loadCollections();
   setupEventListeners();
 });
 
 function setupEventListeners() {
   document.getElementById('scrapeBtn').addEventListener('click', startScrape);
+  if (document.getElementById('youtubeScanBtn')) {
+    document.getElementById('youtubeScanBtn').addEventListener('click', startYoutubeScrape);
+  }
+  if (document.getElementById('savePageBtn')) {
+    document.getElementById('savePageBtn').addEventListener('click', saveCurrentPage);
+  }
   document.getElementById('stopBtn').addEventListener('click', stopScrape);
   document.getElementById('settingsLink').addEventListener('click', openSettings);
   document.getElementById('retryFailedBtn').addEventListener('click', retryFailed);
   document.getElementById('clearFailedBtn').addEventListener('click', clearFailed);
   document.getElementById('clearDbLink').addEventListener('click', clearDatabase);
+  
+  const importBookmarksLink = document.getElementById('importBookmarksLink');
+  if (importBookmarksLink) {
+    importBookmarksLink.addEventListener('click', importBookmarks);
+  }
+
   chrome.runtime.onMessage.addListener(handleMessage);
 }
+
+async function loadCollections() {
+  const result = await chrome.storage.sync.get(['serverUrl', 'apiToken']);
+  if (!result.serverUrl || !result.apiToken) return;
+
+  const select = document.getElementById('collectionSelect');
+  if (!select) return;
+
+  try {
+    const url = result.serverUrl.replace(/\/$/, '') + '/collections';
+    const response = await fetch(url, {
+      headers: { 'X-API-Key': result.apiToken }
+    });
+    const data = await response.json();
+    
+    if (data.success && data.data && data.data.length > 0) {
+      // Clear existing (except default)
+      select.innerHTML = '<option value="">Default Collection</option>';
+      data.data.forEach(col => {
+        const option = document.createElement('option');
+        option.value = col.id;
+        option.textContent = `${col.icon || '📁'} ${col.name}`;
+        select.appendChild(option);
+      });
+    }
+  } catch (error) {
+    console.error('Failed to load collections:', error);
+  }
+}
+
+async function saveCurrentPage() {
+  const btn = document.getElementById('savePageBtn');
+  const spinner = document.getElementById('savePageSpinner');
+  const btnText = document.getElementById('savePageText');
+  const select = document.getElementById('collectionSelect');
+  
+  if (btn.disabled) return;
+  
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tabs || tabs.length === 0) return;
+    
+    const url = tabs[0].url;
+    if (!url || url.startsWith('chrome://')) {
+      addLog('Cannot save this type of page', 'error');
+      return;
+    }
+
+    const { serverUrl, apiToken } = await chrome.storage.sync.get(['serverUrl', 'apiToken']);
+    if (!serverUrl || !apiToken) return;
+
+    btn.disabled = true;
+    spinner.classList.remove('hidden');
+    btnText.textContent = 'Saving...';
+    
+    addLog(`Saving: ${tabs[0].title}`, 'info');
+
+    // 1. Analyze page
+    const apiUrl = serverUrl.replace(/\/$/, '') + '/analyze';
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-API-Key': apiToken 
+      },
+      body: JSON.stringify({ url: url, force: false })
+    });
+
+    const data = await response.json();
+    
+    if (response.ok && data.shortcode) {
+      addLog(`Saved successfully`, 'success');
+      
+      // 2. Add to collection if selected
+      if (select && select.value) {
+        await addPostToCollection(select.value, data.shortcode, serverUrl, apiToken);
+      }
+      
+      await loadDbStats();
+    } else {
+      addLog(`Failed to save: ${data.detail || 'Unknown error'}`, 'error');
+    }
+  } catch (error) {
+    addLog(`Error: ${error.message}`, 'error');
+  } finally {
+    btn.disabled = false;
+    spinner.classList.add('hidden');
+    btnText.textContent = 'Save Current Page';
+  }
+}
+
+async function addPostToCollection(collectionId, shortcode, serverUrl, apiToken) {
+  try {
+    const baseUrl = serverUrl.replace(/\/$/, '');
+    
+    // Fetch current collection
+    const getRes = await fetch(`${baseUrl}/collections`, {
+      headers: { 'X-API-Key': apiToken }
+    });
+    const data = await getRes.json();
+    const collection = data.data?.find(c => c.id === collectionId);
+    
+    if (collection) {
+      const postIds = new Set(collection.post_ids || []);
+      if (!postIds.has(shortcode)) {
+        postIds.add(shortcode);
+        
+        await fetch(`${baseUrl}/collections/${collectionId}/posts`, {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-API-Key': apiToken 
+          },
+          body: JSON.stringify({ post_ids: Array.from(postIds) })
+        });
+        addLog(`Added to collection ${collection.name}`, 'success');
+      }
+    }
+  } catch (err) {
+    console.error('Collection add failed:', err);
+  }
+}
+
+// ... rest of the code down to checkConnection()
+
 
 async function checkConnection() {
   const result = await chrome.storage.sync.get(['serverUrl', 'apiToken']);
@@ -331,3 +469,161 @@ function openSettings(e) {
   e.preventDefault();
   chrome.runtime.openOptionsPage();
 }
+
+async function startYoutubeScrape() {
+  const btn = document.getElementById('youtubeScanBtn');
+  const spinner = document.getElementById('youtubeSpinner');
+  const btnText = document.getElementById('youtubeBtnText');
+  
+  if (btn.disabled) return;
+  
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tabs || tabs.length === 0) return;
+    
+    const tabId = tabs[0].id;
+    const url = tabs[0].url;
+    
+    if (!url.includes('youtube.com/playlist') && !url.includes('youtube.com/watch')) {
+      addLog('Not a YouTube playlist page', 'error');
+      return;
+    }
+
+    btn.disabled = true;
+    spinner.classList.remove('hidden');
+    btnText.textContent = 'Scanning...';
+    
+    addLog('Scanning YouTube playlist...', 'info');
+
+    chrome.tabs.sendMessage(tabId, { action: 'START_YT_SCRAPE' }, async (response) => {
+      if (chrome.runtime.lastError || !response) {
+        addLog('Failed to connect to YouTube. Refresh page.', 'error');
+        resetYoutubeBtn();
+        return;
+      }
+      
+      if (response.status === 'done') {
+        addLog(`Found ${response.videos.length} videos.`, 'success');
+        await sendYoutubeVideosToBackend(response.videos, tabs[0].title);
+      } else {
+        addLog(`Error: ${response.error}`, 'error');
+      }
+      resetYoutubeBtn();
+    });
+  } catch (error) {
+    addLog(`Error: ${error.message}`, 'error');
+    resetYoutubeBtn();
+  }
+}
+
+function resetYoutubeBtn() {
+  const btn = document.getElementById('youtubeScanBtn');
+  const spinner = document.getElementById('youtubeSpinner');
+  const btnText = document.getElementById('youtubeBtnText');
+  btn.disabled = false;
+  spinner.classList.add('hidden');
+  btnText.textContent = 'Scan YouTube Playlist';
+}
+
+async function sendYoutubeVideosToBackend(videos, playlistTitle) {
+  if (videos.length === 0) return;
+
+  const { serverUrl, apiToken } = await chrome.storage.sync.get(['serverUrl', 'apiToken']);
+  if (!serverUrl || !apiToken) return;
+
+  const apiUrl = serverUrl.replace(/\/$/, '') + '/analyze';
+  
+  // Try to determine collection name
+  let collectionName = playlistTitle.replace(' - YouTube', '').trim();
+  if (collectionName.toLowerCase() === 'watch later') {
+    collectionName = 'Watch Later';
+  }
+  
+  addLog(`Importing ${videos.length} videos to ${collectionName}...`, 'info');
+  
+  // Create collection on server if needed (this would normally use a dedicated endpoint)
+  // For now, we process videos one by one.
+  
+  let successCount = 0;
+  for (let i = 0; i < videos.length; i++) {
+    const url = videos[i];
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-API-Key': apiToken 
+        },
+        body: JSON.stringify({ url: url, force: false })
+      });
+      
+      if (response.ok) {
+        successCount++;
+        // If we want to add to collection, we'd do it here like in saveCurrentPage
+      }
+    } catch (e) {
+      console.error('Failed to save', url, e);
+    }
+    
+    // Update progress log occasionally
+    if ((i + 1) % 5 === 0 || i === videos.length - 1) {
+      addLog(`Saved ${successCount}/${videos.length} videos.`, 'info');
+    }
+  }
+  
+  addLog(`Done! Successfully imported ${successCount} videos.`, 'success');
+  loadDbStats();
+}
+
+async function importBookmarks() {
+  const { serverUrl, apiToken } = await chrome.storage.sync.get(['serverUrl', 'apiToken']);
+  if (!serverUrl || !apiToken) {
+    addLog('Server not configured', 'error');
+    return;
+  }
+
+  addLog('Scanning bookmarks...', 'info');
+
+  try {
+    chrome.bookmarks.getTree(async (bookmarkTreeNodes) => {
+      const urls = [];
+      
+      function extractUrls(nodes) {
+        for (const node of nodes) {
+          if (node.url && (node.url.startsWith('http://') || node.url.startsWith('https://'))) {
+            urls.push(node.url);
+          }
+          if (node.children) {
+            extractUrls(node.children);
+          }
+        }
+      }
+      
+      extractUrls(bookmarkTreeNodes);
+      
+      if (urls.length === 0) {
+        addLog('No bookmarks found', 'warning');
+        return;
+      }
+      
+      addLog(`Found ${urls.length} bookmarks. Sending to server...`, 'info');
+      
+      const apiUrl = serverUrl.replace(/\/$/, '') + '/analyze';
+      let successCount = 0;
+      
+      // Batch processing would be better here, but we'll do sequential for simplicity
+      // In a real scenario, we'd send these to a background worker queue
+      addLog(`Import running in background.`, 'info');
+      
+      // Send message to background script to handle the massive queue so popup can close
+      chrome.runtime.sendMessage({
+        action: 'IMPORT_URLS',
+        urls: urls
+      });
+      
+    });
+  } catch (error) {
+    addLog(`Error reading bookmarks: ${error.message}`, 'error');
+  }
+}
+

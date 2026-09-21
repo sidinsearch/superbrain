@@ -12,7 +12,7 @@
       <img src="../icons/icon48.png" width="40" height="40" alt="SuperBrain" style="border-radius: 10px;">
       <div class="header-text">
         <h1>SuperBrain</h1>
-        <p>Instagram Import</p>
+        <p>Save Anything</p>
       </div>
     </div>
 
@@ -22,6 +22,20 @@
         <span class="status-text" id="statusText">Checking...</span>
       </div>
       <div class="server-info" id="serverInfo">-</div>
+    </div>
+
+    <div class="clip-section">
+      <div class="input-group">
+        <label for="collectionSelect">Collection</label>
+        <select id="collectionSelect" class="select-input">
+          <option value="">Default Collection</option>
+          <!-- Collections loaded dynamically -->
+        </select>
+      </div>
+      <button class="btn btn-primary" id="savePageBtn">
+        <span class="spinner hidden" id="savePageSpinner"></span>
+        <span id="savePageText">Save Current Page</span>
+      </button>
     </div>
 
     <div class="db-stats">
@@ -64,9 +78,13 @@
     </div>
 
     <div class="actions" id="actionsSection">
-      <button class="btn btn-primary" id="scrapeBtn" disabled>
+      <button class="btn btn-secondary" id="scrapeBtn" disabled>
         <span class="spinner hidden" id="scrapeSpinner"></span>
         <span id="scrapeBtnText">Scan Instagram Saved</span>
+      </button>
+      <button class="btn btn-secondary" id="youtubeScanBtn" disabled>
+        <span class="spinner hidden" id="youtubeSpinner"></span>
+        <span id="youtubeBtnText">Scan YouTube Playlist</span>
       </button>
       <button class="btn btn-secondary hidden" id="stopBtn">
         Stop
@@ -110,8 +128,12 @@
         Settings
       </a>
       <span class="footer-divider">|</span>
+      <a href="#" id="importBookmarksLink" class="settings-link">
+        Import Bookmarks
+      </a>
+      <span class="footer-divider">|</span>
       <a href="#" id="clearDbLink" class="settings-link danger">
-        Clear Local DB
+        Clear DB
       </a>
     </div>
   </div>

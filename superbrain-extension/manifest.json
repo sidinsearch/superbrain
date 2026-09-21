@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SuperBrain",
-  "description": "Import Instagram saved posts and collections to SuperBrain",
-  "version": "1.0.1",
+  "description": "Save web pages, sync YouTube playlists, and import Instagram saved posts to SuperBrain",
+  "version": "1.1.0",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -18,10 +18,12 @@
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "bookmarks"
   ],
   "host_permissions": [
     "https://www.instagram.com/*",
+    "https://www.youtube.com/*",
     "http://localhost:*/*",
     "https://*/*"
   ],
@@ -36,6 +38,14 @@
       ],
       "js": ["content/content.js"],
       "css": ["content/content.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.youtube.com/playlist*",
+        "https://www.youtube.com/watch?*list=WL*"
+      ],
+      "js": ["content/youtube.js"],
       "run_at": "document_idle"
     }
   ],
