@@ -219,6 +219,38 @@ body::before {
   align-items: center;
 }
 
+/* ── Custom Select ────────────────────────────────────────────────── */
+.custom-select {
+  position: relative;
+  width: 100%;
+}
+
+.select-trigger {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 12px 12px 12px 34px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.select-trigger:hover {
+  background-color: var(--bg-hover);
+}
+
+.custom-select.open .select-trigger {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-glow);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
 .select-icon {
   position: absolute;
   left: 12px;
@@ -226,48 +258,83 @@ body::before {
   height: 14px;
   color: var(--text-muted);
   pointer-events: none;
+  z-index: 2;
 }
 
-.select-input {
-  width: 100%;
-  padding: 12px 12px 12px 34px;
-  background: var(--bg-card);
+.select-arrow {
+  position: absolute;
+  right: 12px;
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  pointer-events: none;
+  transition: transform 0.2s ease;
+}
+
+.custom-select.open .select-arrow {
+  transform: rotate(180deg);
+}
+
+.select-value {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 20px;
+}
+
+.select-options {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  color: var(--text);
-  font-family: inherit;
+  border-top: none;
+  border-bottom-left-radius: var(--radius-md);
+  border-bottom-right-radius: var(--radius-md);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  animation: slideDownOptions 0.2s ease;
+}
+
+@keyframes slideDownOptions {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.select-option {
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
   font-size: 13px;
-  font-weight: 500;
-  outline: none;
-  appearance: none;
-  transition: all 0.2s ease;
-  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%22%20fill%3D%22none%22%20stroke%3D%22%23bfc6d4%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  background-size: 14px;
+  color: var(--text-secondary);
+  transition: background 0.15s ease;
 }
 
-.select-input:hover {
-  background-color: var(--bg-hover);
+.select-option:hover {
+  background: var(--bg-hover);
+  color: var(--text);
 }
 
-.select-input:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px var(--primary-glow);
+.select-option.selected {
+  background: var(--primary-glow);
+  color: var(--primary-light);
+  font-weight: 600;
 }
 
-.btn-lg {
-  padding: 14px;
+.option-icon {
   font-size: 14px;
-  border-radius: var(--radius-md);
 }
 
-.btn-icon {
-  width: 16px;
-  height: 16px;
-}
+.select-options::-webkit-scrollbar { width: 4px; }
+.select-options::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 4px; }
 
-/* ── Scan Actions (Scan Tab) ────────────────────────────────────── */
+/* ── Buttons ────────────────────────────────────────────────────── */
 .scan-actions {
   display: flex;
   flex-direction: column;
@@ -361,6 +428,18 @@ body::before {
 }
 
 /* ── Buttons ────────────────────────────────────────────────────── */
+
+.btn-lg {
+  padding: 14px;
+  font-size: 14px;
+  border-radius: var(--radius-md);
+}
+
+.btn-icon {
+  width: 16px;
+  height: 16px;
+}
+
 .btn {
   padding: 10px 16px;
   border: none;

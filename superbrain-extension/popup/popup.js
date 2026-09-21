@@ -9,9 +9,18 @@ let currentDbStats = {
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await checkConnection();
-  await loadDbStats();
-  await loadCollections();
+  try {
+    await checkConnection();
+  } catch(e) { console.error(e); }
+  
+  try {
+    await loadDbStats();
+  } catch(e) { console.error(e); }
+  
+  try {
+    await loadCollections();
+  } catch(e) { console.error(e); }
+  
   setupEventListeners();
 });
 
@@ -51,8 +60,44 @@ async function loadCollections() {
   const result = await chrome.storage.sync.get(['serverUrl', 'apiToken']);
   if (!result.serverUrl || !result.apiToken) return;
 
-  const select = document.getElementById('collectionSelect');
-  if (!select) return;
+  const trigger = document.getElementById('collectionTrigger');
+  const optionsContainer = document.getElementById('collectionOptions');
+  const valueDisplay = document.getElementById('collectionValue');
+  const dropdown = document.getElementById('collectionDropdown');
+
+  if (!trigger || !optionsContainer) return;
+
+  // Toggle dropdown
+  trigger.addEventListener('click', () => {
+    dropdown.classList.toggle('open');
+    optionsContainer.classList.toggle('hidden');
+  });
+
+  // Close on outside click
+  document.addEventListener('click', (e) => {
+    if (!dropdown.contains(e.target)) {
+      dropdown.classList.remove('open');
+      optionsContainer.classList.add('hidden');
+    }
+  });
+
+  // Handle selection
+  optionsContainer.addEventListener('click', (e) => {
+    const option = e.target.closest('.select-option');
+    if (!option) return;
+
+    // Update selection UI
+    optionsContainer.querySelectorAll('.select-option').forEach(opt => opt.classList.remove('selected'));
+    option.classList.add('selected');
+
+    // Update value
+    valueDisplay.textContent = option.textContent.trim();
+    valueDisplay.dataset.value = option.dataset.value;
+
+    // Close dropdown
+    dropdown.classList.remove('open');
+    optionsContainer.classList.add('hidden');
+  });
 
   try {
     const url = result.serverUrl.replace(/\/$/, '') + '/collections';
@@ -62,13 +107,16 @@ async function loadCollections() {
     const data = await response.json();
     
     if (data.success && data.data && data.data.length > 0) {
-      // Clear existing (except default)
-      select.innerHTML = '<option value="">Default Collection</option>';
+      // Keep default collection, append others
+      const defaultOption = '<div class="select-option selected" data-value=""><span class="option-icon">📁</span> Default Collection</div>';
+      optionsContainer.innerHTML = defaultOption;
+      
       data.data.forEach(col => {
-        const option = document.createElement('option');
-        option.value = col.id;
-        option.textContent = `${col.icon || '📁'} ${col.name}`;
-        select.appendChild(option);
+        const div = document.createElement('div');
+        div.className = 'select-option';
+        div.dataset.value = col.id;
+        div.innerHTML = `<span class="option-icon">${col.icon || '📁'}</span> ${escapeHtml(col.name)}`;
+        optionsContainer.appendChild(div);
       });
     }
   } catch (error) {
@@ -80,7 +128,7 @@ async function saveCurrentPage() {
   const btn = document.getElementById('savePageBtn');
   const spinner = document.getElementById('savePageSpinner');
   const btnText = document.getElementById('savePageText');
-  const select = document.getElementById('collectionSelect');
+  const valueDisplay = document.getElementById('collectionValue');
   
   if (btn.disabled) return;
   
@@ -120,8 +168,9 @@ async function saveCurrentPage() {
       addLog(`Saved successfully`, 'success');
       
       // 2. Add to collection if selected
-      if (select && select.value) {
-        await addPostToCollection(select.value, data.shortcode, serverUrl, apiToken);
+      const collectionId = valueDisplay ? valueDisplay.dataset.value : '';
+      if (collectionId) {
+        await addPostToCollection(collectionId, data.shortcode, serverUrl, apiToken);
       }
       
       await loadDbStats();
