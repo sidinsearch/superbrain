@@ -108,7 +108,7 @@ async function loadCollections() {
     
     if (data.success && data.data && data.data.length > 0) {
       // Keep default collection, append others
-      const defaultOption = '<div class="select-option selected" data-value=""><span class="option-icon">📁</span> Default Collection</div>';
+      const defaultOption = '<div class="select-option selected" data-value=""><span class="option-icon">📁</span> Unsorted</div>';
       optionsContainer.innerHTML = defaultOption;
       
       data.data.forEach(col => {
