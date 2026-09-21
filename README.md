@@ -103,8 +103,9 @@ Everything is stored in a local SQLite database **you own** — no cloud subscri
 ## Features
 
 Offline video playback includes a server cache with 30-day retention and hourly
-cleanup. See [offline media storage](docs/OFFLINE_MEDIA.md) for capacity estimates,
-configuration, and tests before deploying it.
+cleanup, an optional `MEDIA_MAX_BYTES` budget, and authenticated cache statistics.
+See [offline media storage](docs/OFFLINE_MEDIA.md) for capacity estimates,
+configuration, monitoring, and tests before deploying it.
 
 ### ✨ Content Analysis
 
