@@ -56,6 +56,14 @@ function setupEventListeners() {
   chrome.runtime.onMessage.addListener(handleMessage);
 }
 
+function isSaveableUrl(url) {
+  if (!url) return false;
+  // Only allow standard web URLs (http/https).
+  // Blocks: chrome://, chrome-extension://, edge://, about:, devtools://,
+  //         view-source:, file://, data:, blob:, javascript:, etc.
+  return /^https?:\/\//i.test(url);
+}
+
 async function loadCollections() {
   const result = await chrome.storage.sync.get(['serverUrl', 'apiToken']);
   if (!result.serverUrl || !result.apiToken) return;
@@ -137,8 +145,8 @@ async function saveCurrentPage() {
     if (!tabs || tabs.length === 0) return;
     
     const url = tabs[0].url;
-    if (!url || url.startsWith('chrome://')) {
-      addLog('Cannot save this type of page', 'error');
+    if (!isSaveableUrl(url)) {
+      addLog('Cannot save browser internal pages', 'error');
       return;
     }
 
