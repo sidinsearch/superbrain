@@ -774,16 +774,16 @@ function renderBookmarkPicker(bookmarks) {
       itemEl.className = 'picker-item';
       
       const host = new URL(b.url).hostname;
-      const faviconUrl = \`https://www.google.com/s2/favicons?domain=\${host}&sz=16\`;
+      const faviconUrl = `https://www.google.com/s2/favicons?domain=${host}&sz=16`;
       
-      itemEl.innerHTML = \`
-        <input type="checkbox" class="picker-checkbox item-checkbox" value="\${escapeHtml(b.url)}" checked>
-        <img src="\${faviconUrl}" class="picker-item-favicon" onerror="this.style.display='none'">
+      itemEl.innerHTML = `
+        <input type="checkbox" class="picker-checkbox item-checkbox" value="${escapeHtml(b.url)}" checked>
+        <img src="${faviconUrl}" class="picker-item-favicon" onerror="this.style.display='none'">
         <div class="picker-item-info">
-          <div class="picker-item-title">\${escapeHtml(b.title)}</div>
-          <div class="picker-item-url">\${escapeHtml(b.url)}</div>
+          <div class="picker-item-title">${escapeHtml(b.title)}</div>
+          <div class="picker-item-url">${escapeHtml(b.url)}</div>
         </div>
-      \`;
+      `;
       folderGroup.appendChild(itemEl);
     });
 
@@ -834,8 +834,8 @@ function updateBookmarkCounts() {
   const selectedCount = allBoxes.filter(cb => cb.checked).length;
   const totalCount = allBoxes.length;
 
-  document.getElementById('pickerSelectedCount').textContent = \`\${selectedCount} selected\`;
-  document.getElementById('pickerTotalCount').textContent = \`\${totalCount} available\`;
+  document.getElementById('pickerSelectedCount').textContent = `${selectedCount} selected`;
+  document.getElementById('pickerTotalCount').textContent = `${totalCount} available`;
   document.getElementById('importSelectedCount').textContent = selectedCount;
 
   const importBtn = document.getElementById('importSelectedBookmarksBtn');
@@ -878,17 +878,14 @@ document.getElementById('importSelectedBookmarksBtn')?.addEventListener('click',
   if (urls.length === 0) return;
 
   document.getElementById('bookmarkPicker').classList.add('hidden');
-  addLog(\`Starting import of \${urls.length} selected bookmarks...\`, 'info');
+  addLog(`Starting import of ${urls.length} selected bookmarks...`, 'info');
 
   chrome.runtime.sendMessage({ action: 'IMPORT_URLS', urls: urls }, (response) => {
     if (chrome.runtime.lastError || !response || response.status !== 'started') {
       addLog('Failed to start bookmarks import', 'error');
       return;
     }
-    addLog(\`Queued \${response.total || urls.length} bookmarks.\`, 'success');
+    addLog(`Queued ${response.total || urls.length} bookmarks.`, 'success');
   });
 });
-
-  }
-}
 
