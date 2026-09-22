@@ -667,3 +667,8 @@ body::before {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+.option-icon-svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}

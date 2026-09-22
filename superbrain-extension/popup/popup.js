@@ -116,10 +116,11 @@ async function loadCollections() {
     
     if (data.success && data.data && data.data.length > 0) {
       // Keep default collection, append others
-      const defaultOption = '<div class="select-option selected" data-value=""><span class="option-icon">📁</span> Unsorted</div>';
+      const defaultIcon = typeof SVG_ICONS !== 'undefined' && SVG_ICONS['folder'] ? SVG_ICONS['folder'] : '📁';
+      const defaultOption = `<div class="select-option selected" data-value=""><span class="option-icon">${defaultIcon}</span> Unsorted</div>`;
       optionsContainer.innerHTML = defaultOption;
       
-      const ICON_MAP = {
+      const ICON_MAP_FALLBACK = {
         'folder': '📁', 'airplane': '✈️', 'restaurant': '🍽️', 'shirt': '👕', 
         'fitness': '💪', 'book': '📚', 'film': '🎬', 'camera': '📷', 
         'star': '⭐', 'heart': '❤️', 'flame': '🔥', 'pin': '📍', 'time': '🕒'
@@ -129,8 +130,15 @@ async function loadCollections() {
         const div = document.createElement('div');
         div.className = 'select-option';
         div.dataset.value = col.id;
-        const iconEmoji = ICON_MAP[col.icon] || '📁';
-        div.innerHTML = `<span class="option-icon">${iconEmoji}</span> ${escapeHtml(col.name)}`;
+        
+        let iconContent = '📁';
+        if (typeof SVG_ICONS !== 'undefined' && SVG_ICONS[col.icon]) {
+          iconContent = SVG_ICONS[col.icon];
+        } else {
+          iconContent = ICON_MAP_FALLBACK[col.icon] || '📁';
+        }
+        
+        div.innerHTML = `<span class="option-icon">${iconContent}</span> ${escapeHtml(col.name)}`;
         optionsContainer.appendChild(div);
       });
     }
