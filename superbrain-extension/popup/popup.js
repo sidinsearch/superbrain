@@ -78,8 +78,8 @@ async function updatePlatformButtons() {
     console.error(e);
   }
 
-  const onInstagramSaved = /instagram\.com\/saved/i.test(url);
-  const onYouTubePlaylist = /youtube\.com\/playlist/i.test(url) || /youtube\.com\/watch\?[^#]*list=WL/i.test(url);
+  const onInstagramSaved = /instagram\.com.*\/saved/i.test(url);
+  const onYouTubePlaylist = /youtube\.com\/(playlist|feed\/playlists)/i.test(url) || /youtube\.com\/watch\?[^#]*list=WL/i.test(url);
 
   if (scrapeBtn) scrapeBtn.disabled = !(isConnected && onInstagramSaved && !isRunning);
   if (youtubeBtn) youtubeBtn.disabled = !(isConnected && onYouTubePlaylist && !isRunning);
@@ -585,7 +585,7 @@ async function startYoutubeScrape() {
     const tabId = tabs[0].id;
     const url = tabs[0].url;
     
-    if (!/youtube\.com\/playlist/i.test(url || '') && !/youtube\.com\/watch\?[^#]*list=WL/i.test(url || '')) {
+    if (!/youtube\.com\/(playlist|feed\/playlists)/i.test(url || '') && !/youtube\.com\/watch\?[^#]*list=WL/i.test(url || '')) {
       addLog('Not a YouTube playlist or Watch Later page', 'error');
       return;
     }
@@ -603,7 +603,7 @@ async function startYoutubeScrape() {
       }
       
       if (response.status === 'done') {
-        addLog(`Found ${response.videos.length} videos.`, 'success');
+        addLog(`Found ${response.videos.length} items.`, 'success');
         await sendYoutubeVideosToBackend(response.videos, tabs[0].title);
       } else {
         addLog(`Error: ${response.error}`, 'error');

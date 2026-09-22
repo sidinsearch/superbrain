@@ -43,7 +43,8 @@
     {
       "matches": [
         "https://www.youtube.com/playlist*",
-        "https://www.youtube.com/watch?*list=WL*"
+        "https://www.youtube.com/watch?*list=WL*",
+        "https://www.youtube.com/feed/playlists*"
       ],
       "js": ["content/youtube.js"],
       "run_at": "document_idle"

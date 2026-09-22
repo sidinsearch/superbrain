@@ -28,6 +28,11 @@
   });
 
   async function scanPlaylist() {
+    // YouTube "Your playlists" feed page: collect the playlist links on it.
+    if (/\/feed\/playlists/i.test(location.href)) {
+      const playlists = collectFeedPlaylists();
+      return playlists;
+    }
     return new Promise((resolve) => {
       let videos = new Set();
       let lastCount = 0;
@@ -68,5 +73,17 @@
         }
       }, 800);
     });
+  }
+
+  function collectFeedPlaylists() {
+    const urls = new Set();
+    document.querySelectorAll('a[href*="/playlist?list="]').forEach(a => {
+      try {
+        const u = new URL(a.href);
+        const list = u.searchParams.get('list');
+        if (list) urls.add('https://www.youtube.com/playlist?list=' + list);
+      } catch (e) { /* ignore malformed */ }
+    });
+    return Array.from(urls);
   }
 })();
