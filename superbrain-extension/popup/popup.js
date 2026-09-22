@@ -98,8 +98,13 @@ async function loadCollections() {
     optionsContainer.querySelectorAll('.select-option').forEach(opt => opt.classList.remove('selected'));
     option.classList.add('selected');
 
-    // Update value
-    valueDisplay.textContent = option.textContent.trim();
+    // Update value - grab just the text part, not the icon
+    const textSpan = option.querySelector('.option-text');
+    if (textSpan) {
+      valueDisplay.textContent = textSpan.textContent.trim();
+    } else {
+      valueDisplay.textContent = option.textContent.replace('📁', '').trim();
+    }
     valueDisplay.dataset.value = option.dataset.value;
 
     // Close dropdown
@@ -117,28 +122,20 @@ async function loadCollections() {
     if (data.success && data.data && data.data.length > 0) {
       // Keep default collection, append others
       const defaultIcon = typeof SVG_ICONS !== 'undefined' && SVG_ICONS['folder'] ? SVG_ICONS['folder'] : '📁';
-      const defaultOption = `<div class="select-option selected" data-value=""><span class="option-icon">${defaultIcon}</span> Unsorted</div>`;
+      const defaultOption = `<div class="select-option selected" data-value=""><span class="option-icon">${defaultIcon}</span> <span class="option-text">Unsorted</span></div>`;
       optionsContainer.innerHTML = defaultOption;
-      
-      const ICON_MAP_FALLBACK = {
-        'folder': '📁', 'airplane': '✈️', 'restaurant': '🍽️', 'shirt': '👕', 
-        'fitness': '💪', 'book': '📚', 'film': '🎬', 'camera': '📷', 
-        'star': '⭐', 'heart': '❤️', 'flame': '🔥', 'pin': '📍', 'time': '🕒'
-      };
       
       data.data.forEach(col => {
         const div = document.createElement('div');
         div.className = 'select-option';
         div.dataset.value = col.id;
         
-        let iconContent = '📁';
+        let iconContent = typeof SVG_ICONS !== 'undefined' && SVG_ICONS['folder'] ? SVG_ICONS['folder'] : '📁';
         if (typeof SVG_ICONS !== 'undefined' && SVG_ICONS[col.icon]) {
           iconContent = SVG_ICONS[col.icon];
-        } else {
-          iconContent = ICON_MAP_FALLBACK[col.icon] || '📁';
         }
         
-        div.innerHTML = `<span class="option-icon">${iconContent}</span> ${escapeHtml(col.name)}`;
+        div.innerHTML = `<span class="option-icon">${iconContent}</span> <span class="option-text">${escapeHtml(col.name)}</span>`;
         optionsContainer.appendChild(div);
       });
     }
