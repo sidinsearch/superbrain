@@ -119,11 +119,18 @@ async function loadCollections() {
       const defaultOption = '<div class="select-option selected" data-value=""><span class="option-icon">📁</span> Unsorted</div>';
       optionsContainer.innerHTML = defaultOption;
       
+      const ICON_MAP = {
+        'folder': '📁', 'airplane': '✈️', 'restaurant': '🍽️', 'shirt': '👕', 
+        'fitness': '💪', 'book': '📚', 'film': '🎬', 'camera': '📷', 
+        'star': '⭐', 'heart': '❤️', 'flame': '🔥', 'pin': '📍', 'time': '🕒'
+      };
+      
       data.data.forEach(col => {
         const div = document.createElement('div');
         div.className = 'select-option';
         div.dataset.value = col.id;
-        div.innerHTML = `<span class="option-icon">${col.icon || '📁'}</span> ${escapeHtml(col.name)}`;
+        const iconEmoji = ICON_MAP[col.icon] || '📁';
+        div.innerHTML = `<span class="option-icon">${iconEmoji}</span> ${escapeHtml(col.name)}`;
         optionsContainer.appendChild(div);
       });
     }
