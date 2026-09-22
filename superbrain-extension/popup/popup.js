@@ -230,51 +230,51 @@ async function addPostToCollection(collectionId, shortcode, serverUrl, apiToken)
 
 
 async function checkConnection() {
-  const result = await chrome.storage.sync.get(['serverUrl', 'apiToken']);
-  const statusDot = document.getElementById('statusDot');
-  const statusText = document.getElementById('statusText');
-  const serverInfo = document.getElementById('serverInfo');
-  const scrapeBtn = document.getElementById('scrapeBtn');
+  const result = await chrome.storage.sync.get(["serverUrl", "apiToken"]);
+  const statusDot = document.getElementById("statusDot");
+  const serverInfo = document.getElementById("serverInfo");
+  const scrapeBtn = document.getElementById("scrapeBtn");
 
   if (!result.serverUrl || !result.apiToken) {
-    statusDot.classList.remove('connected');
-    statusText.textContent = 'Not configured';
-    statusText.classList.add('error');
-    serverInfo.textContent = 'Configure in settings';
-    scrapeBtn.disabled = true;
+    if (statusDot) statusDot.classList.remove("connected");
+    if (serverInfo) {
+      serverInfo.textContent = "Configure in settings";
+      serverInfo.classList.add("error");
+    }
+    if (scrapeBtn) scrapeBtn.disabled = true;
     return false;
   }
 
-  const serverUrl = result.serverUrl.replace(/\/$/, '');
-  serverInfo.textContent = serverUrl;
+  const serverUrl = result.serverUrl.replace(/\/$/, "");
+  if (serverInfo) {
+    serverInfo.textContent = serverUrl;
+    serverInfo.classList.remove("error");
+  }
 
   try {
     const response = await fetch(`${serverUrl}/ping`, {
-      method: 'GET',
-      headers: { 'X-API-Key': result.apiToken }
+      method: "GET",
+      headers: { "X-API-Key": result.apiToken }
     });
     if (response.ok) {
-      statusDot.classList.add('connected');
-      statusText.textContent = 'Connected';
-      statusText.classList.remove('error');
-      statusText.classList.add('success');
-      scrapeBtn.disabled = false;
-      addLog('Connected to SuperBrain', 'success');
+      if (statusDot) statusDot.classList.add("connected");
+      if (scrapeBtn) scrapeBtn.disabled = false;
+      addLog("Connected to SuperBrain", "success");
       return true;
     } else {
-      throw new Error('Server error');
+      throw new Error("Server error");
     }
   } catch (error) {
-    statusDot.classList.remove('connected');
-    statusText.textContent = 'Connection failed';
-    statusText.classList.add('error');
-    serverInfo.textContent = 'Check settings';
-    scrapeBtn.disabled = true;
-    addLog('Connection failed', 'error');
+    if (statusDot) statusDot.classList.remove("connected");
+    if (serverInfo) {
+      serverInfo.textContent = "Connection failed";
+      serverInfo.classList.add("error");
+    }
+    if (scrapeBtn) scrapeBtn.disabled = true;
+    addLog("Server connection failed", "error");
     return false;
   }
 }
-
 async function loadDbStats() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab.url || !tab.url.includes('instagram.com')) {
