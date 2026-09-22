@@ -125,6 +125,12 @@ async function loadCollections() {
       const defaultOption = `<div class="select-option selected" data-value=""><span class="option-icon">${defaultIcon}</span> <span class="option-text">Unsorted</span></div>`;
       optionsContainer.innerHTML = defaultOption;
       
+      const ICON_MAP_FALLBACK = {
+        'folder': '📁', 'airplane': '✈️', 'restaurant': '🍽️', 'shirt': '👕', 
+        'fitness': '💪', 'book': '📚', 'film': '🎬', 'camera': '📷', 
+        'star': '⭐', 'heart': '❤️', 'flame': '🔥', 'pin': '📍', 'time': '🕒'
+      };
+      
       data.data.forEach(col => {
         const div = document.createElement('div');
         div.className = 'select-option';
@@ -133,6 +139,8 @@ async function loadCollections() {
         let iconContent = typeof SVG_ICONS !== 'undefined' && SVG_ICONS['folder'] ? SVG_ICONS['folder'] : '📁';
         if (typeof SVG_ICONS !== 'undefined' && SVG_ICONS[col.icon]) {
           iconContent = SVG_ICONS[col.icon];
+        } else if (ICON_MAP_FALLBACK[col.icon]) {
+          iconContent = ICON_MAP_FALLBACK[col.icon];
         }
         
         div.innerHTML = `<span class="option-icon">${iconContent}</span> <span class="option-text">${escapeHtml(col.name)}</span>`;
