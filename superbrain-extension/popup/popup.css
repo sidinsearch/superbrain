@@ -364,8 +364,20 @@ body::before {
 }
 
 .action-card:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
+  filter: grayscale(0.7);
+}
+
+.card-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-top: 2px;
+}
+
+.action-card:disabled .card-hint {
+  color: var(--text-muted);
 }
 
 .card-icon {

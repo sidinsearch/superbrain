@@ -4,6 +4,7 @@
  */
 
 let isRunning = false;
+let isConnected = false;
 let currentDbStats = {
   totalPosts: 0, processed: 0, pending: 0, failed: 0, collections: 0, failedItems: []
 };
@@ -62,6 +63,27 @@ function isSaveableUrl(url) {
   // Blocks: chrome://, chrome-extension://, edge://, about:, devtools://,
   //         view-source:, file://, data:, blob:, javascript:, etc.
   return /^https?:\/\//i.test(url);
+}
+
+async function updatePlatformButtons() {
+  const scrapeBtn = document.getElementById('scrapeBtn');
+  const youtubeBtn = document.getElementById('youtubeScanBtn');
+  const bookmarksBtn = document.getElementById('importBookmarksBtn');
+
+  let url = '';
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    url = tab && tab.url ? tab.url : '';
+  } catch (e) {
+    console.error(e);
+  }
+
+  const onInstagramSaved = /instagram\.com\/saved/i.test(url);
+  const onYouTubePlaylist = /youtube\.com\/playlist/i.test(url) || /youtube\.com\/watch\?[^#]*list=WL/i.test(url);
+
+  if (scrapeBtn) scrapeBtn.disabled = !(isConnected && onInstagramSaved && !isRunning);
+  if (youtubeBtn) youtubeBtn.disabled = !(isConnected && onYouTubePlaylist && !isRunning);
+  if (bookmarksBtn) bookmarksBtn.disabled = !isConnected;
 }
 
 async function loadCollections() {
@@ -245,15 +267,15 @@ async function checkConnection() {
   const result = await chrome.storage.sync.get(["serverUrl", "apiToken"]);
   const statusDot = document.getElementById("statusDot");
   const serverInfo = document.getElementById("serverInfo");
-  const scrapeBtn = document.getElementById("scrapeBtn");
 
   if (!result.serverUrl || !result.apiToken) {
+    isConnected = false;
     if (statusDot) statusDot.classList.remove("connected");
     if (serverInfo) {
       serverInfo.textContent = "Configure in settings";
       serverInfo.classList.add("error");
     }
-    if (scrapeBtn) scrapeBtn.disabled = true;
+    updatePlatformButtons();
     return false;
   }
 
@@ -269,20 +291,22 @@ async function checkConnection() {
       headers: { "X-API-Key": result.apiToken }
     });
     if (response.ok) {
+      isConnected = true;
       if (statusDot) statusDot.classList.add("connected");
-      if (scrapeBtn) scrapeBtn.disabled = false;
       addLog("Connected to SuperBrain", "success");
+      updatePlatformButtons();
       return true;
     } else {
       throw new Error("Server error");
     }
   } catch (error) {
+    isConnected = false;
     if (statusDot) statusDot.classList.remove("connected");
     if (serverInfo) {
       serverInfo.textContent = "Connection failed";
       serverInfo.classList.add("error");
     }
-    if (scrapeBtn) scrapeBtn.disabled = true;
+    updatePlatformButtons();
     addLog("Server connection failed", "error");
     return false;
   }
@@ -309,8 +333,10 @@ function updateDbStatsUI(stats) {
   document.getElementById('dbSaved').textContent = stats.processed || 0;
   document.getElementById('dbPending').textContent = stats.pending || 0;
   document.getElementById('dbFailed').textContent = stats.failed || 0;
-  document.getElementById('dbCollections').textContent = stats.collections || 0;
-  document.getElementById('failedCount').textContent = stats.failed || 0;
+  const dbCollections = document.getElementById('dbCollections');
+  if (dbCollections) dbCollections.textContent = stats.collections || 0;
+  const failedCount = document.getElementById('failedCount');
+  if (failedCount) failedCount.textContent = stats.failed || 0;
 
   const retryBtn = document.getElementById('retryFailedBtn');
   const clearBtn = document.getElementById('clearFailedBtn');
@@ -415,23 +441,20 @@ async function stopScrape() {
 function updateRunningUI(running) {
   const scrapeBtn = document.getElementById('scrapeBtn');
   const scrapeSpinner = document.getElementById('scrapeSpinner');
-  const scrapeBtnText = document.getElementById('scrapeBtnText');
   const stopBtn = document.getElementById('stopBtn');
   const progressSection = document.getElementById('progressSection');
 
   if (running) {
     scrapeBtn.disabled = true;
     scrapeSpinner.classList.remove('hidden');
-    scrapeBtnText.textContent = 'Running...';
     stopBtn.classList.remove('hidden');
     progressSection.classList.remove('hidden');
   } else {
-    scrapeBtn.disabled = false;
     scrapeSpinner.classList.add('hidden');
-    scrapeBtnText.textContent = 'Scan Instagram Saved';
     stopBtn.classList.add('hidden');
     progressSection.classList.add('hidden');
     isRunning = false;
+    updatePlatformButtons();
   }
 }
 
@@ -552,7 +575,6 @@ function openSettings(e) {
 async function startYoutubeScrape() {
   const btn = document.getElementById('youtubeScanBtn');
   const spinner = document.getElementById('youtubeSpinner');
-  const btnText = document.getElementById('youtubeBtnText');
   
   if (btn.disabled) return;
   
@@ -563,14 +585,13 @@ async function startYoutubeScrape() {
     const tabId = tabs[0].id;
     const url = tabs[0].url;
     
-    if (!url.includes('youtube.com/playlist') && !url.includes('youtube.com/watch')) {
-      addLog('Not a YouTube playlist page', 'error');
+    if (!/youtube\.com\/playlist/i.test(url || '') && !/youtube\.com\/watch\?[^#]*list=WL/i.test(url || '')) {
+      addLog('Not a YouTube playlist or Watch Later page', 'error');
       return;
     }
 
     btn.disabled = true;
     spinner.classList.remove('hidden');
-    btnText.textContent = 'Scanning...';
     
     addLog('Scanning YouTube playlist...', 'info');
 
@@ -598,10 +619,8 @@ async function startYoutubeScrape() {
 function resetYoutubeBtn() {
   const btn = document.getElementById('youtubeScanBtn');
   const spinner = document.getElementById('youtubeSpinner');
-  const btnText = document.getElementById('youtubeBtnText');
-  btn.disabled = false;
   spinner.classList.add('hidden');
-  btnText.textContent = 'Scan YouTube Playlist';
+  updatePlatformButtons();
 }
 
 async function sendYoutubeVideosToBackend(videos, playlistTitle) {
