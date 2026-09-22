@@ -52,6 +52,46 @@
       </div>
     </div>
 
+    <div class="bookmark-picker hidden" id="bookmarkPicker">
+      <div class="picker-header">
+        <button class="btn btn-ghost btn-sm picker-back" id="pickerBackBtn" title="Back">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+          Back
+        </button>
+        <div class="picker-title-wrap">
+          <h2 class="picker-title">Select Bookmarks</h2>
+          <p class="picker-subtitle">Uncheck bookmarks you don't want to import</p>
+        </div>
+      </div>
+
+      <div class="picker-toolbar">
+        <div class="picker-search">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="bookmarkSearchInput" class="search-input" placeholder="Search bookmarks...">
+        </div>
+        <div class="picker-actions">
+          <button class="btn btn-ghost btn-sm" id="selectAllBookmarksBtn">Select all</button>
+          <button class="btn btn-ghost btn-sm" id="selectNoneBookmarksBtn">Clear</button>
+        </div>
+      </div>
+
+      <div class="picker-summary">
+        <span class="picker-count" id="pickerSelectedCount">0 selected</span>
+        <span class="picker-total" id="pickerTotalCount">0 available</span>
+      </div>
+
+      <div class="picker-list" id="bookmarkPickerList">
+        <div class="picker-empty">Loading bookmarks…</div>
+      </div>
+
+      <div class="picker-footer">
+        <span class="picker-error hidden" id="bookmarkError"></span>
+        <button class="btn btn-primary btn-lg" id="importSelectedBookmarksBtn" disabled>
+          Import Selected (<span id="importSelectedCount">0</span>)
+        </button>
+      </div>
+    </div>
+
     <div class="tab-content" id="tab-scan">
       <div class="scan-actions">
         <button class="btn btn-secondary action-card" id="scrapeBtn" disabled>

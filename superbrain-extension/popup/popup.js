@@ -83,7 +83,10 @@ async function updatePlatformButtons() {
 
   if (scrapeBtn) scrapeBtn.disabled = !(isConnected && onInstagramSaved && !isRunning);
   if (youtubeBtn) youtubeBtn.disabled = !(isConnected && onYouTubePlaylist && !isRunning);
-  if (bookmarksBtn) bookmarksBtn.disabled = !isConnected;
+  if (bookmarksBtn) {
+    const { serverUrl, apiToken } = await chrome.storage.sync.get(['serverUrl', 'apiToken']);
+    bookmarksBtn.disabled = !(serverUrl && apiToken);
+  }
 }
 
 async function loadCollections() {
@@ -673,55 +676,219 @@ async function sendYoutubeVideosToBackend(videos, playlistTitle) {
   loadDbStats();
 }
 
+let flatBookmarks = [];
+
 async function importBookmarks() {
+  const picker = document.getElementById('bookmarkPicker');
+  if (!picker) return;
+
   const { serverUrl, apiToken } = await chrome.storage.sync.get(['serverUrl', 'apiToken']);
+  const errorSpan = document.getElementById('bookmarkError');
+  const importBtn = document.getElementById('importSelectedBookmarksBtn');
+  
   if (!serverUrl || !apiToken) {
-    addLog('Server not configured', 'error');
+    errorSpan.textContent = 'Server not configured. Please set URL and Token in options.';
+    errorSpan.classList.remove('hidden');
+    importBtn.disabled = true;
+  } else {
+    errorSpan.classList.add('hidden');
+    importBtn.disabled = false;
+  }
+
+  picker.classList.remove('hidden');
+  document.getElementById('bookmarkPickerList').innerHTML = '<div class="picker-empty">Loading bookmarks...</div>';
+
+  chrome.bookmarks.getTree((bookmarkTreeNodes) => {
+    flatBookmarks = [];
+    
+    function extractUrls(nodes, path = '') {
+      for (const node of nodes) {
+        if (node.url && (node.url.startsWith('http://') || node.url.startsWith('https://'))) {
+          flatBookmarks.push({
+            id: node.id,
+            title: node.title || node.url,
+            url: node.url,
+            folder: path || 'Other Bookmarks'
+          });
+        }
+        if (node.children) {
+          const newPath = node.title ? (path ? `${path} › ${node.title}` : node.title) : path;
+          extractUrls(node.children, newPath);
+        }
+      }
+    }
+    
+    extractUrls(bookmarkTreeNodes);
+    renderBookmarkPicker(flatBookmarks);
+  });
+}
+
+function renderBookmarkPicker(bookmarks) {
+  const listEl = document.getElementById('bookmarkPickerList');
+  const searchInput = document.getElementById('bookmarkSearchInput');
+  const query = (searchInput.value || '').toLowerCase();
+  
+  const filtered = bookmarks.filter(b => 
+    b.title.toLowerCase().includes(query) || 
+    b.url.toLowerCase().includes(query) ||
+    b.folder.toLowerCase().includes(query)
+  );
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = '<div class="picker-empty">No bookmarks found.</div>';
+    updateBookmarkCounts();
     return;
   }
 
-  addLog('Scanning bookmarks...', 'info');
+  const grouped = {};
+  filtered.forEach(b => {
+    if (!grouped[b.folder]) grouped[b.folder] = [];
+    grouped[b.folder].push(b);
+  });
 
-  try {
-    chrome.bookmarks.getTree(async (bookmarkTreeNodes) => {
-      const urls = [];
+  listEl.innerHTML = '';
+  
+  Object.keys(grouped).sort().forEach(folder => {
+    const folderGroup = document.createElement('div');
+    folderGroup.className = 'picker-folder';
+    folderGroup.dataset.folder = folder;
+
+    const folderHeader = document.createElement('div');
+    folderHeader.className = 'picker-folder-header';
+    
+    const folderCheckbox = document.createElement('input');
+    folderCheckbox.type = 'checkbox';
+    folderCheckbox.className = 'picker-checkbox folder-checkbox';
+    folderCheckbox.checked = true; // default all checked
+    
+    folderHeader.appendChild(folderCheckbox);
+    folderHeader.insertAdjacentHTML('beforeend', `
+      <svg class="picker-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+      <span>${escapeHtml(folder)}</span>
+    `);
+    
+    folderGroup.appendChild(folderHeader);
+
+    grouped[folder].forEach(b => {
+      const itemEl = document.createElement('label');
+      itemEl.className = 'picker-item';
       
-      function extractUrls(nodes) {
-        for (const node of nodes) {
-          if (node.url && (node.url.startsWith('http://') || node.url.startsWith('https://'))) {
-            urls.push(node.url);
-          }
-          if (node.children) {
-            extractUrls(node.children);
-          }
-        }
-      }
+      const host = new URL(b.url).hostname;
+      const faviconUrl = \`https://www.google.com/s2/favicons?domain=\${host}&sz=16\`;
       
-      extractUrls(bookmarkTreeNodes);
-      
-      if (urls.length === 0) {
-        addLog('No bookmarks found', 'warning');
-        return;
-      }
-      
-      addLog(`Found ${urls.length} bookmarks. Sending to server...`, 'info');
-      
-      const apiUrl = serverUrl.replace(/\/$/, '') + '/analyze';
-      let successCount = 0;
-      
-      // Batch processing would be better here, but we'll do sequential for simplicity
-      // In a real scenario, we'd send these to a background worker queue
-      addLog(`Import running in background.`, 'info');
-      
-      // Send message to background script to handle the massive queue so popup can close
-      chrome.runtime.sendMessage({
-        action: 'IMPORT_URLS',
-        urls: urls
-      });
-      
+      itemEl.innerHTML = \`
+        <input type="checkbox" class="picker-checkbox item-checkbox" value="\${escapeHtml(b.url)}" checked>
+        <img src="\${faviconUrl}" class="picker-item-favicon" onerror="this.style.display='none'">
+        <div class="picker-item-info">
+          <div class="picker-item-title">\${escapeHtml(b.title)}</div>
+          <div class="picker-item-url">\${escapeHtml(b.url)}</div>
+        </div>
+      \`;
+      folderGroup.appendChild(itemEl);
     });
-  } catch (error) {
-    addLog(`Error reading bookmarks: ${error.message}`, 'error');
+
+    listEl.appendChild(folderGroup);
+  });
+  
+  setupBookmarkPickerEvents();
+  updateBookmarkCounts();
+}
+
+function setupBookmarkPickerEvents() {
+  const listEl = document.getElementById('bookmarkPickerList');
+  
+  listEl.querySelectorAll('.folder-checkbox').forEach(cb => {
+    cb.addEventListener('change', (e) => {
+      const folderGroup = e.target.closest('.picker-folder');
+      const itemCheckboxes = folderGroup.querySelectorAll('.item-checkbox');
+      itemCheckboxes.forEach(item => item.checked = e.target.checked);
+      updateBookmarkCounts();
+    });
+  });
+
+  listEl.querySelectorAll('.item-checkbox').forEach(cb => {
+    cb.addEventListener('change', (e) => {
+      const folderGroup = e.target.closest('.picker-folder');
+      const itemCheckboxes = Array.from(folderGroup.querySelectorAll('.item-checkbox'));
+      const folderCheckbox = folderGroup.querySelector('.folder-checkbox');
+      
+      const checkedCount = itemCheckboxes.filter(i => i.checked).length;
+      if (checkedCount === 0) {
+        folderCheckbox.checked = false;
+        folderCheckbox.indeterminate = false;
+      } else if (checkedCount === itemCheckboxes.length) {
+        folderCheckbox.checked = true;
+        folderCheckbox.indeterminate = false;
+      } else {
+        folderCheckbox.checked = false;
+        folderCheckbox.indeterminate = true;
+      }
+      updateBookmarkCounts();
+    });
+  });
+}
+
+function updateBookmarkCounts() {
+  const listEl = document.getElementById('bookmarkPickerList');
+  const allBoxes = Array.from(listEl.querySelectorAll('.item-checkbox'));
+  const selectedCount = allBoxes.filter(cb => cb.checked).length;
+  const totalCount = allBoxes.length;
+
+  document.getElementById('pickerSelectedCount').textContent = \`\${selectedCount} selected\`;
+  document.getElementById('pickerTotalCount').textContent = \`\${totalCount} available\`;
+  document.getElementById('importSelectedCount').textContent = selectedCount;
+
+  const importBtn = document.getElementById('importSelectedBookmarksBtn');
+  if (importBtn && !document.getElementById('bookmarkError').textContent) {
+    importBtn.disabled = selectedCount === 0;
+  }
+}
+
+// Bind Picker Buttons
+document.getElementById('pickerBackBtn')?.addEventListener('click', () => {
+  document.getElementById('bookmarkPicker').classList.add('hidden');
+});
+
+document.getElementById('bookmarkSearchInput')?.addEventListener('input', () => {
+  renderBookmarkPicker(flatBookmarks);
+});
+
+document.getElementById('selectAllBookmarksBtn')?.addEventListener('click', () => {
+  document.querySelectorAll('#bookmarkPickerList .item-checkbox').forEach(cb => cb.checked = true);
+  document.querySelectorAll('#bookmarkPickerList .folder-checkbox').forEach(cb => {
+    cb.checked = true;
+    cb.indeterminate = false;
+  });
+  updateBookmarkCounts();
+});
+
+document.getElementById('selectNoneBookmarksBtn')?.addEventListener('click', () => {
+  document.querySelectorAll('#bookmarkPickerList .item-checkbox').forEach(cb => cb.checked = false);
+  document.querySelectorAll('#bookmarkPickerList .folder-checkbox').forEach(cb => {
+    cb.checked = false;
+    cb.indeterminate = false;
+  });
+  updateBookmarkCounts();
+});
+
+document.getElementById('importSelectedBookmarksBtn')?.addEventListener('click', () => {
+  const checkedBoxes = Array.from(document.querySelectorAll('#bookmarkPickerList .item-checkbox:checked'));
+  const urls = checkedBoxes.map(cb => cb.value);
+  
+  if (urls.length === 0) return;
+
+  document.getElementById('bookmarkPicker').classList.add('hidden');
+  addLog(\`Starting import of \${urls.length} selected bookmarks...\`, 'info');
+
+  chrome.runtime.sendMessage({ action: 'IMPORT_URLS', urls: urls }, (response) => {
+    if (chrome.runtime.lastError || !response || response.status !== 'started') {
+      addLog('Failed to start bookmarks import', 'error');
+      return;
+    }
+    addLog(\`Queued \${response.total || urls.length} bookmarks.\`, 'success');
+  });
+});
+
   }
 }
 
