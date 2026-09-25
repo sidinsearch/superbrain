@@ -696,9 +696,56 @@ class ModelRouter:
         while True:
             try:
                 self._refresh_openrouter_models()
+                self._refresh_groq_models()
+                self._refresh_gemini_models()
             except Exception as e:
-                print(f"??  OpenRouter auto-refresh error: {e}")
+                print(f"⚠️  Auto-refresh error: {e}")
             time.sleep(OPENROUTER_FREE_CACHE_HOURS * 3600)
+
+    def _refresh_groq_models(self):
+        """Dynamically fetch Groq models."""
+        api_key = self._key("GROQ_API_KEY")
+        if not api_key: return
+        import requests
+        try:
+            resp = requests.get(
+                "https://api.groq.com/openai/v1/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=30
+            )
+            if resp.status_code == 200:
+                models = []
+                for m in resp.json().get("data", []):
+                    # Filter out audio-only models like whisper, ensuring we only get text/vision models.
+                    # Groq's free tier applies to all these standard text/vision LLMs.
+                    if "whisper" not in m.get("id", "").lower():
+                        models.append(m)
+                self._inject_dynamic_models(models, provider="groq")
+        except Exception as e:
+            print(f"⚠️ Groq dynamic discovery failed: {e}")
+
+    def _refresh_gemini_models(self):
+        """Dynamically fetch Gemini models."""
+        api_key = self._key("GEMINI_API_KEY")
+        if not api_key: return
+        try:
+            from google import genai
+            client = genai.Client(api_key=api_key)
+            models = []
+            for m in client.models.list():
+                if hasattr(m, 'supported_generation_methods') and 'generateContent' in m.supported_generation_methods:
+                    name = m.name.replace('models/', '').lower()
+                    # Only include standard text/vision models that are part of the Gemini free tier.
+                    # Exclude experimental, audio-only, or non-chat models to prevent unexpected quotas.
+                    if any(kw in name for kw in ['flash', 'pro', 'lite', 'gemma']):
+                        models.append({
+                            "id": m.name.replace('models/', ''),
+                            "input_modalities": ["text", "image"] if "vision" in name or "flash" in name or "pro" in name else ["text"]
+                        })
+            if models:
+                self._inject_dynamic_models(models, provider="gemini")
+        except Exception as e:
+            print(f"⚠️ Gemini dynamic discovery failed: {e}")
 
     def _refresh_openrouter_models(self):
         """
@@ -784,37 +831,51 @@ class ModelRouter:
         )
         print(f"🔄 OpenRouter free models: discovered & ranked {len(top)} models ({vision_count} vision-capable) — next refresh in {OPENROUTER_FREE_CACHE_HOURS}h")
 
-    def _inject_dynamic_models(self, raw_models: List[Dict]):
+    def _inject_dynamic_models(self, raw_models: List[Dict], provider: str = "openrouter"):
         """
-        Convert raw OpenRouter API model objects into routing entries and
-        add them to self._dynamic_models with priorities starting at 20
-        (after all hardcoded models, so they serve as additional fallbacks).
-        Models already in the static MODELS_BY_KEY are skipped.
-        Vision-capable models get an additional entry with type='vision'.
+        Convert raw API model objects into routing entries and
+        add them to self._dynamic_models.
         """
         static_model_ids = {mm["model_id"] for mm in MODELS_BY_KEY.values()}
         with self._dynamic_models_lock:
-            self._dynamic_models.clear()
+            # Remove only models from this provider
+            keys_to_remove = [k for k, v in self._dynamic_models.items() if v.get("provider") == provider]
+            for k in keys_to_remove:
+                del self._dynamic_models[k]
+                
             for i, m in enumerate(raw_models):
                 mid = m.get("id", "")
                 if not mid:
                     continue
                 safe_id = mid.replace("/", "_").replace(":", "_").replace(".", "_")
-                model_id_free = mid if ":free" in mid else f"{mid}:free"
-                score = self._score_openrouter_model(m)
+                
+                if provider == "openrouter":
+                    model_id_free = mid if ":free" in mid else f"{mid}:free"
+                    score = self._score_openrouter_model(m)
+                else:
+                    model_id_free = mid
+                    score = 1.0 # default score for groq/gemini
+                    
                 is_vision = _has_image_input(m)
-                base_p = 20 + i
+                
+                # Base priority: OpenRouter starts at 20, Groq at 10, Gemini at 15
+                if provider == "groq":
+                    base_p = 10 + i * 0.1
+                elif provider == "gemini":
+                    base_p = 15 + i * 0.1
+                else:
+                    base_p = 20 + i
 
                 # Text entry — skip if already a static entry
                 if mid not in static_model_ids:
-                    key = f"dyn_{safe_id}"
+                    key = f"dyn_{provider}_{safe_id}"
                     entry = {
                         "key": key,
-                        "provider": "openrouter",
+                        "provider": provider,
                         "model_id": model_id_free,
                         "type": "text",
                         "base_priority": base_p,
-                        "desc": f"[Dynamic] {mid} — score={score:.3f}",
+                        "desc": f"[{provider.capitalize()} Dynamic] {mid}",
                     }
                     self._dynamic_models[key] = entry
                     if key not in self._state:
@@ -826,14 +887,14 @@ class ModelRouter:
                         mm["model_id"] for mm in MODELS_BY_KEY.values() if mm["type"] == "vision"
                     }
                     if mid not in static_vision_ids:
-                        vkey = f"dyn_v_{safe_id}"
+                        vkey = f"dyn_v_{provider}_{safe_id}"
                         ventry = {
                             "key": vkey,
-                            "provider": "openrouter",
+                            "provider": provider,
                             "model_id": model_id_free,
                             "type": "vision",
                             "base_priority": base_p,
-                            "desc": f"[Dynamic-Vision] {mid} — score={score:.3f}",
+                            "desc": f"[{provider.capitalize()} Dynamic-Vision] {mid}",
                         }
                         self._dynamic_models[vkey] = ventry
                         if vkey not in self._state:
@@ -1250,13 +1311,15 @@ class ModelRouter:
             print(f"Unknown model key: {model_key}")
 
     def refresh_models(self):
-        """Force-refresh the OpenRouter free model list (ignores cache)."""
+        """Force-refresh the free model list (ignores cache)."""
         # Remove stale cache so _refresh_openrouter_models fetches fresh data
         try:
             OPENROUTER_FREE_CACHE_FILE.unlink(missing_ok=True)
         except Exception:
             pass
         self._refresh_openrouter_models()
+        self._refresh_groq_models()
+        self._refresh_gemini_models()
         print(f"✓ Refreshed: {len(self._dynamic_models)} dynamic models loaded")
 
     def _print_startup_status(self):
