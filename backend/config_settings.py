@@ -72,6 +72,10 @@ class Settings:
     # OpenRouter API (for model fallback)
     OPENROUTER_API_KEY: Optional[str] = os.getenv("OPENROUTER_API_KEY")
     
+    # Requesty API (only used when a key is set, model via REQUESTY_MODEL)
+    REQUESTY_API_KEY: Optional[str] = os.getenv("REQUESTY_API_KEY")
+    REQUESTY_MODEL: str = os.getenv("REQUESTY_MODEL", "openai/gpt-4o-mini")
+    
     # Whisper Model Configuration
     WHISPER_MODEL: str = os.getenv("WHISPER_MODEL", "base")
     WHISPER_USE_CLOUD: bool = os.getenv("WHISPER_USE_CLOUD", "true").lower() == "true"

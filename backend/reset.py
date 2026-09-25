@@ -102,7 +102,7 @@ def _remove_dir(path: Path, label: str):
 # ── Reset actions ─────────────────────────────────────────────────────────────
 def reset_api_keys():
     h1("Reset — API Keys")
-    warn("This removes ALL keys: Gemini / Groq / OpenRouter and Instagram credentials.")
+    warn("This removes ALL keys: Gemini / Groq / OpenRouter / Requesty and Instagram credentials.")
     if not ask_yn("Continue?", default=False):
         info("Skipped.")
         return

@@ -57,9 +57,9 @@ fi
 # ──── Check required API keys ────
 source .env
 
-if [ -z "$GROQ_API_KEY" ] && [ -z "$GEMINI_API_KEY" ] && [ -z "$GOOGLE_API_KEY" ] && [ -z "$OPENROUTER_API_KEY" ]; then
+if [ -z "$GROQ_API_KEY" ] && [ -z "$GEMINI_API_KEY" ] && [ -z "$GOOGLE_API_KEY" ] && [ -z "$OPENROUTER_API_KEY" ] && [ -z "$REQUESTY_API_KEY" ]; then
     echo -e "${YELLOW}⚠ Warning: No AI provider API keys configured${NC}"
-    echo -e "${YELLOW}  Set at least one of: GROQ_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY${NC}"
+    echo -e "${YELLOW}  Set at least one of: GROQ_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY, REQUESTY_API_KEY${NC}"
 fi
 
 # ──── Create necessary directories ────

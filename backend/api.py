@@ -1754,6 +1754,11 @@ async def get_ai_providers(token: str = Depends(verify_token)):
                 "has_key": providers.get("openrouter", False),
                 "key_hint": "sk-or-..." if providers.get("openrouter") else None
             },
+            "requesty": {
+                "name": "Requesty",
+                "has_key": providers.get("requesty", False),
+                "key_hint": "rqsty-..." if providers.get("requesty") else None
+            },
             "ollama": {
                 "name": "Ollama (Local)",
                 "has_key": providers.get("ollama", False),
@@ -1770,12 +1775,12 @@ async def set_ai_provider_key(
     """
     Set an API key for an AI provider.
     - Requires API authentication
-    - provider: groq, gemini, or openrouter
+    - provider: groq, gemini, openrouter, or requesty
     """
     from core.model_router import get_router
     import httpx
     
-    valid_providers = ["groq", "gemini", "openrouter"]
+    valid_providers = ["groq", "gemini", "openrouter", "requesty"]
     provider_slug = data.provider.lower()
     if provider_slug not in valid_providers:
         raise HTTPException(
@@ -1801,6 +1806,10 @@ async def set_ai_provider_key(
                 resp = await client.get("https://openrouter.ai/api/v1/auth/key", headers={"Authorization": f"Bearer {data.api_key.strip()}"})
                 if resp.status_code != 200:
                     raise HTTPException(status_code=401, detail="Invalid OpenRouter API Key")
+            elif provider_slug == "requesty":
+                resp = await client.get("https://router.requesty.ai/v1/models", headers={"Authorization": f"Bearer {data.api_key.strip()}"})
+                if resp.status_code != 200:
+                    raise HTTPException(status_code=401, detail="Invalid Requesty API Key")
     except httpx.RequestError as e:
         raise HTTPException(status_code=502, detail=f"Network error validating API key: {e}")
     
@@ -1824,7 +1833,7 @@ async def delete_ai_provider_key(
     """
     from core.model_router import get_router
     
-    valid_providers = ["groq", "gemini", "openrouter"]
+    valid_providers = ["groq", "gemini", "openrouter", "requesty"]
     if provider.lower() not in valid_providers:
         raise HTTPException(
             status_code=400,

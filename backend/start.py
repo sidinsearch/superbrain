@@ -308,6 +308,22 @@ def _validate_openrouter(key: str):
     except Exception as e:
         return None, f"could not verify ({str(e)[:70]})"
 
+def _validate_requesty(key: str):
+    try:
+        import urllib.request as _r, urllib.error as _e
+        req = _r.Request("https://router.requesty.ai/v1/models",
+                         headers={"Authorization": f"Bearer {key}",
+                                  "Accept": "application/json",
+                                  "User-Agent": "Mozilla/5.0"})
+        with _r.urlopen(req, timeout=8):
+            return True, "key valid"
+    except _e.HTTPError as e:
+        if e.code in (401, 403):
+            return False, f"invalid key ({e.code})"
+        return None, f"could not verify ({e.code} {e.reason})"
+    except Exception as e:
+        return None, f"could not verify ({str(e)[:70]})"
+
 def _check_and_report(name: str, key: str, validator) -> str:
     """Validate `key`, print result inline, return the key unchanged."""
     if not key:
@@ -342,6 +358,9 @@ def setup_api_keys():
     Groq        →  {CYAN}https://console.groq.com/keys{RESET}
     OpenRouter  →  {CYAN}https://openrouter.ai/keys{RESET}
 
+  Optional paid gateway (used only if you add a key, not part of the fallback order):
+    Requesty    →  {CYAN}https://app.requesty.ai/api-keys{RESET}
+
   Press {BOLD}Enter{RESET} to skip any key you don't have yet.
   {DIM}Keys and passwords are visible as you paste — don't run setup in a screen share.{RESET}
 """)
@@ -361,8 +380,13 @@ def setup_api_keys():
     groq_k   = _check_and_report("Groq",        groq_k, _validate_groq)
     openr    = ask("OpenRouter API key",  default=existing.get("OPENROUTER_API_KEY"),  paste=True) or ""
     openr    = _check_and_report("OpenRouter",  openr,  _validate_openrouter)
+    requesty = ask("Requesty API key",    default=existing.get("REQUESTY_API_KEY"),    paste=True) or ""
+    requesty = _check_and_report("Requesty",    requesty, _validate_requesty)
+    requesty_model = ""
+    if requesty:
+        requesty_model = ask("Requesty model", default=existing.get("REQUESTY_MODEL") or "openai/gpt-4o-mini") or ""
 
-    if not any([gemini, groq_k, openr]):
+    if not any([gemini, groq_k, openr, requesty]):
         warn("No AI keys entered. SuperBrain will still work but can only use")
         warn("local Ollama models (configured in the next step).")
 
@@ -395,6 +419,8 @@ def setup_api_keys():
         f"GEMINI_API_KEY={gemini}\n",
         f"GROQ_API_KEY={groq_k}\n",
         f"OPENROUTER_API_KEY={openr}\n",
+        f"REQUESTY_API_KEY={requesty}\n",
+        f"REQUESTY_MODEL={requesty_model}\n",
         "\n",
         f"INSTAGRAM_USERNAME={ig_user}\n",
         f"INSTAGRAM_PASSWORD={ig_pass}\n",
@@ -417,7 +443,7 @@ def setup_ollama():
         return
 
     keys = _load_saved_api_keys()
-    has_cloud_key = any(keys.get(k) for k in ("GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY"))
+    has_cloud_key = any(keys.get(k) for k in ("GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "REQUESTY_API_KEY"))
 
     print(f"""
   Ollama runs AI models {BOLD}locally on your machine{RESET} — no internet or API

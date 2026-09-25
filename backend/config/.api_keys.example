@@ -6,6 +6,7 @@
 #   Groq        → https://console.groq.com/keys
 #   Gemini      → https://aistudio.google.com/apikey
 #   OpenRouter  → https://openrouter.ai/keys
+#   Requesty    → https://app.requesty.ai/api-keys (optional, used only when set)
 #
 # You don't need all three — the router falls back automatically.
 # Recommended: add at least Gemini (most generous free tier).
@@ -14,6 +15,8 @@
 GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 GEMINI_API_KEY=AIzaxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 OPENROUTER_API_KEY=sk-or-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# REQUESTY_API_KEY=rqsty-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# REQUESTY_MODEL=openai/gpt-4o-mini
 
 # Instagram account used for downloading posts (instagrapi / Private API).
 # Use a secondary/burner account — not your main personal account.

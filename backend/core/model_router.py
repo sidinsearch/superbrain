@@ -22,6 +22,12 @@ API keys — store in backend/.api_keys (gitignored), one per line:
     GROQ_API_KEY=gsk_...
     GEMINI_API_KEY=AIza...
     OPENROUTER_API_KEY=sk-or-...
+    REQUESTY_API_KEY=rqsty-...
+    REQUESTY_MODEL=openai/gpt-4o-mini   (optional)
+
+Requesty is not part of the priority order. It is only used when you add a
+REQUESTY_API_KEY: requests then go to REQUESTY_MODEL first, and the normal
+chain above is used if that call fails.
 
 Performance state persisted to backend/model_rankings.json (rankings survive restarts).
 Dynamic model list cached in backend/openrouter_free_models.json (refreshed every 6 h).
@@ -55,6 +61,11 @@ EMA_ALPHA = 0.3
 OPENROUTER_FREE_CACHE_FILE  = CONFIG_DIR / "openrouter_free_models.json"
 OPENROUTER_FREE_CACHE_HOURS = 6   # re-fetch every 6 h
 OPENROUTER_API_MODELS_URL   = "https://openrouter.ai/api/v1/models"
+
+# Requesty (https://requesty.ai): OpenAI compatible gateway, only used when the user adds a key.
+# Set REQUESTY_BASE_URL=https://router.eu.requesty.ai/v1 to route through the EU region.
+REQUESTY_BASE_URL      = os.environ.get("REQUESTY_BASE_URL", "https://router.requesty.ai/v1").rstrip("/")
+REQUESTY_DEFAULT_MODEL = "openai/gpt-4o-mini"
 
 # Trusted providers — affects scoring weight for dynamic discovery (FreeRide)
 TRUSTED_PROVIDERS = [
@@ -522,7 +533,7 @@ class ModelRouter:
 
     def _load_api_keys(self):
         """Load API keys from environment and .api_keys file."""
-        for k in ("GROQ_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY"):
+        for k in ("GROQ_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY", "REQUESTY_API_KEY", "REQUESTY_MODEL"):
             v = os.environ.get(k)
             if v:
                 self._api_keys[k] = v
@@ -550,13 +561,14 @@ class ModelRouter:
             "groq": bool(self._key("GROQ_API_KEY")),
             "gemini": bool(self._key("GEMINI_API_KEY")),
             "openrouter": bool(self._key("OPENROUTER_API_KEY")),
+            "requesty": bool(self._key("REQUESTY_API_KEY")),
             "ollama": True,  # Always available
         }
 
     def set_api_key(self, provider: str, api_key: str) -> bool:
         """Set an API key for a provider and persist to file."""
         key_name = f"{provider.upper()}_API_KEY"
-        valid_providers = ["GROQ_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY"]
+        valid_providers = ["GROQ_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY", "REQUESTY_API_KEY"]
         
         if key_name not in valid_providers:
             return False
@@ -571,7 +583,7 @@ class ModelRouter:
     def delete_api_key(self, provider: str) -> bool:
         """Delete an API key for a provider."""
         key_name = f"{provider.upper()}_API_KEY"
-        valid_providers = ["GROQ_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY"]
+        valid_providers = ["GROQ_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY", "REQUESTY_API_KEY"]
         
         if key_name not in valid_providers:
             return False
@@ -1048,6 +1060,78 @@ class ModelRouter:
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"].strip()
 
+    def _requesty_text(self, model_id: str, prompt: str) -> str:
+        import requests
+        resp = requests.post(
+            f"{REQUESTY_BASE_URL}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self._key('REQUESTY_API_KEY')}",
+                "HTTP-Referer": "https://github.com/superbrain",
+                "X-Title": "SuperBrain",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model_id,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 800,
+                "temperature": 0.7,
+            },
+            timeout=60,
+        )
+        if resp.status_code == 429:
+            raise Exception(f"429 rate limit: {resp.text[:200]}")
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"].strip()
+
+    def _requesty_vision(self, model_id: str, prompt: str, images_b64: List[str]) -> str:
+        import requests
+        content: List[Dict] = []
+        for b64 in images_b64:
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
+            })
+        content.append({"type": "text", "text": prompt})
+        resp = requests.post(
+            f"{REQUESTY_BASE_URL}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self._key('REQUESTY_API_KEY')}",
+                "HTTP-Referer": "https://github.com/superbrain",
+                "X-Title": "SuperBrain",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model_id,
+                "messages": [{"role": "user", "content": content}],
+                "max_tokens": 800,
+                "temperature": 0.7,
+            },
+            timeout=90,
+        )
+        if resp.status_code == 429:
+            raise Exception(f"429 rate limit: {resp.text[:200]}")
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"].strip()
+
+    def _try_requesty(self, call, *args) -> Optional[str]:
+        """
+        Requesty is opt-in: it is only called when the user has added a REQUESTY_API_KEY,
+        and it never enters the ranked fallback order. Returns None if not configured or
+        if the call fails, so the caller continues with the normal chain.
+        """
+        if not self._key("REQUESTY_API_KEY"):
+            return None
+        model_id = self._key("REQUESTY_MODEL") or REQUESTY_DEFAULT_MODEL
+        print(f"  🤖 [REQUESTY] {model_id} ...", flush=True)
+        t0 = time.time()
+        try:
+            result = call(model_id, *args)
+        except Exception as e:
+            print(f"  ✗ Requesty failed ({type(e).__name__}), using fallback chain …", flush=True)
+            return None
+        print(f"  ✓ {time.time() - t0:.1f}s", flush=True)
+        return result
+
     def _ollama_text(self, model_id: str, prompt: str) -> str:
         import ollama
         r = ollama.generate(
@@ -1075,6 +1159,10 @@ class ModelRouter:
         Falls back through the ranked list until one succeeds.
         Raises RuntimeError if all fail.
         """
+        result = self._try_requesty(self._requesty_text, prompt)
+        if result is not None:
+            return result
+
         ranked = self._ranked_models("text")
         if not ranked:
             raise RuntimeError(
@@ -1122,6 +1210,10 @@ class ModelRouter:
         Falls back through the ranked list until one succeeds.
         Raises RuntimeError if all fail.
         """
+        result = self._try_requesty(self._requesty_vision, prompt, images_b64)
+        if result is not None:
+            return result
+
         ranked = self._ranked_models("vision")
         if not ranked:
             raise RuntimeError(
@@ -1224,6 +1316,8 @@ class ModelRouter:
         parts.append("Groq ✓"        if self._key("GROQ_API_KEY")        else "Groq ✗")
         parts.append("Gemini ✓"      if self._key("GEMINI_API_KEY")      else "Gemini ✗")
         parts.append("OpenRouter ✓"  if self._key("OPENROUTER_API_KEY")  else "OpenRouter ✗")
+        if self._key("REQUESTY_API_KEY"):
+            parts.append(f"Requesty ✓ ({self._key('REQUESTY_MODEL') or REQUESTY_DEFAULT_MODEL})")
         parts.append("Ollama (fallback)")
         print(f"🌐 Model Router initialised: {' | '.join(parts)}")
 

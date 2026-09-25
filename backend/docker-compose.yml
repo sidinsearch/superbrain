@@ -37,6 +37,9 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      REQUESTY_API_KEY: ${REQUESTY_API_KEY}
+      REQUESTY_MODEL: ${REQUESTY_MODEL:-openai/gpt-4o-mini}
+      REQUESTY_BASE_URL: ${REQUESTY_BASE_URL:-https://router.requesty.ai/v1}
       
       # Instagram credentials
       INSTAGRAM_USERNAME: ${INSTAGRAM_USERNAME}
