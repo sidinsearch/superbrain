@@ -85,6 +85,7 @@ const AIProviderScreen = () => {
     groq: 'Groq',
     gemini: 'Google Gemini',
     openrouter: 'OpenRouter',
+    requesty: 'Requesty',
     ollama: 'Ollama (Local)',
   };
 
@@ -92,6 +93,7 @@ const AIProviderScreen = () => {
     groq: 'hardware-chip-outline',
     gemini: 'sparkles-outline',
     openrouter: 'globe-outline',
+    requesty: 'git-network-outline',
     ollama: 'desktop-outline',
   };
 
@@ -99,6 +101,7 @@ const AIProviderScreen = () => {
     groq: '#f97316',
     gemini: '#4285f4',
     openrouter: '#8b5cf6',
+    requesty: '#0ea5e9',
     ollama: '#10b981',
   };
 
@@ -168,7 +171,7 @@ const AIProviderScreen = () => {
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Provider</Text>
             <View style={styles.providerSelector}>
-              {['groq', 'gemini', 'openrouter'].map(p => (
+              {['groq', 'gemini', 'openrouter', 'requesty'].map(p => (
                 <TouchableOpacity
                   key={p}
                   style={[
@@ -225,7 +228,8 @@ const AIProviderScreen = () => {
           <Text style={styles.infoText}>
             • Groq: console.groq.com{'\n'}
             • Gemini: aistudio.google.com/apikey{'\n'}
-            • OpenRouter: openrouter.ai/keys
+            • OpenRouter: openrouter.ai/keys{'\n'}
+            • Requesty (optional, paid): app.requesty.ai/api-keys
           </Text>
         </View>
       </ScrollView>

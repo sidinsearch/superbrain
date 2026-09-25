@@ -458,7 +458,7 @@ const SettingsScreen = () => {
             icon="cloud-outline"
             iconColor="#8b5cf6"
             title="AI Providers"
-            subtitle="Configure Groq, Gemini, OpenRouter"
+            subtitle="Configure Groq, Gemini, OpenRouter, Requesty"
             onPress={() => navigation.navigate('AIProvider')}
           />
 
