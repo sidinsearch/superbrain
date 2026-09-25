@@ -497,6 +497,11 @@ def run_youtube_analysis(url: str, shortcode: str, db):
     print(raw[:2000])
 
     title, summary_text, tags, music, category = parse_summary(raw)
+    
+    if not title and not summary_text:
+        print("❌ AI returned unparseable summary (formatting error or quota exhausted).")
+        db.queue_for_retry(shortcode, url, 'youtube', 'ai_empty_response', retry_hours=1)
+        return RETRY_SENTINEL
 
     # Use upload date scraped directly from YouTube page (always accurate)
     yt_post_date = result.get('post_date')
@@ -550,6 +555,12 @@ def run_webpage_analysis(url: str, shortcode: str, db):
     print(raw[:2000])
 
     title, summary_text, tags, music, category = parse_summary(raw)
+    
+    if not title and not summary_text:
+        db.queue_for_retry(shortcode, url, 'webpage', 'ai_empty_response', retry_hours=1)
+        print("⏰ Unparseable AI response — queued for retry in 1 hour.")
+        return RETRY_SENTINEL
+
     # Use on-page title as fallback if AI did not extract one
     if not title and page_title:
         title = page_title
@@ -826,6 +837,13 @@ def main():
     # Extract structured data from summary for database
     title, summary_text, tags, music, category = parse_summary(final_summary)
     
+    if not title and not summary_text:
+        print("❌ AI returned unparseable summary (formatting error or quota exhausted).")
+        db.queue_for_retry(shortcode, instagram_url, 'instagram', 'ai_empty_response', retry_hours=1)
+        # Cleanup temp folder before exiting
+        cleanup_temp_folder(download_folder)
+        sys.exit(2)
+
     # OVERRIDE LLM MUSIC WITH DIRECT SHAZAM OUTPUT TO PRESERVE LINKS
     if results.get('music_identification'):
         for item in results['music_identification']:
