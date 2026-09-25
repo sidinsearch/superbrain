@@ -101,51 +101,60 @@ MODELS: List[Dict[str, Any]] = [
         "desc": "Groq GPT-OSS 20B — fastest model on Groq at 1000 t/s",
     },
     {
+        "key": "groq_gpt_oss_120b",
+        "provider": "groq",
+        "model_id": "openai/gpt-oss-120b",
+        "type": "text",
+        "base_priority": 1,
+        "desc": "Groq GPT-OSS 120B — flagship 120B model, 500 t/s",
+    },
+    {
+        "key": "groq_qwen38_27b",
+        "provider": "groq",
+        "model_id": "qwen/qwen3.8-27b",
+        "type": "text",
+        "base_priority": 1.5,
+        "desc": "Groq Qwen 3.8 27B — strong reasoning",
+    },
+    {
+        "key": "groq_allam_2_7b",
+        "provider": "groq",
+        "model_id": "allam-2-7b",
+        "type": "text",
+        "base_priority": 2.5,
+        "desc": "Groq Allam 2 7B",
+    },
+    {
+        "key": "groq_orpheus_v1",
+        "provider": "groq",
+        "model_id": "canopylabs/orpheus-v1-english",
+        "type": "text",
+        "base_priority": 3,
+        "desc": "Groq Orpheus v1 English",
+    },
+    # ── Deprecated Groq models (kept as deep fallbacks) ──────────────────────
+    {
         "key": "groq_llama33_70b",
         "provider": "groq",
         "model_id": "llama-3.3-70b-versatile",
         "type": "text",
-        "base_priority": 1,
-        "desc": "Groq LLaMA-3.3 70B — strong quality, 280 t/s",
-    },
-    {
-        "key": "groq_llama4_scout",
-        "provider": "groq",
-        "model_id": "meta-llama/llama-4-scout-17b-16e-instruct",
-        "type": "text",
-        "base_priority": 1.5,
-        "desc": "Groq Llama-4 Scout 17B — multimodal, 750 t/s (preview)",
+        "base_priority": 15,
+        "desc": "Groq LLaMA-3.3 70B (deprecated)",
     },
     {
         "key": "groq_llama31_8b",
         "provider": "groq",
         "model_id": "llama-3.1-8b-instant",
         "type": "text",
-        "base_priority": 2,
-        "desc": "Groq LLaMA-3.1 8B — ultra-fast at 560 t/s, great for summaries",
-    },
-    {
-        "key": "groq_qwen3_32b",
-        "provider": "groq",
-        "model_id": "qwen/qwen3-32b",
-        "type": "text",
-        "base_priority": 2.5,
-        "desc": "Groq Qwen3-32B — strong reasoning, 400 t/s (preview)",
-    },
-    {
-        "key": "groq_gpt_oss_120b",
-        "provider": "groq",
-        "model_id": "openai/gpt-oss-120b",
-        "type": "text",
-        "base_priority": 3,
-        "desc": "Groq GPT-OSS 120B — flagship 120B model, 500 t/s",
+        "base_priority": 16,
+        "desc": "Groq LLaMA-3.1 8B (deprecated)",
     },
     {
         "key": "groq_gemma2_9b",
         "provider": "groq",
         "model_id": "gemma2-9b-it",
         "type": "text",
-        "base_priority": 3.5,
+        "base_priority": 17,
         "desc": "Groq Gemma-2 9B (deprecated fallback)",
     },
     {
@@ -153,8 +162,8 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "groq",
         "model_id": "deepseek-r1-distill-qwen-32b",
         "type": "text",
-        "base_priority": 3.8,
-        "desc": "Groq DeepSeek-R1 Distill Qwen-32B — reasoning (deprecated fallback)",
+        "base_priority": 18,
+        "desc": "Groq DeepSeek-R1 Distill Qwen-32B (deprecated fallback)",
     },
     {
         "key": "gemini_25_flash",
@@ -210,7 +219,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "gemini",
         "model_id": "gemini-2.0-flash",
         "type": "text",
-        "base_priority": 7,
+        "base_priority": 30,
         "desc": "Gemini 2.0 Flash (deprecated — fallback only)",
     },
     {
@@ -218,7 +227,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "gemini",
         "model_id": "gemini-2.0-flash-lite",
         "type": "text",
-        "base_priority": 7.5,
+        "base_priority": 30.5,
         "desc": "Gemini 2.0 Flash-Lite (deprecated — fallback only)",
     },
     {
@@ -226,7 +235,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "gemini",
         "model_id": "gemini-1.5-flash",
         "type": "text",
-        "base_priority": 8,
+        "base_priority": 31,
         "desc": "Gemini 1.5 Flash (deprecated — fallback only)",
     },
     {
@@ -234,7 +243,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "openrouter",
         "model_id": "meta-llama/llama-3.3-70b-instruct:free",
         "type": "text",
-        "base_priority": 7,
+        "base_priority": 30,
         "desc": "OpenRouter LLaMA-3.3 70B (free, 128K ctx)",
     },
     {
@@ -242,7 +251,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "openrouter",
         "model_id": "deepseek/deepseek-r1-0528:free",
         "type": "text",
-        "base_priority": 7.5,
+        "base_priority": 30.5,
         "desc": "OpenRouter DeepSeek R1-0528 (free, 163K ctx) — latest reasoning model",
     },
     {
@@ -250,7 +259,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "openrouter",
         "model_id": "qwen/qwen3-235b-a22b-thinking-2507:free",
         "type": "text",
-        "base_priority": 8,
+        "base_priority": 31,
         "desc": "OpenRouter Qwen3-235B Thinking (free, 131K ctx) — frontier reasoning",
     },
     {
@@ -258,7 +267,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "openrouter",
         "model_id": "nousresearch/hermes-3-llama-3.1-405b:free",
         "type": "text",
-        "base_priority": 8.5,
+        "base_priority": 31.5,
         "desc": "OpenRouter Hermes-3 LLaMA-3.1 405B (free, 131K ctx)",
     },
     {
@@ -266,7 +275,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "openrouter",
         "model_id": "openai/gpt-oss-120b:free",
         "type": "text",
-        "base_priority": 9,
+        "base_priority": 32,
         "desc": "OpenRouter GPT-OSS 120B (free, 131K ctx)",
     },
     {
@@ -274,7 +283,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "openrouter",
         "model_id": "openai/gpt-oss-20b:free",
         "type": "text",
-        "base_priority": 9.5,
+        "base_priority": 32.5,
         "desc": "OpenRouter GPT-OSS 20B (free, 131K ctx)",
     },
     {
@@ -282,7 +291,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "openrouter",
         "model_id": "stepfun/step-3.5-flash:free",
         "type": "text",
-        "base_priority": 10,
+        "base_priority": 33,
         "desc": "OpenRouter StepFun Step-3.5 Flash (free, 256K ctx)",
     },
     {
@@ -290,7 +299,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "openrouter",
         "model_id": "nvidia/nemotron-3-nano-30b-a3b:free",
         "type": "text",
-        "base_priority": 10.5,
+        "base_priority": 33.5,
         "desc": "OpenRouter NVIDIA Nemotron-3 Nano 30B (free, 256K ctx)",
     },
     {
@@ -298,7 +307,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "openrouter",
         "model_id": "qwen/qwen3-next-80b-a3b-instruct:free",
         "type": "text",
-        "base_priority": 11,
+        "base_priority": 34,
         "desc": "OpenRouter Qwen3-Next 80B (free, 262K ctx)",
     },
     {
@@ -306,7 +315,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "openrouter",
         "model_id": "google/gemma-3-27b-it:free",
         "type": "text",
-        "base_priority": 11.5,
+        "base_priority": 34.5,
         "desc": "OpenRouter Gemma-3 27B (free, 131K ctx) — also vision capable",
     },
     {
@@ -314,7 +323,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "openrouter",
         "model_id": "mistralai/mistral-small-3.1-24b-instruct:free",
         "type": "text",
-        "base_priority": 12,
+        "base_priority": 35,
         "desc": "OpenRouter Mistral Small 3.1 24B (free, 128K ctx) — also vision capable",
     },
     {
@@ -322,7 +331,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "openrouter",
         "model_id": "z-ai/glm-4.5-air:free",
         "type": "text",
-        "base_priority": 12.5,
+        "base_priority": 35.5,
         "desc": "OpenRouter GLM-4.5 Air (free, 131K ctx)",
     },
     {
@@ -330,7 +339,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "openrouter",
         "model_id": "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
         "type": "text",
-        "base_priority": 13,
+        "base_priority": 36,
         "desc": "OpenRouter Dolphin Mistral 24B Venice Edition (free, 32K ctx)",
     },
     {
@@ -417,19 +426,27 @@ MODELS: List[Dict[str, Any]] = [
         "desc": "Gemini 1.5 Flash Vision (deprecated — fallback only)",
     },
     {
+        "key": "groq_qwen38_27b_vision",
+        "provider": "groq",
+        "model_id": "qwen/qwen3.8-27b",
+        "type": "vision",
+        "base_priority": 5,
+        "desc": "Groq Qwen 3.8 27B Vision",
+    },
+    {
         "key": "groq_llama4_scout_vision",
         "provider": "groq",
         "model_id": "meta-llama/llama-4-scout-17b-16e-instruct",
         "type": "vision",
-        "base_priority": 5,
-        "desc": "Groq Llama-4 Scout 17B Vision — multimodal, 750 t/s (preview)",
+        "base_priority": 15,
+        "desc": "Groq Llama-4 Scout 17B Vision (deprecated)",
     },
     {
         "key": "groq_vision_11b",
         "provider": "groq",
         "model_id": "llama-3.2-11b-vision-preview",
         "type": "vision",
-        "base_priority": 5.5,
+        "base_priority": 15.5,
         "desc": "Groq LLaMA-3.2 11B Vision (deprecated fallback)",
     },
     {
@@ -437,7 +454,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "groq",
         "model_id": "llama-3.2-90b-vision-preview",
         "type": "vision",
-        "base_priority": 6,
+        "base_priority": 16,
         "desc": "Groq LLaMA-3.2 90B Vision — highest quality Groq vision (deprecated fallback)",
     },
     {
@@ -445,7 +462,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "openrouter",
         "model_id": "qwen/qwen3-vl-235b-a22b-thinking:free",
         "type": "vision",
-        "base_priority": 7,
+        "base_priority": 30,
         "desc": "OpenRouter Qwen3-VL 235B Vision (free, 131K ctx) — flagship vision model",
     },
     {
@@ -453,7 +470,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "openrouter",
         "model_id": "qwen/qwen3-vl-30b-a3b-thinking:free",
         "type": "vision",
-        "base_priority": 7.5,
+        "base_priority": 30.5,
         "desc": "OpenRouter Qwen3-VL 30B Vision (free, 131K ctx)",
     },
     {
@@ -461,7 +478,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "openrouter",
         "model_id": "nvidia/nemotron-nano-12b-v2-vl:free",
         "type": "vision",
-        "base_priority": 8,
+        "base_priority": 31,
         "desc": "OpenRouter NVIDIA Nemotron-Nano 12B VL (free, 128K ctx) — supports video",
     },
     {
@@ -469,7 +486,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "openrouter",
         "model_id": "google/gemma-3-27b-it:free",
         "type": "vision",
-        "base_priority": 8.5,
+        "base_priority": 31.5,
         "desc": "OpenRouter Gemma-3 27B Vision (free, 131K ctx)",
     },
     {
@@ -477,7 +494,7 @@ MODELS: List[Dict[str, Any]] = [
         "provider": "openrouter",
         "model_id": "mistralai/mistral-small-3.1-24b-instruct:free",
         "type": "vision",
-        "base_priority": 9,
+        "base_priority": 32,
         "desc": "OpenRouter Mistral Small 3.1 24B Vision (free, 128K ctx)",
     },
     {
@@ -986,28 +1003,35 @@ class ModelRouter:
         return r.choices[0].message.content.strip()
 
     def _gemini_text(self, model_id: str, prompt: str) -> str:
-        import google.generativeai as genai
-        genai.configure(api_key=self._key("GEMINI_API_KEY"))
-        model = genai.GenerativeModel(model_id)
-        r = model.generate_content(
-            prompt,
-            generation_config={"max_output_tokens": 800, "temperature": 0.7},
+        from google import genai
+        from google.genai import types
+        client = genai.Client(api_key=self._key("GEMINI_API_KEY"))
+        resp = client.models.generate_content(
+            model=model_id,
+            contents=prompt,
+            config=types.GenerateContentConfig(max_output_tokens=800, temperature=0.7)
         )
-        return r.text.strip()
+        if resp.candidates and resp.candidates[0].content and resp.candidates[0].content.parts:
+            return resp.candidates[0].content.parts[0].text.strip()
+        return resp.text.strip() if hasattr(resp, 'text') and resp.text else ""
 
     def _gemini_vision(self, model_id: str, prompt: str, images_b64: List[str]) -> str:
-        import google.generativeai as genai
-        genai.configure(api_key=self._key("GEMINI_API_KEY"))
-        model = genai.GenerativeModel(model_id)
-        parts: List[Any] = []
+        import base64
+        from google import genai
+        from google.genai import types
+        client = genai.Client(api_key=self._key("GEMINI_API_KEY"))
+        contents = []
         for b64 in images_b64:
-            parts.append({"inline_data": {"mime_type": "image/jpeg", "data": b64}})
-        parts.append(prompt)
-        r = model.generate_content(
-            parts,
-            generation_config={"max_output_tokens": 800, "temperature": 0.7},
+            contents.append(types.Part.from_bytes(data=base64.b64decode(b64), mime_type='image/jpeg'))
+        contents.append(prompt)
+        resp = client.models.generate_content(
+            model=model_id,
+            contents=contents,
+            config=types.GenerateContentConfig(max_output_tokens=800, temperature=0.7)
         )
-        return r.text.strip()
+        if resp.candidates and resp.candidates[0].content and resp.candidates[0].content.parts:
+            return resp.candidates[0].content.parts[0].text.strip()
+        return resp.text.strip() if hasattr(resp, 'text') and resp.text else ""
 
     def _openrouter_text(self, model_id: str, prompt: str) -> str:
         import requests
