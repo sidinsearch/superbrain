@@ -737,10 +737,10 @@ class ModelRouter:
                     name = m.name.replace('models/', '').lower()
                     # Only include standard text/vision models that are part of the Gemini free tier.
                     # Exclude experimental, audio-only, or non-chat models to prevent unexpected quotas.
-                    if any(kw in name for kw in ['flash', 'pro', 'lite', 'gemma']):
+                    if any(kw in name for kw in ['flash', 'lite', 'gemma']) and 'pro' not in name:
                         models.append({
                             "id": m.name.replace('models/', ''),
-                            "input_modalities": ["text", "image"] if "vision" in name or "flash" in name or "pro" in name else ["text"]
+                            "input_modalities": ["text", "image"] if "vision" in name or "flash" in name else ["text"]
                         })
             if models:
                 self._inject_dynamic_models(models, provider="gemini")
