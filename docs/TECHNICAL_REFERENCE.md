@@ -546,6 +546,17 @@ docker push gcr.io/project/superbrain:latest
 3. Backend auto-discovers free models every 6 hours
 4. Verify: Check `config/openrouter_free_models.json`
 
+### Setting Up Requesty (Optional)
+1. Get API key: https://app.requesty.ai/api-keys
+2. Store in `config/.api_keys`:
+   ```
+   REQUESTY_API_KEY=rqsty-xxxxx
+   REQUESTY_MODEL=openai/gpt-4o-mini
+   ```
+3. Requesty is not added to the ranked fallback order. When the key is set, text and vision
+   requests go to `REQUESTY_MODEL` first and fall back to the normal chain on error
+4. For the EU region set `REQUESTY_BASE_URL=https://router.eu.requesty.ai/v1` in the environment
+
 ### Setting Up Ollama (Local, Optional)
 1. Install: https://ollama.ai/
 2. Pull model: `ollama pull mistral`

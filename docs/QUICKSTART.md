@@ -74,6 +74,15 @@ npx expo start
 3. Create API key
 4. Copy to `.env`: `OPENROUTER_API_KEY=your_key`
 
+### Requesty (Optional)
+
+1. Visit [app.requesty.ai/api-keys](https://app.requesty.ai/api-keys)
+2. Create API key
+3. Copy to `.env`: `REQUESTY_API_KEY=your_key`
+4. Optionally pick a model: `REQUESTY_MODEL=openai/gpt-4o-mini`
+
+Requesty is only used when this key is set; if a Requesty call fails the normal fallback chain takes over.
+
 ## 📱 Testing the App
 
 1. **Share Content**

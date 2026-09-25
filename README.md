@@ -221,6 +221,7 @@ Free AI APIs have rate limits, downtime, and variable speed. SuperBrain solves t
 | **Groq** | `GROQ_API_KEY` | Fastest inference — free tier at [console.groq.com](https://console.groq.com) |
 | **Google Gemini** | `GEMINI_API_KEY` | Most generous free tier at [aistudio.google.com](https://aistudio.google.com) |
 | **OpenRouter** | `OPENROUTER_API_KEY` | Free model router at [openrouter.ai](https://openrouter.ai) |
+| **Requesty** | `REQUESTY_API_KEY` | Optional paid gateway at [requesty.ai](https://app.requesty.ai/api-keys). Not part of the fallback order: only used when a key is set, with `REQUESTY_MODEL` (default `openai/gpt-4o-mini`) tried first and the chain above as backup. `REQUESTY_BASE_URL=https://router.eu.requesty.ai/v1` routes through the EU region |
 | **Ollama** | *(no key needed)* | Local inference — `start.py` guides setup · recommended model: `qwen3-vl:4b` |
 
 > **Tip:** You don't need all providers — the router falls back automatically. Start with at least **Gemini** (most generous free tier). Ollama serves as the fully offline last resort.
@@ -338,6 +339,7 @@ Edit `.env` and set at least:
 - `GEMINI_API_KEY` (recommended)
 - `GROQ_API_KEY` (optional)
 - `OPENROUTER_API_KEY` (optional)
+- `REQUESTY_API_KEY` and `REQUESTY_MODEL` (optional)
 
 Then run:
 
